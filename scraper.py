@@ -235,21 +235,26 @@ class TenupScraper:
     def fetch_all(self, max_pages: int = 0) -> list[dict]:
         """
         Fetch all pages, deduplicate by originalId/id, and return a flat list.
+
+        For each page we fetch a FRESH form_build_id/form_token by GETting the
+        search page again.  The same form_build_id reused across pages always
+        returns page 0 (Drupal uses the cached form state, which has page=0).
+        A pristine token lets Drupal process the submission without a stale
+        page position in the cached state, so ?page=N in the URL and page=N
+        in the POST body can take effect via pager_find_page().
+
         max_pages: stop after this many pages (0 = no limit, useful for testing).
         """
-        logger.info("Fetching tokens...")
-        form_build_id, form_token = self._get_form_tokens()
-        time.sleep(1)
-
         seen_ids: set[str] = set()
         all_items: list[dict] = []
         page = 0
 
         while True:
-            items, nb_results, new_fbid = self._post_search(form_build_id, form_token, page)
-            if new_fbid:
-                logger.info("Updating form_build_id for next page: %s", new_fbid[:20])
-                form_build_id = new_fbid
+            logger.info("Fetching fresh tokens for page %d...", page)
+            form_build_id, form_token = self._get_form_tokens()
+            time.sleep(1)
+
+            items, nb_results, _ = self._post_search(form_build_id, form_token, page)
 
             if not items:
                 break
