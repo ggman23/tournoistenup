@@ -111,9 +111,14 @@ class TenupScraper:
     ) -> dict:
         """Build the POST payload matching the Drupal AJAX form submission.
 
-        Note: 'page' is intentionally NOT included in the POST body.
-        Drupal uses $_GET['page'] (the URL query string) for pagination;
-        sending page= in the POST body resets the server state to page 0.
+        Page 0 (initial search): include _triggering_element_name="submit_main"
+        so Drupal runs the search form submit handler and stores the criteria in
+        the PHP session.
+
+        Page 1+ (pagination): omit _triggering_element_name/_value so Drupal
+        does NOT re-run the submit handler (which would reset to page 0).
+        Instead, include page=N so Drupal renders that page of the cached results.
+        The URL also carries ?page=N for Drupal's pager block.
         """
         s = self.search_cfg
         ville = s["ville"]
@@ -141,9 +146,16 @@ class TenupScraper:
             "form_build_id": form_build_id,
             "form_token": form_token,
             "form_id": "recherche_tournois_form",
-            "_triggering_element_name": "submit_main",
-            "_triggering_element_value": "Rechercher",
         }
+
+        if page == 0:
+            # Tell Drupal the user clicked "Rechercher" — triggers the search.
+            data["_triggering_element_name"]  = "submit_main"
+            data["_triggering_element_value"] = "Rechercher"
+        else:
+            # Pagination: page number in POST body; no triggering element so Drupal
+            # renders the requested page without re-running the submit handler.
+            data["page"] = str(page)
 
         # Epreuves (SM, SD, DX, DM, DD)
         for epreuve in s.get("epreuves", []):
@@ -190,20 +202,13 @@ class TenupScraper:
         """
         Fetch one page of results via Drupal AJAX.
 
-        Page 0: POST to /system/ajax with the full form data — initialises the
-                server-side search state in the PHP session.
-        Page 1+: GET to /system/ajax?page=N — Drupal re-uses the search criteria
-                 from the PHP session.  POSTing the form again resets the server
-                 back to page 0 (which is why the old code returned identical
-                 results for every page).
+        Page 0: POST /system/ajax — full form with _triggering_element_name="submit_main".
+        Page N: POST /system/ajax?page=N — same form WITHOUT _triggering_element_name so
+                Drupal renders page N of the cached results instead of re-running the search.
         """
-        if page == 0:
-            url = BASE_URL + AJAX_ENDPOINT
-            data = self._build_post_data(form_build_id, form_token, page)
-            commands = self._do_ajax("POST", url, data=data)
-        else:
-            url = BASE_URL + AJAX_ENDPOINT + f"?page={page}"
-            commands = self._do_ajax("GET", url)
+        url  = BASE_URL + AJAX_ENDPOINT + (f"?page={page}" if page > 0 else "")
+        data = self._build_post_data(form_build_id, form_token, page)
+        commands = self._do_ajax("POST", url, data=data)
 
         cmd_names = [c.get("command", "?") for c in commands]
 
