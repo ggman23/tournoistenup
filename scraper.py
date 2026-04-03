@@ -159,44 +159,38 @@ class TenupScraper:
 
         return data
 
+    AJAX_HEADERS = {
+        "X-Requested-With": "XMLHttpRequest",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+    }
+
+    def _do_ajax(self, method: str, url: str, data=None) -> list:
+        """Make one AJAX request (POST or GET) and return the parsed command list."""
+        for attempt in range(1, self.scraper_cfg["max_retries"] + 1):
+            try:
+                if method == "POST":
+                    resp = self.session.post(url, data=data, headers=self.AJAX_HEADERS, timeout=30)
+                else:
+                    resp = self.session.get(url, headers=self.AJAX_HEADERS, timeout=30)
+                resp.raise_for_status()
+                if not resp.content:
+                    raise ValueError(f"Empty response body (HTTP {resp.status_code}) for {method} {url}")
+                return resp.json()
+            except Exception as e:
+                logger.warning("Attempt %d/%d failed: %s", attempt, self.scraper_cfg["max_retries"], e)
+                if attempt == self.scraper_cfg["max_retries"]:
+                    raise
+                time.sleep(2 ** attempt)
+
     def _post_search(self, form_build_id: str, form_token: str, page: int) -> tuple:
         """
-        Fetch one page of results.
-
-        Page 0: POST to /system/ajax with the full form payload — this establishes
-                the search state in the Drupal session.
-        Page N>0: GET /system/ajax?page=N — the server uses the session-stored search
-                  state, matching the <a href="/system/ajax?page=1"> links in the HTML.
+        Fetch one page of results via Drupal AJAX (POST with XMLHttpRequest header).
+        The page number is included both in the URL (?page=N) and the POST body.
         """
-        if page == 0:
-            url  = BASE_URL + AJAX_ENDPOINT
-            data = self._build_post_data(form_build_id, form_token, page)
-            for attempt in range(1, self.scraper_cfg["max_retries"] + 1):
-                try:
-                    resp = self.session.post(url, data=data, timeout=30)
-                    resp.raise_for_status()
-                    commands = resp.json()
-                    break
-                except requests.RequestException as e:
-                    logger.warning("Attempt %d/%d failed: %s", attempt, self.scraper_cfg["max_retries"], e)
-                    if attempt == self.scraper_cfg["max_retries"]:
-                        raise
-                    time.sleep(2 ** attempt)
-        else:
-            url = BASE_URL + AJAX_ENDPOINT + f"?page={page}"
-            for attempt in range(1, self.scraper_cfg["max_retries"] + 1):
-                try:
-                    resp = self.session.get(url, timeout=30)
-                    resp.raise_for_status()
-                    commands = resp.json()
-                    break
-                except requests.RequestException as e:
-                    logger.warning("Attempt %d/%d failed: %s", attempt, self.scraper_cfg["max_retries"], e)
-                    if attempt == self.scraper_cfg["max_retries"]:
-                        raise
-                    time.sleep(2 ** attempt)
+        url  = BASE_URL + AJAX_ENDPOINT + (f"?page={page}" if page > 0 else "")
+        data = self._build_post_data(form_build_id, form_token, page)
+        commands = self._do_ajax("POST", url, data=data)
 
-        # Find the recherche_tournois_update command in the response
         for cmd in commands:
             if cmd.get("command") == "recherche_tournois_update":
                 results    = cmd.get("results", {})
@@ -205,7 +199,6 @@ class TenupScraper:
                 logger.info("Page %d: %d items (total: %d)", page, len(items), nb_results)
                 return items, nb_results
 
-        # Log all returned commands to help diagnose unexpected responses
         cmd_names = [c.get("command", "?") for c in commands]
         logger.warning("No recherche_tournois_update on page %d — got: %s", page, cmd_names)
         return [], 0
