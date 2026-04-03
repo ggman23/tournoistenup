@@ -210,13 +210,11 @@ class TenupScraper:
         logger.warning("No recherche_tournois_update on page %d — got: %s", page, cmd_names)
         return [], 0
 
-    def fetch_all(self) -> list[dict]:
+    def fetch_all(self, max_pages: int = 0) -> list[dict]:
         """
         Fetch all pages, deduplicate by originalId/id, and return a flat list.
-        Tokens are fetched once — re-GETting the page would reset the Drupal
-        session and break pagination. Page number goes in the URL (?page=N).
+        max_pages: stop after this many pages (0 = no limit, useful for testing).
         """
-        # Single GET to obtain session cookies + form tokens
         logger.info("Fetching tokens...")
         form_build_id, form_token = self._get_form_tokens()
         time.sleep(1)
@@ -248,6 +246,10 @@ class TenupScraper:
                 break
 
             page += 1
+            if max_pages and page >= max_pages:
+                logger.info("Stopping after %d page(s) (--pages-max).", max_pages)
+                break
+
             time.sleep(self.scraper_cfg["delay_between_pages_s"])
 
         logger.info("Fetched %d unique tournaments in total", len(all_items))

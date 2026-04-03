@@ -48,6 +48,8 @@ def parse_args():
                    help="Regenerate HTML from existing data file (no scraping)")
     p.add_argument("--enrich-only", action="store_true",
                    help="Re-enrich existing data (no scraping) then regenerate HTML")
+    p.add_argument("--pages-max", type=int, default=0, metavar="N",
+                   help="Stop scraping after N pages (0 = all). Use to test pagination quickly.")
     return p.parse_args()
 
 
@@ -121,7 +123,7 @@ def main():
     logger.info("Starting tournament fetch...")
 
     try:
-        tournaments = scraper.fetch_all()
+        tournaments = scraper.fetch_all(max_pages=args.pages_max)
     except Exception as e:
         logger.error("Scraping failed: %s", e)
         sys.exit(1)
