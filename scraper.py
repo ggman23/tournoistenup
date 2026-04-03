@@ -161,37 +161,53 @@ class TenupScraper:
 
     def _post_search(self, form_build_id: str, form_token: str, page: int) -> tuple:
         """
-        POST one page of results.
-        The page number goes in the URL query string (matching the pagination
-        links tenup generates: href="/system/ajax?page=1").
+        Fetch one page of results.
+
+        Page 0: POST to /system/ajax with the full form payload — this establishes
+                the search state in the Drupal session.
+        Page N>0: GET /system/ajax?page=N — the server uses the session-stored search
+                  state, matching the <a href="/system/ajax?page=1"> links in the HTML.
         """
-        # page in URL query string — this is how Drupal AJAX pagination works
-        url = BASE_URL + AJAX_ENDPOINT + (f"?page={page}" if page > 0 else "")
-        data = self._build_post_data(form_build_id, form_token, page)
+        if page == 0:
+            url  = BASE_URL + AJAX_ENDPOINT
+            data = self._build_post_data(form_build_id, form_token, page)
+            for attempt in range(1, self.scraper_cfg["max_retries"] + 1):
+                try:
+                    resp = self.session.post(url, data=data, timeout=30)
+                    resp.raise_for_status()
+                    commands = resp.json()
+                    break
+                except requests.RequestException as e:
+                    logger.warning("Attempt %d/%d failed: %s", attempt, self.scraper_cfg["max_retries"], e)
+                    if attempt == self.scraper_cfg["max_retries"]:
+                        raise
+                    time.sleep(2 ** attempt)
+        else:
+            url = BASE_URL + AJAX_ENDPOINT + f"?page={page}"
+            for attempt in range(1, self.scraper_cfg["max_retries"] + 1):
+                try:
+                    resp = self.session.get(url, timeout=30)
+                    resp.raise_for_status()
+                    commands = resp.json()
+                    break
+                except requests.RequestException as e:
+                    logger.warning("Attempt %d/%d failed: %s", attempt, self.scraper_cfg["max_retries"], e)
+                    if attempt == self.scraper_cfg["max_retries"]:
+                        raise
+                    time.sleep(2 ** attempt)
 
-        for attempt in range(1, self.scraper_cfg["max_retries"] + 1):
-            try:
-                resp = self.session.post(url, data=data, timeout=30)
-                resp.raise_for_status()
-                commands = resp.json()
-                break
-            except requests.RequestException as e:
-                logger.warning("Attempt %d/%d failed: %s", attempt, self.scraper_cfg["max_retries"], e)
-                if attempt == self.scraper_cfg["max_retries"]:
-                    raise
-                time.sleep(2 ** attempt)
-                time.sleep(2 ** attempt)
-
-        # Find the recherche_tournois_update command
+        # Find the recherche_tournois_update command in the response
         for cmd in commands:
             if cmd.get("command") == "recherche_tournois_update":
-                results = cmd.get("results", {})
-                items = results.get("items", [])
+                results    = cmd.get("results", {})
+                items      = results.get("items", [])
                 nb_results = results.get("nb_results", 0)
                 logger.info("Page %d: %d items (total: %d)", page, len(items), nb_results)
                 return items, nb_results
 
-        logger.warning("No recherche_tournois_update command found on page %d", page)
+        # Log all returned commands to help diagnose unexpected responses
+        cmd_names = [c.get("command", "?") for c in commands]
+        logger.warning("No recherche_tournois_update on page %d — got: %s", page, cmd_names)
         return [], 0
 
     def fetch_all(self) -> list[dict]:
