@@ -99,6 +99,25 @@ def main():
         logger.warning("No tournaments returned. Check your search criteria or cookies.")
         sys.exit(0)
 
+    # ── Merge previously enriched data (format, detail_url) ──────────────────
+    # Fresh scraped data has no 'enriched' key. Reload from the saved file so
+    # format badges persist across runs even without --enrich.
+    if os.path.exists(data_file):
+        prev = load_json(data_file)
+        enriched_cache = {
+            (t.get("originalId") or t.get("id")): t["enriched"]
+            for t in prev.get("tournaments", [])
+            if t.get("enriched")
+        }
+        merged = 0
+        for t in tournaments:
+            tid = t.get("originalId") or t.get("id")
+            if tid in enriched_cache:
+                t["enriched"] = enriched_cache[tid]
+                merged += 1
+        if merged:
+            logger.info("Reloaded cached enriched data for %d tournaments.", merged)
+
     # ── Dry run ──────────────────────────────────────────────────────────────
     if args.dry_run:
         print(f"\nDry run — {len(tournaments)} tournaments fetched (not saved).")
