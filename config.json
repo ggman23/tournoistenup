@@ -32,6 +32,7 @@
   },
   "notifications": {
     "output_file": "data/new_tournaments.json",
+    "html_file": "data/tournaments.html",
     "print_to_console": true
   }
 }
