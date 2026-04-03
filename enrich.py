@@ -26,56 +26,33 @@ def _extract_format(soup: BeautifulSoup) -> Optional[str]:
     """
     Extract the format number (1-7) from a tournament detail page.
 
-    Tenup/Drupal displays it in a field-label / field-item pattern,
-    typically labelled 'Format', 'Tableur' or 'Tableau'.
-    We look for the label first, then grab the adjacent value.
+    Tenup uses <div class="epreuve-detail-format"> with text like:
+        "Format : 4 - 2 sets à 6 jeux ; pt décisif ; 3ème set = SJD à 10 pts"
+
+    A tournament can have multiple épreuves with different formats.
+    We return the most common format found (or the first if all equal).
     """
-    # Strategy 1: label → sibling value (Drupal field pattern)
-    label_patterns = [
-        re.compile(r'\bformat\b', re.I),
-        re.compile(r'\btableur\b', re.I),
-        re.compile(r'\btableau\b', re.I),
-    ]
-    for label_el in soup.find_all(class_=re.compile(r'field.label', re.I)):
-        text = label_el.get_text()
-        if any(p.search(text) for p in label_patterns):
-            # Value is in the next sibling element
-            value_el = label_el.find_next_sibling()
-            if value_el:
-                m = re.search(r'\b([1-7])\b', value_el.get_text())
-                if m:
-                    return m.group(1)
-
-    # Strategy 2: any element whose text is exactly "Format X" or "Tableur X"
-    for el in soup.find_all(string=re.compile(
-        r'^(format|tableur|tableau)\s*:?\s*[1-7]$', re.I
-    )):
-        m = re.search(r'([1-7])', el)
+    # Primary: dedicated CSS class used by tenup
+    formats_found = []
+    for el in soup.find_all(class_="epreuve-detail-format"):
+        # Remove button/tooltip elements before extracting text
+        for btn in el.find_all(['button', 'span']):
+            btn.decompose()
+        text = el.get_text(" ", strip=True)
+        # Text: "Format : 4 - 2 sets à 6 jeux..." → capture number + description
+        m = re.search(r'Format\s*:\s*([1-7])\s*[-–]?\s*(.*)', text, re.I)
         if m:
-            return m.group(1)
+            num  = m.group(1)
+            desc = m.group(2).strip().rstrip(".")
+            formats_found.append((num, desc))
 
-    # Strategy 3: look for "Format" label in <dt>/<th> and value in <dd>/<td>
-    for dt in soup.find_all(['dt', 'th']):
-        if any(p.search(dt.get_text()) for p in label_patterns):
-            sibling = dt.find_next_sibling(['dd', 'td'])
-            if sibling:
-                m = re.search(r'\b([1-7])\b', sibling.get_text())
-                if m:
-                    return m.group(1)
+    if formats_found:
+        # Return (number, description) for the most frequent format
+        best = max(set(f[0] for f in formats_found), key=lambda x: sum(1 for f in formats_found if f[0] == x))
+        desc = next((f[1] for f in formats_found if f[0] == best), "")
+        return best, desc
 
-    # Strategy 4: structured data in page — look for explicit "Format N" near
-    # known tournament-info containers only (not in global page text)
-    info_containers = soup.find_all(class_=re.compile(
-        r'(tournoi|tournament|field|info|detail)', re.I
-    ))
-    for container in info_containers:
-        text = container.get_text(" ")
-        # Must have a label keyword right before the digit
-        m = re.search(r'(?:format|tableur|tableau)\s*[:\-]?\s*([1-7])\b', text, re.I)
-        if m:
-            return m.group(1)
-
-    return None
+    return None, ""
 
 
 def enrich_tournament(
@@ -90,10 +67,11 @@ def enrich_tournament(
         resp = session.get(url, timeout=20)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "lxml")
-        fmt = _extract_format(soup)
+        fmt, fmt_desc = _extract_format(soup)
         if fmt:
             enriched["format"] = fmt
-            logger.debug("Tournament %s → format %s", tournament.get("id"), fmt)
+            enriched["format_desc"] = fmt_desc
+            logger.debug("Tournament %s → format %s (%s)", tournament.get("id"), fmt, fmt_desc)
         else:
             logger.debug("Tournament %s → format not found", tournament.get("id"))
     except Exception as e:

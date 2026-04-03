@@ -93,6 +93,7 @@ def _tournament_to_row(t):
 
     detail_url = enriched.get("detail_url", f"https://tenup.fft.fr/tournoi/{t.get('id', '')}")
     fmt        = enriched.get("format", "")
+    fmt_desc   = enriched.get("format_desc", "")
 
     date_debut = _fmt_date(t.get("dateDebut"))
     date_fin   = _fmt_date(t.get("dateFin"))
@@ -115,6 +116,7 @@ def _tournament_to_row(t):
         "tmc":          t.get("tmc", False),
         "cat":          t.get("categorieTournoi", {}).get("libelle", ""),
         "fmt":          fmt,
+        "fmt_desc":     fmt_desc,
         "fmt_sort":     int(fmt) if fmt else 99,
         "dates":        dates,
         "date_debut_sort": t.get("dateDebut", {}).get("date", ""),
@@ -185,10 +187,13 @@ def generate_html(
 
         fmt_badge = ""
         if r["fmt"]:
-            fc = FORMAT_COLORS.get(r["fmt"], "#666")
+            fc      = FORMAT_COLORS.get(r["fmt"], "#666")
+            tooltip = f"Format {r['fmt']}"
+            if r["fmt_desc"]:
+                tooltip += f" — {r['fmt_desc']}"
             fmt_badge = (
                 f'<span class="badge fmt-badge" style="background:{fc}" '
-                f'title="Format {r["fmt"]} — coefficient de points">'
+                f'title="{html.escape(tooltip)}" data-bs-toggle="tooltip">'
                 f'F{r["fmt"]}</span>'
             )
 
@@ -390,6 +395,11 @@ def generate_html(
 var dt;
 
 $(function() {{
+  // Bootstrap tooltips (format descriptions)
+  $('[data-bs-toggle="tooltip"]').each(function() {{
+    new bootstrap.Tooltip(this);
+  }});
+
   dt = $('#t').DataTable({{
     pageLength: 25,
     order: [[0, 'asc']],
