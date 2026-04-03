@@ -92,7 +92,11 @@ def enrich_all(
     Enrich tournaments with detail page data.
     max_enrich=0 means no limit.
     """
-    to_enrich = [t for t in tournaments if "enriched" not in t]
+    # Re-enrich if: never enriched, OR enriched but format is missing
+    to_enrich = [
+        t for t in tournaments
+        if "enriched" not in t or "format" not in t.get("enriched", {})
+    ]
     if max_enrich:
         to_enrich = to_enrich[:max_enrich]
 
