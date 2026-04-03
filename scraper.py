@@ -158,13 +158,14 @@ class TenupScraper:
 
         return data
 
-    def _post_search(self, form_build_id: str, form_token: str, page: int) -> list[dict]:
+    def _post_search(self, form_build_id: str, form_token: str, page: int) -> tuple:
         """
-        POST one page of results. Returns the list of tournament dicts.
-        The Drupal AJAX response is a JSON array of commands; we look for
-        the 'recherche_tournois_update' command.
+        POST one page of results.
+        The page number goes in the URL query string (matching the pagination
+        links tenup generates: href="/system/ajax?page=1").
         """
-        url = BASE_URL + AJAX_ENDPOINT
+        # page in URL query string — this is how Drupal AJAX pagination works
+        url = BASE_URL + AJAX_ENDPOINT + (f"?page={page}" if page > 0 else "")
         data = self._build_post_data(form_build_id, form_token, page)
 
         for attempt in range(1, self.scraper_cfg["max_retries"] + 1):
@@ -177,6 +178,7 @@ class TenupScraper:
                 logger.warning("Attempt %d/%d failed: %s", attempt, self.scraper_cfg["max_retries"], e)
                 if attempt == self.scraper_cfg["max_retries"]:
                     raise
+                time.sleep(2 ** attempt)
                 time.sleep(2 ** attempt)
 
         # Find the recherche_tournois_update command
@@ -194,18 +196,19 @@ class TenupScraper:
     def fetch_all(self) -> list[dict]:
         """
         Fetch all pages, deduplicate by originalId/id, and return a flat list.
-        Drupal form tokens are single-use: we re-fetch them before every page.
+        Tokens are fetched once — re-GETting the page would reset the Drupal
+        session and break pagination. Page number goes in the URL (?page=N).
         """
+        # Single GET to obtain session cookies + form tokens
+        logger.info("Fetching tokens...")
+        form_build_id, form_token = self._get_form_tokens()
+        time.sleep(1)
+
         seen_ids: set[str] = set()
         all_items: list[dict] = []
         page = 0
 
         while True:
-            # Re-fetch form tokens for every page (Drupal invalidates after one use)
-            logger.info("Fetching tokens for page %d...", page)
-            form_build_id, form_token = self._get_form_tokens()
-            time.sleep(1)
-
             items, nb_results = self._post_search(form_build_id, form_token, page)
 
             if not items:
