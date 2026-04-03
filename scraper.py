@@ -202,12 +202,21 @@ class TenupScraper:
         """
         Fetch one page of results via Drupal AJAX.
 
-        Page 0: POST /system/ajax — full form with _triggering_element_name="submit_main".
-        Page N: POST /system/ajax?page=N — same form WITHOUT _triggering_element_name so
-                Drupal renders page N of the cached results instead of re-running the search.
+        Page 0: POST /system/ajax — full form with _triggering_element_name="submit_main"
+                to run the search handler and store criteria in the PHP session.
+        Page N: POST /system/ajax?page=N — minimal body (only ajax_page_state) so Drupal
+                reads search state from the PHP session and returns page N.
         """
-        url  = BASE_URL + AJAX_ENDPOINT + (f"?page={page}" if page > 0 else "")
-        data = self._build_post_data(form_build_id, form_token, page)
+        if page == 0:
+            url  = BASE_URL + AJAX_ENDPOINT
+            data = self._build_post_data(form_build_id, form_token, page)
+        else:
+            url  = BASE_URL + AJAX_ENDPOINT + f"?page={page}"
+            # Minimal POST — PHP session provides the search criteria.
+            data = {
+                "ajax_page_state[theme]":           "met",
+                "ajax_page_state[jquery_version]":  "2.2",
+            }
         commands = self._do_ajax("POST", url, data=data)
 
         cmd_names = [c.get("command", "?") for c in commands]
