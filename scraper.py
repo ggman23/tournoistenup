@@ -191,15 +191,20 @@ class TenupScraper:
         data = self._build_post_data(form_build_id, form_token, page)
         commands = self._do_ajax("POST", url, data=data)
 
+        # Log all command names for diagnosis
+        cmd_names = [c.get("command", "?") for c in commands]
+        logger.info("Page %d commands: %s", page, cmd_names)
+
         for cmd in commands:
             if cmd.get("command") == "recherche_tournois_update":
                 results    = cmd.get("results", {})
                 items      = results.get("items", [])
                 nb_results = results.get("nb_results", 0)
-                logger.info("Page %d: %d items (total: %d)", page, len(items), nb_results)
+                ids = [it.get("originalId") or it.get("id") for it in items[:5]]
+                logger.info("Page %d: %d items (total: %d) — first IDs: %s",
+                            page, len(items), nb_results, ids)
                 return items, nb_results
 
-        cmd_names = [c.get("command", "?") for c in commands]
         logger.warning("No recherche_tournois_update on page %d — got: %s", page, cmd_names)
         return [], 0
 
