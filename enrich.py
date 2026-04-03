@@ -62,20 +62,35 @@ def enrich_tournament(
 ) -> dict:
     url = get_tournament_url(tournament)
     enriched = {"detail_url": url}
+    tid = tournament.get("id", "?")
+    name = tournament.get("libelle", "?")
 
     try:
         resp = session.get(url, timeout=20)
         resp.raise_for_status()
+
+        # Detect auth redirect (page title contains "connexion" / "login")
+        if any(kw in resp.text[:2000].lower() for kw in ["connexion", "se connecter", "login"]):
+            logger.warning("[%s] %s → redirected to login page, cookies may be expired", tid, name)
+            tournament["enriched"] = enriched
+            return tournament
+
         soup = BeautifulSoup(resp.text, "lxml")
+
+        # Count how many epreuve-detail-format divs exist
+        fmt_divs = soup.find_all(class_="epreuve-detail-format")
+        logger.info("[%s] %s → found %d epreuve-detail-format div(s)", tid, name, len(fmt_divs))
+
         fmt, fmt_desc = _extract_format(soup)
         if fmt:
             enriched["format"] = fmt
             enriched["format_desc"] = fmt_desc
-            logger.debug("Tournament %s → format %s (%s)", tournament.get("id"), fmt, fmt_desc)
+            logger.info("[%s] %s → format %s (%s)", tid, name, fmt, fmt_desc)
         else:
-            logger.debug("Tournament %s → format not found", tournament.get("id"))
+            logger.warning("[%s] %s → format not found (page fetched OK)", tid, name)
+
     except Exception as e:
-        logger.warning("Could not enrich tournament %s: %s", tournament.get("id"), e)
+        logger.warning("[%s] %s → request failed: %s", tid, name, e)
 
     time.sleep(delay_s)
     tournament["enriched"] = enriched
