@@ -65,6 +65,7 @@ class TenupScraper:
         url = BASE_URL + SEARCH_PAGE
         logger.debug("Fetching form tokens from %s", url)
         resp = self.session.get(url, timeout=30)
+        logger.info("GET %s → HTTP %d (final URL: %s)", url, resp.status_code, resp.url)
         resp.raise_for_status()
 
         soup = BeautifulSoup(resp.text, "lxml")

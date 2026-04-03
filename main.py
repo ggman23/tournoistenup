@@ -46,6 +46,8 @@ def parse_args():
                    help="Limit enrichment to first N tournaments (0 = all)")
     p.add_argument("--html-only", action="store_true",
                    help="Regenerate HTML from existing data file (no scraping)")
+    p.add_argument("--enrich-only", action="store_true",
+                   help="Re-enrich existing data (no scraping) then regenerate HTML")
     return p.parse_args()
 
 
@@ -74,6 +76,35 @@ def main():
         history = load_json(history_file)
         new_ids = set(history.get("last_new_ids", []))
         generate_from_file(data_file, html_file, new_ids=new_ids)
+        sys.exit(0)
+
+    # ── Enrich-only mode: re-enrich + regenerate without re-scraping ─────────
+    if args.enrich_only:
+        if not os.path.exists(data_file):
+            logger.error("No data file found at %s — run a full scrape first.", data_file)
+            sys.exit(1)
+        cookies_file = args.cookies or os.environ.get("TENUP_COOKIES_FILE")
+        scraper = TenupScraper(config, cookies_file=cookies_file)
+        saved = load_json(data_file)
+        tournaments = saved.get("tournaments", [])
+        logger.info("Loaded %d tournaments from cache — running enrichment only.", len(tournaments))
+        enrich_all(
+            tournaments, scraper.session,
+            delay_s=1.5, max_enrich=args.enrich_max,
+        )
+        # Save updated data
+        import json as _json, datetime as _dt
+        saved["tournaments"] = tournaments
+        saved["fetched_at"] = saved.get("fetched_at", _dt.datetime.utcnow().isoformat())
+        os.makedirs(os.path.dirname(data_file) or ".", exist_ok=True)
+        with open(data_file, "w", encoding="utf-8") as f:
+            _json.dump(saved, f, ensure_ascii=False, indent=2)
+        history = load_json(history_file)
+        new_ids = set(history.get("last_new_ids", []))
+        generate_html(
+            tournaments, html_file, new_ids=new_ids,
+            fetched_at=saved.get("fetched_at", ""),
+        )
         sys.exit(0)
 
     # ── Reset history ────────────────────────────────────────────────────────
