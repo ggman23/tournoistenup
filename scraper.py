@@ -56,11 +56,12 @@ class TenupScraper:
         except Exception as e:
             logger.warning("Could not load cookies from %s: %s", cookies_file, e)
 
-    def _get_form_tokens(self) -> tuple[str, str]:
+    def _get_form_tokens(self) -> tuple[str, str, str, str]:
         """
-        GET the search page to obtain a fresh Drupal form_build_id and form_token.
-        Returns (form_build_id, form_token).
-        Raises RuntimeError if tokens cannot be found.
+        GET the search page to obtain a fresh Drupal form_build_id, form_token,
+        theme_token and jquery_version_token.
+        Returns (form_build_id, form_token, theme_token, jquery_version_token).
+        Raises RuntimeError if form tokens cannot be found.
         """
         url = BASE_URL + SEARCH_PAGE
         logger.debug("Fetching form tokens from %s", url)
@@ -72,6 +73,8 @@ class TenupScraper:
 
         form_build_id = None
         form_token = None
+        theme_token = None
+        jquery_version_token = None
 
         # form_build_id is a hidden input inside the search form
         build_input = soup.find("input", {"name": "form_build_id"})
@@ -83,19 +86,26 @@ class TenupScraper:
         if token_input:
             form_token = token_input.get("value")
 
-        # Fallback: search in inline JS for Drupal.settings
-        if not form_build_id or not form_token:
-            scripts = soup.find_all("script")
-            for script in scripts:
-                text = script.string or ""
-                if "form_build_id" in text:
-                    m = re.search(r'"form_build_id"\s*:\s*"([^"]+)"', text)
-                    if m:
-                        form_build_id = m.group(1)
-                if "form_token" in text:
-                    m = re.search(r'"form_token"\s*:\s*"([^"]+)"', text)
-                    if m:
-                        form_token = m.group(1)
+        # Extract theme_token and jquery_version_token from inline Drupal.settings JS
+        scripts = soup.find_all("script")
+        for script in scripts:
+            text = script.string or ""
+            if not form_build_id and "form_build_id" in text:
+                m = re.search(r'"form_build_id"\s*:\s*"([^"]+)"', text)
+                if m:
+                    form_build_id = m.group(1)
+            if not form_token and "form_token" in text:
+                m = re.search(r'"form_token"\s*:\s*"([^"]+)"', text)
+                if m:
+                    form_token = m.group(1)
+            if not theme_token and "theme_token" in text:
+                m = re.search(r'"theme_token"\s*:\s*"([^"]+)"', text)
+                if m:
+                    theme_token = m.group(1)
+            if not jquery_version_token and "jquery_version_token" in text:
+                m = re.search(r'"jquery_version_token"\s*:\s*"([^"]+)"', text)
+                if m:
+                    jquery_version_token = m.group(1)
 
         if not form_build_id or not form_token:
             raise RuntimeError(
@@ -103,22 +113,27 @@ class TenupScraper:
                 "The page structure may have changed, or you may need to provide valid cookies."
             )
 
-        logger.debug("form_build_id=%s  form_token=%s...", form_build_id, form_token[:10])
-        return form_build_id, form_token
+        logger.debug(
+            "form_build_id=%s  form_token=%s...  theme_token=%s  jq_token=%s",
+            form_build_id, form_token[:10],
+            theme_token[:10] if theme_token else None,
+            jquery_version_token[:10] if jquery_version_token else None,
+        )
+        return form_build_id, form_token, theme_token or "", jquery_version_token or ""
 
     def _build_post_data(
-        self, form_build_id: str, form_token: str, page: int = 0
+        self,
+        form_build_id: str,
+        form_token: str,
+        page: int = 0,
+        theme_token: str = "",
+        jquery_version_token: str = "",
     ) -> dict:
         """Build the POST payload matching the Drupal AJAX form submission.
 
-        Page 0 (initial search): include _triggering_element_name="submit_main"
-        so Drupal runs the search form submit handler and stores the criteria in
-        the PHP session.
-
-        Page 1+ (pagination): omit _triggering_element_name/_value so Drupal
-        does NOT re-run the submit handler (which would reset to page 0).
-        Instead, include page=N so Drupal renders that page of the cached results.
-        The URL also carries ?page=N for Drupal's pager block.
+        Page 0 (initial search): _triggering_element_name=submit_main
+        Page 1+ (pagination):    _triggering_element_name=submit_page
+        Both cases include page=N in the POST body (URL is always /system/ajax).
         """
         s = self.search_cfg
         ville = s["ville"]
@@ -146,13 +161,15 @@ class TenupScraper:
             "form_build_id": form_build_id,
             "form_token": form_token,
             "form_id": "recherche_tournois_form",
+            "page": str(page),
         }
 
-        # Always include the triggering element (without it Drupal returns only 'settings').
-        # Always include page= so Drupal knows which page to render.
-        data["_triggering_element_name"]  = "submit_main"
-        data["_triggering_element_value"] = "Rechercher"
-        data["page"] = str(page)
+        if page == 0:
+            data["_triggering_element_name"]  = "submit_main"
+            data["_triggering_element_value"] = "Rechercher"
+        else:
+            data["_triggering_element_name"]  = "submit_page"
+            data["_triggering_element_value"] = "Submit page"
 
         # Epreuves (SM, SD, DX, DM, DD)
         for epreuve in s.get("epreuves", []):
@@ -166,9 +183,13 @@ class TenupScraper:
         for t in s.get("types", []):
             data[f"type[{t}]"] = t
 
-        # Minimal ajax_page_state (required by Drupal)
+        # ajax_page_state — include tokens extracted from the page if available
         data["ajax_page_state[theme]"] = "met"
         data["ajax_page_state[jquery_version]"] = "2.2"
+        if theme_token:
+            data["ajax_page_state[theme_token]"] = theme_token
+        if jquery_version_token:
+            data["ajax_page_state[jquery_version_token]"] = jquery_version_token
 
         return data
 
@@ -195,10 +216,17 @@ class TenupScraper:
                     raise
                 time.sleep(2 ** attempt)
 
-    def _post_search(self, form_build_id: str, form_token: str, page: int) -> tuple:
+    def _post_search(
+        self,
+        form_build_id: str,
+        form_token: str,
+        page: int,
+        theme_token: str = "",
+        jquery_version_token: str = "",
+    ) -> tuple:
         """Fetch one page of results; return (items, nb_results, new_form_build_id)."""
-        url  = BASE_URL + AJAX_ENDPOINT + (f"?page={page}" if page > 0 else "")
-        data = self._build_post_data(form_build_id, form_token, page)
+        url  = BASE_URL + AJAX_ENDPOINT  # never append ?page=N — browser doesn't
+        data = self._build_post_data(form_build_id, form_token, page, theme_token, jquery_version_token)
         commands = self._do_ajax("POST", url, data=data)
 
         new_fbid = None
@@ -251,10 +279,12 @@ class TenupScraper:
 
         while True:
             logger.info("Fetching fresh tokens for page %d...", page)
-            form_build_id, form_token = self._get_form_tokens()
+            form_build_id, form_token, theme_token, jquery_version_token = self._get_form_tokens()
             time.sleep(1)
 
-            items, nb_results, _ = self._post_search(form_build_id, form_token, page)
+            items, nb_results, _ = self._post_search(
+                form_build_id, form_token, page, theme_token, jquery_version_token
+            )
 
             if not items:
                 break
