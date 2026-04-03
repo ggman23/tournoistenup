@@ -56,20 +56,65 @@ def _surfaces(terrains):
     return " ".join(parts)
 
 
-def _epreuves_html(epreuves):
+def _epreuves_html(epreuves, formats_list=None):
+    """
+    Render one line per épreuve.  If formats_list is provided (from enriched data),
+    attach an inline format badge.
+
+    Matching strategy (best-effort):
+      1. By epreuve_key: match "NATURE_ageid" stored during enrichment.
+      2. Positional: if lengths match, use index.
+      3. Fallback: no badge.
+    """
+    # Build lookup: epreuve_key → format entry
+    key_to_fmt = {}
+    positional = []
+    if formats_list:
+        for f in formats_list:
+            positional.append(f)
+            k = f.get("epreuve_key")
+            if k:
+                key_to_fmt[k] = f
+
     lines = []
-    for ep in epreuves:
+    for idx, ep in enumerate(epreuves):
         age    = ep.get("categorieAge", {}).get("libelle", "")
         nature = ep.get("natureEpreuve", {}).get("libelle", "")
         bas    = ep.get("classementBas",  {}).get("libelle", "?").strip()
         haut   = ep.get("classementHaut", {}).get("libelle", "?").strip()
         tarif  = ep.get("tarifJeune", 0)
+
+        # Build epreuve_key from API data
+        nat_code = ep.get("natureEpreuve", {}).get("code", "")
+        age_id   = ep.get("categorieAge", {}).get("id", 0)
+        ep_key   = f"{nat_code}_{age_id}" if nat_code and age_id else ""
+
+        fmt_entry = None
+        if ep_key and ep_key in key_to_fmt:
+            fmt_entry = key_to_fmt[ep_key]
+        elif positional and len(positional) == len(epreuves):
+            fmt_entry = positional[idx]
+
+        fmt_badge = ""
+        if fmt_entry:
+            fn  = fmt_entry.get("num", "")
+            fd  = fmt_entry.get("desc", "")
+            fc  = FORMAT_COLORS.get(fn, "#666")
+            tip = f"Format {fn}"
+            if fd:
+                tip += f" — {fd}"
+            fmt_badge = (
+                f' <span class="badge fmt-ep-badge" style="background:{fc}" '
+                f'title="{html.escape(tip)}" data-bs-toggle="tooltip">F{fn}</span>'
+            )
+
         lines.append(
             f'<div class="ep-line">'
             f'<span class="ep-nature">{html.escape(nature)}</span> '
             f'<span class="ep-age">{html.escape(age)}</span> '
             f'<span class="ep-range">{html.escape(bas)} → {html.escape(haut)}</span> '
             f'<span class="ep-tarif">{tarif}€</span>'
+            f'{fmt_badge}'
             f'</div>'
         )
     return "\n".join(lines) if lines else '<span class="text-muted">—</span>'
@@ -129,7 +174,7 @@ def _tournament_to_row(t):
             .replace(",", ".").replace(" km", "").replace("\xa0", "").strip() or 0
         ),
         "surfaces":     _surfaces(t.get("naturesTerrains", [])),
-        "epreuves":     _epreuves_html(t.get("epreuves", [])),
+        "epreuves":     _epreuves_html(t.get("epreuves", []), enriched.get("formats_list")),
         "epreuves_keys": _epreuves_data(t.get("epreuves", [])),
         "inscription":  t.get("inscriptionEnLigne", False),
         "paiement":     t.get("paiementEnLigne", False),
@@ -265,9 +310,10 @@ def generate_html(
     .ep-age    {{ color:#6c757d; font-size:.85em; }}
     .ep-range  {{ color:#0d6efd; }}
     .ep-tarif  {{ background:#e9ecef; border-radius:3px; padding:0 5px; font-weight:600; font-size:.85em; }}
-    .badge     {{ font-size:.72em; }}
-    .fmt-badge {{ font-size:.85em; padding:.35em .6em; }}
-    .srf-badge {{ font-size:.75em; }}
+    .badge        {{ font-size:.72em; }}
+    .fmt-badge    {{ font-size:.85em; padding:.35em .6em; }}
+    .fmt-ep-badge {{ font-size:.75em; padding:.2em .45em; vertical-align:middle; opacity:.9; }}
+    .srf-badge    {{ font-size:.75em; }}
     table.dataTable td {{ vertical-align:middle; }}
     #filter-bar {{ background:white; border-radius:8px; padding:14px 18px; margin-bottom:14px;
                    box-shadow:0 1px 4px rgba(0,0,0,.08); }}
