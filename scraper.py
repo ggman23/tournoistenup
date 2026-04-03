@@ -109,7 +109,12 @@ class TenupScraper:
     def _build_post_data(
         self, form_build_id: str, form_token: str, page: int = 0
     ) -> dict:
-        """Build the POST payload matching the Drupal AJAX form submission."""
+        """Build the POST payload matching the Drupal AJAX form submission.
+
+        Note: 'page' is intentionally NOT included in the POST body.
+        Drupal uses $_GET['page'] (the URL query string) for pagination;
+        sending page= in the POST body resets the server state to page 0.
+        """
         s = self.search_cfg
         ville = s["ville"]
 
@@ -132,7 +137,6 @@ class TenupScraper:
             "tournois_interne": str(s.get("tournois_interne", 0)),
             "inscription_ligne": str(s.get("inscription_ligne", 0)),
             "paiement_ligne": str(s.get("paiement_ligne", 0)),
-            "page": str(page),
             "sort": s.get("sort", "_DIST_"),
             "form_build_id": form_build_id,
             "form_token": form_token,
@@ -185,9 +189,10 @@ class TenupScraper:
     def _post_search(self, form_build_id: str, form_token: str, page: int) -> tuple:
         """
         Fetch one page of results via Drupal AJAX (POST with XMLHttpRequest header).
-        The page number is included both in the URL (?page=N) and the POST body.
+        Pagination is driven solely by the ?page=N query string; 'page' is NOT
+        in the POST body (sending it there resets Drupal to page 0).
         """
-        url  = BASE_URL + AJAX_ENDPOINT + (f"?page={page}" if page > 0 else "")
+        url  = BASE_URL + AJAX_ENDPOINT + f"?page={page}"
         data = self._build_post_data(form_build_id, form_token, page)
         commands = self._do_ajax("POST", url, data=data)
 
