@@ -527,7 +527,7 @@ function resetFilters() {{
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html_content)
-    print(f"📊 Rapport HTML généré : {os.path.abspath(output_path)}")
+    print(f"Rapport HTML genere : {os.path.abspath(output_path)}")
 
 
 def generate_from_file(data_file, output_path, new_ids=None):
