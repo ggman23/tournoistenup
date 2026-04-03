@@ -94,6 +94,11 @@ def _epreuves_html(epreuves, formats_list=None):
             fmt_entry = key_to_fmt[ep_key]
         elif positional and len(positional) == len(epreuves):
             fmt_entry = positional[idx]
+        elif positional:
+            # Lengths differ: if all formats share the same number, apply to all epreuves.
+            nums = {f.get("num") for f in positional}
+            if len(nums) == 1:
+                fmt_entry = positional[0]
 
         fmt_badge = ""
         if fmt_entry:
@@ -136,9 +141,19 @@ def _tournament_to_row(t):
     juge     = t.get("jugeArbitre", {})
     enriched = t.get("enriched", {})
 
-    detail_url = enriched.get("detail_url", f"https://tenup.fft.fr/tournoi/{t.get('id', '')}")
-    fmt        = enriched.get("format", "")
-    fmt_desc   = enriched.get("format_desc", "")
+    detail_url   = enriched.get("detail_url", f"https://tenup.fft.fr/tournoi/{t.get('id', '')}")
+    fmt          = enriched.get("format", "")
+    fmt_desc     = enriched.get("format_desc", "")
+    formats_list = enriched.get("formats_list", [])
+    # All distinct format numbers, ordered by first appearance
+    seen_nums: list[str] = []
+    for f in formats_list:
+        n = f.get("num", "")
+        if n and n not in seen_nums:
+            seen_nums.append(n)
+    if not seen_nums and fmt:
+        seen_nums = [fmt]
+    fmt_all = seen_nums          # e.g. ["5", "6"] when two epreuves have different formats
 
     date_debut = _fmt_date(t.get("dateDebut"))
     date_fin   = _fmt_date(t.get("dateFin"))
@@ -161,8 +176,9 @@ def _tournament_to_row(t):
         "tmc":          t.get("tmc", False),
         "cat":          t.get("categorieTournoi", {}).get("libelle", ""),
         "fmt":          fmt,
+        "fmt_all":      fmt_all,
         "fmt_desc":     fmt_desc,
-        "fmt_sort":     int(fmt) if fmt else 99,
+        "fmt_sort":     int(fmt_all[0]) if fmt_all else 99,
         "dates":        dates,
         "date_debut_sort": t.get("dateDebut", {}).get("date", ""),
         "ville":        ville,
@@ -230,17 +246,18 @@ def generate_html(
         new_badge = '<span class="badge bg-danger ms-1">NEW</span>' if r["is_new"] else ""
         tmc_badge = '<span class="badge bg-warning text-dark ms-1">TMC</span>' if r["tmc"] else ""
 
-        fmt_badge = ""
-        if r["fmt"]:
-            fc      = FORMAT_COLORS.get(r["fmt"], "#666")
-            tooltip = f"Format {r['fmt']}"
-            if r["fmt_desc"]:
-                tooltip += f" — {r['fmt_desc']}"
-            fmt_badge = (
+        # Build Format column: one badge per distinct format number
+        fmt_parts = []
+        for fn in r["fmt_all"]:
+            fc  = FORMAT_COLORS.get(fn, "#666")
+            tip = f"Format {fn}"
+            if fn == r["fmt"] and r["fmt_desc"]:
+                tip += f" — {r['fmt_desc']}"
+            fmt_parts.append(
                 f'<span class="badge fmt-badge" style="background:{fc}" '
-                f'title="{html.escape(tooltip)}" data-bs-toggle="tooltip">'
-                f'F{r["fmt"]}</span>'
+                f'title="{html.escape(tip)}" data-bs-toggle="tooltip">F{fn}</span>'
             )
+        fmt_badge = " ".join(fmt_parts)
 
         nom_link = (
             f'<a href="{html.escape(r["detail_url"])}" target="_blank" '
@@ -264,7 +281,7 @@ def generate_html(
         <tr class="{'table-warning' if r['is_new'] else ''}"
             data-ep-keys='{ep_keys_json}'
             data-distance="{r['distance_km']}"
-            data-fmt="{html.escape(r['fmt'])}"
+            data-fmt="{html.escape(','.join(r['fmt_all']))}"
             data-new="{str(r['is_new']).lower()}"
             data-tmc="{str(r['tmc']).lower()}">
           <td data-sort="{html.escape(r['date_debut_sort'])}">{html.escape(r['dates'])}</td>
@@ -496,7 +513,8 @@ function applyFilters() {{
       if (srfText.indexOf(surface) === -1) show = false;
     }}
     if (fmt) {{
-      if ($tr.attr('data-fmt') !== fmt) show = false;
+      var fmts = ($tr.attr('data-fmt') || '').split(',');
+      if (fmts.indexOf(fmt) === -1) show = false;
     }}
     if (onlyNew  && $tr.attr('data-new')  !== 'true') show = false;
     if (onlyTmc  && $tr.attr('data-tmc')  !== 'true') show = false;

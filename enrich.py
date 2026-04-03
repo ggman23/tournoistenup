@@ -111,6 +111,14 @@ def _extract_formats(soup: BeautifulSoup) -> tuple:
         formats_list.append(entry)
 
     if not formats_list:
+        # Fallback: scan the full page text for any "Format : N" occurrence
+        page_text = soup.get_text(" ", strip=True)
+        m = re.search(r'Format\s*:\s*([1-7])\s*[-–]?\s*(.*?)(?:\s{2,}|$)', page_text, re.I)
+        if m:
+            logger.debug("Format extracted via page-text fallback")
+            return m.group(1), m.group(2).strip().rstrip("."), [
+                {"num": m.group(1), "desc": m.group(2).strip().rstrip(".")}
+            ]
         return None, "", []
 
     best = max(
