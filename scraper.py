@@ -215,6 +215,11 @@ class TenupScraper:
                 ids = [it.get("originalId") or it.get("id") for it in items[:5]]
                 logger.info("Page %d: %d items (total: %d) — first IDs: %s",
                             page, len(items), nb_results, ids)
+                # Log all keys in cmd and results (excl. items) to find pagination hints
+                cmd_keys     = {k: v for k, v in cmd.items()     if k != "results"}
+                results_keys = {k: v for k, v in results.items() if k != "items"}
+                logger.info("Page %d recherche_tournois_update cmd keys: %s", page, cmd_keys)
+                logger.info("Page %d results keys (excl items): %s", page, results_keys)
                 return items, nb_results
 
         logger.warning("No recherche_tournois_update on page %d — got: %s", page, cmd_names)
