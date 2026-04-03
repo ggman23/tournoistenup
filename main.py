@@ -42,6 +42,8 @@ def parse_args():
                    help="Fetch and display without saving to disk")
     p.add_argument("--enrich", action="store_true",
                    help="Fetch individual tournament pages to get format (1-7) etc.")
+    p.add_argument("--enrich-max", type=int, default=0, metavar="N",
+                   help="Limit enrichment to first N tournaments (0 = all)")
     p.add_argument("--html-only", action="store_true",
                    help="Regenerate HTML from existing data file (no scraping)")
     return p.parse_args()
@@ -108,8 +110,10 @@ def main():
 
     # ── Enrich (format 1-7 + detail URL) ─────────────────────────────────────
     if args.enrich:
-        logger.info("Enriching %d tournaments with detail pages...", len(tournaments))
-        enrich_all(tournaments, scraper.session, delay_s=1.5)
+        enrich_all(
+            tournaments, scraper.session,
+            delay_s=1.5, max_enrich=args.enrich_max,
+        )
 
     # ── Persist & detect new ─────────────────────────────────────────────────
     new_tournaments, current_ids = update_storage(tournaments, data_file, history_file)

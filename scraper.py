@@ -193,28 +193,41 @@ class TenupScraper:
 
     def fetch_all(self) -> list[dict]:
         """
-        Fetch all pages and return a flat list of tournament dicts.
-        Re-fetches form tokens once at the start (they're valid for the whole session).
+        Fetch all pages, deduplicate by originalId/id, and return a flat list.
         """
         form_build_id, form_token = self._get_form_tokens()
-        time.sleep(1)  # brief pause after page load
+        time.sleep(1)
 
-        all_items = []
+        seen_ids: set[str] = set()
+        all_items: list[dict] = []
         page = 0
-        per_page = self.scraper_cfg["results_per_page"]
 
         while True:
             items, nb_results = self._post_search(form_build_id, form_token, page)
-            all_items.extend(items)
 
-            # Check if we've fetched everything
-            if not items or len(all_items) >= nb_results:
+            if not items:
+                break
+
+            new_on_page = 0
+            for item in items:
+                tid = item.get("originalId") or item.get("id", "")
+                if tid and tid not in seen_ids:
+                    seen_ids.add(tid)
+                    all_items.append(item)
+                    new_on_page += 1
+
+            logger.info(
+                "Page %d: %d items (%d new, %d total unique / %d announced)",
+                page, len(items), new_on_page, len(all_items), nb_results,
+            )
+
+            # Stop when: page returned nothing new, or we hit the announced total,
+            # or the page was shorter than expected (last page)
+            if new_on_page == 0 or len(all_items) >= nb_results:
                 break
 
             page += 1
-            delay = self.scraper_cfg["delay_between_pages_s"]
-            logger.debug("Waiting %ss before next page...", delay)
-            time.sleep(delay)
+            time.sleep(self.scraper_cfg["delay_between_pages_s"])
 
-        logger.info("Fetched %d tournaments in total", len(all_items))
+        logger.info("Fetched %d unique tournaments in total", len(all_items))
         return all_items
