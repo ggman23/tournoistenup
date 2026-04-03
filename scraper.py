@@ -148,14 +148,11 @@ class TenupScraper:
             "form_id": "recherche_tournois_form",
         }
 
-        if page == 0:
-            # Tell Drupal the user clicked "Rechercher" — triggers the search.
-            data["_triggering_element_name"]  = "submit_main"
-            data["_triggering_element_value"] = "Rechercher"
-        else:
-            # Pagination: page number in POST body; no triggering element so Drupal
-            # renders the requested page without re-running the submit handler.
-            data["page"] = str(page)
+        # Always include the triggering element (without it Drupal returns only 'settings').
+        # Always include page= so Drupal knows which page to render.
+        data["_triggering_element_name"]  = "submit_main"
+        data["_triggering_element_value"] = "Rechercher"
+        data["page"] = str(page)
 
         # Epreuves (SM, SD, DX, DM, DD)
         for epreuve in s.get("epreuves", []):
@@ -199,27 +196,27 @@ class TenupScraper:
                 time.sleep(2 ** attempt)
 
     def _post_search(self, form_build_id: str, form_token: str, page: int) -> tuple:
-        """
-        Fetch one page of results via Drupal AJAX.
-
-        Page 0: POST /system/ajax — full form with _triggering_element_name="submit_main"
-                to run the search handler and store criteria in the PHP session.
-        Page N: POST /system/ajax?page=N — minimal body (only ajax_page_state) so Drupal
-                reads search state from the PHP session and returns page N.
-        """
-        if page == 0:
-            url  = BASE_URL + AJAX_ENDPOINT
-            data = self._build_post_data(form_build_id, form_token, page)
-        else:
-            url  = BASE_URL + AJAX_ENDPOINT + f"?page={page}"
-            # Minimal POST — PHP session provides the search criteria.
-            data = {
-                "ajax_page_state[theme]":           "met",
-                "ajax_page_state[jquery_version]":  "2.2",
-            }
+        """Fetch one page of results; return (items, nb_results, new_form_build_id)."""
+        url  = BASE_URL + AJAX_ENDPOINT + (f"?page={page}" if page > 0 else "")
+        data = self._build_post_data(form_build_id, form_token, page)
         commands = self._do_ajax("POST", url, data=data)
 
-        cmd_names = [c.get("command", "?") for c in commands]
+        new_fbid = None
+        for cmd in commands:
+            if cmd.get("command") == "settings":
+                s = cmd.get("settings") or {}
+                logger.info("Page %d settings top-level keys: %s", page, list(s.keys()))
+                # Log full content (truncated to 1000 chars) to find form_build_id location
+                import json as _j
+                logger.info("Page %d settings content: %s", page, _j.dumps(s)[:1000])
+                # Common Drupal locations for updated form_build_id
+                for form_name, fdata in (s.get("forms") or {}).items():
+                    if isinstance(fdata, dict):
+                        fbid = fdata.get("build_id") or fdata.get("form_build_id")
+                        if fbid:
+                            new_fbid = fbid
+                            logger.info("Page %d: extracted new form_build_id from settings[forms][%s]",
+                                        page, form_name)
 
         for cmd in commands:
             if cmd.get("command") == "recherche_tournois_update":
@@ -229,10 +226,11 @@ class TenupScraper:
                 ids = [it.get("originalId") or it.get("id") for it in items[:3]]
                 logger.info("Page %d: %d items (total: %d) — first IDs: %s",
                             page, len(items), nb_results, ids)
-                return items, nb_results
+                return items, nb_results, new_fbid
 
+        cmd_names = [c.get("command", "?") for c in commands]
         logger.warning("No recherche_tournois_update on page %d — got: %s", page, cmd_names)
-        return [], 0
+        return [], 0, new_fbid
 
     def fetch_all(self, max_pages: int = 0) -> list[dict]:
         """
@@ -248,7 +246,10 @@ class TenupScraper:
         page = 0
 
         while True:
-            items, nb_results = self._post_search(form_build_id, form_token, page)
+            items, nb_results, new_fbid = self._post_search(form_build_id, form_token, page)
+            if new_fbid:
+                logger.info("Updating form_build_id for next page: %s", new_fbid[:20])
+                form_build_id = new_fbid
 
             if not items:
                 break
