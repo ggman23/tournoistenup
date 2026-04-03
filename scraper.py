@@ -194,15 +194,18 @@ class TenupScraper:
     def fetch_all(self) -> list[dict]:
         """
         Fetch all pages, deduplicate by originalId/id, and return a flat list.
+        Drupal form tokens are single-use: we re-fetch them before every page.
         """
-        form_build_id, form_token = self._get_form_tokens()
-        time.sleep(1)
-
         seen_ids: set[str] = set()
         all_items: list[dict] = []
         page = 0
 
         while True:
+            # Re-fetch form tokens for every page (Drupal invalidates after one use)
+            logger.info("Fetching tokens for page %d...", page)
+            form_build_id, form_token = self._get_form_tokens()
+            time.sleep(1)
+
             items, nb_results = self._post_search(form_build_id, form_token, page)
 
             if not items:
@@ -221,8 +224,6 @@ class TenupScraper:
                 page, len(items), new_on_page, len(all_items), nb_results,
             )
 
-            # Stop when: page returned nothing new, or we hit the announced total,
-            # or the page was shorter than expected (last page)
             if new_on_page == 0 or len(all_items) >= nb_results:
                 break
 
