@@ -195,6 +195,13 @@ class TenupScraper:
         cmd_names = [c.get("command", "?") for c in commands]
         logger.info("Page %d commands: %s", page, cmd_names)
 
+        # Log settings command content to find updated form_build_id
+        import json as _json
+        for cmd in commands:
+            if cmd.get("command") == "settings":
+                logger.info("Page %d settings: %s", page,
+                            _json.dumps(cmd.get("settings", {}))[:2000])
+
         for cmd in commands:
             if cmd.get("command") == "recherche_tournois_update":
                 results    = cmd.get("results", {})
