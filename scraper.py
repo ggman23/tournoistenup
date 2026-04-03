@@ -188,43 +188,33 @@ class TenupScraper:
 
     def _post_search(self, form_build_id: str, form_token: str, page: int) -> tuple:
         """
-        Fetch one page of results via Drupal AJAX (POST with XMLHttpRequest header).
-        Pagination is driven solely by the ?page=N query string; 'page' is NOT
-        in the POST body (sending it there resets Drupal to page 0).
+        Fetch one page of results via Drupal AJAX.
+
+        Page 0: POST to /system/ajax with the full form data — initialises the
+                server-side search state in the PHP session.
+        Page 1+: GET to /system/ajax?page=N — Drupal re-uses the search criteria
+                 from the PHP session.  POSTing the form again resets the server
+                 back to page 0 (which is why the old code returned identical
+                 results for every page).
         """
-        url  = BASE_URL + AJAX_ENDPOINT + f"?page={page}"
-        data = self._build_post_data(form_build_id, form_token, page)
-        commands = self._do_ajax("POST", url, data=data)
+        if page == 0:
+            url = BASE_URL + AJAX_ENDPOINT
+            data = self._build_post_data(form_build_id, form_token, page)
+            commands = self._do_ajax("POST", url, data=data)
+        else:
+            url = BASE_URL + AJAX_ENDPOINT + f"?page={page}"
+            commands = self._do_ajax("GET", url)
 
-        # Log all command names for diagnosis
         cmd_names = [c.get("command", "?") for c in commands]
-        logger.info("Page %d commands: %s", page, cmd_names)
-
-        # Log invoke + insert commands to understand pagination mechanism
-        import json as _json
-        for cmd in commands:
-            if cmd.get("command") == "invoke":
-                logger.info("Page %d invoke: selector=%r method=%r args=%r",
-                            page, cmd.get("selector"), cmd.get("method"),
-                            str(cmd.get("args", []))[:300])
-            elif cmd.get("command") == "insert":
-                data_preview = str(cmd.get("data", ""))[:400]
-                logger.info("Page %d insert: method=%r selector=%r data=%r",
-                            page, cmd.get("method"), cmd.get("selector"), data_preview)
 
         for cmd in commands:
             if cmd.get("command") == "recherche_tournois_update":
                 results    = cmd.get("results", {})
                 items      = results.get("items", [])
                 nb_results = results.get("nb_results", 0)
-                ids = [it.get("originalId") or it.get("id") for it in items[:5]]
+                ids = [it.get("originalId") or it.get("id") for it in items[:3]]
                 logger.info("Page %d: %d items (total: %d) — first IDs: %s",
                             page, len(items), nb_results, ids)
-                # Log all keys in cmd and results (excl. items) to find pagination hints
-                cmd_keys     = {k: v for k, v in cmd.items()     if k != "results"}
-                results_keys = {k: v for k, v in results.items() if k != "items"}
-                logger.info("Page %d recherche_tournois_update cmd keys: %s", page, cmd_keys)
-                logger.info("Page %d results keys (excl items): %s", page, results_keys)
                 return items, nb_results
 
         logger.warning("No recherche_tournois_update on page %d — got: %s", page, cmd_names)
