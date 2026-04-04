@@ -28,8 +28,8 @@ FORMAT_COLORS = {
 
 # Age category IDs → short label for filter UI
 AGE_LABELS = {
-    110: "9/10 ans", 120: "11/12 ans", 125: "12/13 ans",
-    130: "12/13 ans", 140: "13/14 ans", 145: "14/15 ans",
+    110: "11 ans",   120: "11/12 ans", 125: "12 ans",
+    130: "13 ans",   140: "13/14 ans", 145: "14 ans",
     160: "15/16 ans", 180: "17/18 ans", 200: "Adulte",
 }
 
@@ -526,18 +526,21 @@ function applyFilters() {{
     $tr.toggleClass('hidden-row', !show);
     if (show) visible++;
 
-    // Show/hide individual épreuve lines based on selected épreuve
-    if (epKey) {{
-      $tr.find('.ep-line').each(function() {{
-        var lineKey = $(this).attr('data-ep-key') || '';
-        $(this).toggleClass('d-none', lineKey !== epKey);
-      }});
-    }} else {{
-      $tr.find('.ep-line').removeClass('d-none');
-    }}
   }});
 
+  // Inject/remove a <style> rule to hide non-matching ep-lines.
+  // Using CSS (not per-element classes) so it survives DataTables redraws.
+  applyEpLineFilter(epKey);
   $('#filter-count').text(visible + ' affiché(s)');
+}}
+
+function applyEpLineFilter(epKey) {{
+  $('#ep-line-filter-style').remove();
+  if (epKey) {{
+    $('<style id="ep-line-filter-style">')
+      .text('.ep-line:not([data-ep-key="' + epKey + '"]) {{ display: none !important; }}')
+      .appendTo('head');
+  }}
 }}
 
 function resetFilters() {{
@@ -546,7 +549,6 @@ function resetFilters() {{
   $('#filter-surface').val('');
   $('#filter-format').val('');
   $('#chk-new, #chk-tmc, #chk-insc').prop('checked', false);
-  $('.ep-line').removeClass('d-none');
   applyFilters();
 }}
 </script>

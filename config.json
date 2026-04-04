@@ -12,7 +12,7 @@
     "date_start": "01/04/26",
     "date_end": "01/09/26",
     "epreuves": ["SM", "SD"],
-    "categories_age": [120, 140],
+    "categories_age": [110, 120, 125, 130, 140, 145],
     "types": ["T"],
     "tournois_interne": 0,
     "inscription_ligne": 0,

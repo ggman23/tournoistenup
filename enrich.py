@@ -27,13 +27,15 @@ _NATURE_TEXT_TO_CODE = {
 
 # Maps age-range pattern found in text → categorieAge.id from API
 _AGE_PATTERN_TO_ID = [
-    (r"\b9.?10\b",   110),
-    (r"\b11.?12\b",  120),
-    (r"\b12.?13\b",  125),
-    (r"\b13.?14\b",  140),
-    (r"\b14.?15\b",  145),
-    (r"\b15.?16\b",  160),
-    (r"\b17.?18\b",  180),
+    (r"\b11\s*/?\s*12\b", 120),  # 11/12 ans (before single "11" or "12")
+    (r"\b13\s*/?\s*14\b", 140),  # 13/14 ans
+    (r"\b14\s*/?\s*15\b", 145),  # 14/15 → mapped to 14 ans
+    (r"\b15\s*/?\s*16\b", 160),
+    (r"\b17\s*/?\s*18\b", 180),
+    (r"\b11\b",      110),       # 11 ans seul
+    (r"\b12\b",      125),       # 12 ans seul
+    (r"\b13\b",      130),       # 13 ans seul
+    (r"\b14\b",      145),       # 14 ans seul
     (r"\bsenior|adulte\b", 200),
 ]
 
