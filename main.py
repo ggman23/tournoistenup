@@ -91,8 +91,9 @@ def _prompt_city(default_ville: dict) -> dict:
 
 def _prompt_km(default_km: int) -> int:
     try:
-        val = input(f"Distance max (km) [{default_km}] : ").strip()
-        return int(val) if val else default_km
+        val = input(f"Distance max en km (1-300) [{default_km}] : ").strip()
+        km = int(val) if val else default_km
+        return max(1, min(300, km))
     except (ValueError, EOFError, KeyboardInterrupt):
         return default_km
 
