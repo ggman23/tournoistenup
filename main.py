@@ -134,6 +134,10 @@ def parse_args():
                    help="Use this city label directly, e.g. 'BORDEAUX, 33000'")
     p.add_argument("--km", type=int, default=None, metavar="N",
                    help="Distance max in km (overrides config)")
+    p.add_argument("--lat", type=float, default=None, metavar="LAT",
+                   help="Latitude of the city (overrides config)")
+    p.add_argument("--lng", type=float, default=None, metavar="LNG",
+                   help="Longitude of the city (overrides config)")
     return p.parse_args()
 
 
@@ -169,6 +173,10 @@ def main():
     if args.city:
         config["search"]["ville"]["label"] = args.city
         config["search"]["ville"]["value"] = args.city
+        if args.lat is not None:
+            config["search"]["ville"]["lat"] = args.lat
+        if args.lng is not None:
+            config["search"]["ville"]["lng"] = args.lng
     elif not args.no_prompt:
         ville = _prompt_city(config["search"]["ville"])
         config["search"]["ville"].update(ville)

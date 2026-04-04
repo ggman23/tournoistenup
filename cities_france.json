@@ -1,0 +1,10 @@
+[
+  {"label": "PARIS, 75001",      "value": "PARIS, 75001",      "lat": 48.8566, "lng":  2.3522, "country": "fr", "distance_km": 300},
+  {"label": "RENNES, 35000",     "value": "RENNES, 35000",     "lat": 48.1173, "lng": -1.6778, "country": "fr", "distance_km": 300},
+  {"label": "LILLE, 59000",      "value": "LILLE, 59000",      "lat": 50.6292, "lng":  3.0573, "country": "fr", "distance_km": 300},
+  {"label": "STRASBOURG, 67000", "value": "STRASBOURG, 67000", "lat": 48.5734, "lng":  7.7521, "country": "fr", "distance_km": 300},
+  {"label": "LYON, 69001",       "value": "LYON, 69001",       "lat": 45.7640, "lng":  4.8357, "country": "fr", "distance_km": 300},
+  {"label": "BORDEAUX, 33000",   "value": "BORDEAUX, 33000",   "lat": 44.8378, "lng": -0.5792, "country": "fr", "distance_km": 300},
+  {"label": "TOULOUSE, 31000",   "value": "TOULOUSE, 31000",   "lat": 43.6047, "lng":  1.4442, "country": "fr", "distance_km": 300},
+  {"label": "AJACCIO, 20000",    "value": "AJACCIO, 20000",    "lat": 41.9192, "lng":  8.7386, "country": "fr", "distance_km": 300}
+]
