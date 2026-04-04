@@ -357,13 +357,18 @@ def main():
     saved_data   = load_json(data_file)
     fetched_at   = saved_data.get("fetched_at", "")
     stamp        = datetime.now().strftime("%Y%m%d_%Hh%M")
+    # Only display épreuve lines whose nature code is in the search config
+    # e.g. ["SM"] — hides DD/DM/DX lines even if the tournament offers them
+    only_natures = config["search"].get("epreuves") or None
 
     # 1) Full report (fixed name → toujours le dernier)
-    generate_html(tournaments, html_file, new_ids=new_ids, fetched_at=fetched_at)
+    generate_html(tournaments, html_file, new_ids=new_ids, fetched_at=fetched_at,
+                  only_natures=only_natures)
 
     # 2) Full report horodaté
     all_stamped  = os.path.join(html_dir, f"tournois_{stamp}.html")
-    generate_html(tournaments, all_stamped, new_ids=new_ids, fetched_at=fetched_at)
+    generate_html(tournaments, all_stamped, new_ids=new_ids, fetched_at=fetched_at,
+                  only_natures=only_natures)
     logger.info("Rapport complet horodaté : %s", all_stamped)
 
     # 3) Rapport "nouveaux seulement" horodaté (seulement si nouveaux)
@@ -374,6 +379,7 @@ def main():
             new_tournaments, new_stamped,
             new_ids=all_new_ids, fetched_at=fetched_at,
             title="Nouveaux Tournois TenUp",
+            only_natures=only_natures,
         )
         logger.info("Rapport nouveaux horodaté  : %s (%d tournois)", new_stamped, len(new_tournaments))
 

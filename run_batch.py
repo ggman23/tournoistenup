@@ -82,9 +82,19 @@ def run_city(city: dict, args: argparse.Namespace) -> bool:
 
 def merge_and_generate(args: argparse.Namespace):
     """Merge all city JSON files (deduplicated) → generate combined HTML."""
-    import re
+    import json as _json
     from storage import load_json
     from generate_html import generate_html
+
+    # Read only_natures from config so the combined HTML respects the same filter
+    only_natures = None
+    if os.path.exists("config.json"):
+        try:
+            with open("config.json") as f:
+                _cfg = _json.load(f)
+            only_natures = _cfg.get("search", {}).get("epreuves") or None
+        except Exception:
+            pass
 
     logger.info("=== Génération rapport France entière ===")
 
@@ -141,6 +151,7 @@ def merge_and_generate(args: argparse.Namespace):
         new_ids=set(),
         title="Tournois TenUp — France entière",
         fetched_at=fetched_at,
+        only_natures=only_natures,
     )
     logger.info("Rapport France entière : %s (%d tournois)", out_file, len(tournaments))
 
@@ -149,6 +160,7 @@ def merge_and_generate(args: argparse.Namespace):
         new_ids=set(),
         title="Tournois TenUp — France entière",
         fetched_at=fetched_at,
+        only_natures=only_natures,
     )
     logger.info("Rapport France entière horodaté : %s", out_stamped)
 

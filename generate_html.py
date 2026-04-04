@@ -56,10 +56,13 @@ def _surfaces(terrains):
     return " ".join(parts)
 
 
-def _epreuves_html(epreuves, formats_list=None):
+def _epreuves_html(epreuves, formats_list=None, only_natures=None):
     """
     Render one line per épreuve.  If formats_list is provided (from enriched data),
     attach an inline format badge.
+
+    only_natures: if set (e.g. ["SM"]), only render épreuves whose natureEpreuve.code
+                  is in the list. Others are silently skipped.
 
     Matching strategy (best-effort):
       1. By epreuve_key: match "NATURE_ageid" stored during enrichment.
@@ -78,14 +81,18 @@ def _epreuves_html(epreuves, formats_list=None):
 
     lines = []
     for idx, ep in enumerate(epreuves):
+        # Build epreuve_key from API data
+        nat_code = ep.get("natureEpreuve", {}).get("code", "")
+
+        # Skip épreuves not in the display filter (e.g. hide DD/DM when only SM wanted)
+        if only_natures and nat_code and nat_code not in only_natures:
+            continue
+
         age    = ep.get("categorieAge", {}).get("libelle", "")
         nature = ep.get("natureEpreuve", {}).get("libelle", "")
         bas    = ep.get("classementBas",  {}).get("libelle", "?").strip()
         haut   = ep.get("classementHaut", {}).get("libelle", "?").strip()
         tarif  = ep.get("tarifJeune", 0)
-
-        # Build epreuve_key from API data
-        nat_code = ep.get("natureEpreuve", {}).get("code", "")
         age_id   = ep.get("categorieAge", {}).get("id", 0)
         ep_key   = f"{nat_code}_{age_id}" if nat_code and age_id else ""
 
@@ -136,7 +143,7 @@ def _epreuves_data(epreuves):
     return result
 
 
-def _tournament_to_row(t):
+def _tournament_to_row(t, only_natures=None):
     install  = t.get("installation", {})
     juge     = t.get("jugeArbitre", {})
     enriched = t.get("enriched", {})
@@ -193,7 +200,7 @@ def _tournament_to_row(t):
         ),
         "ref_city":     t.get("_ref_city", ""),
         "surfaces":     _surfaces(t.get("naturesTerrains", [])),
-        "epreuves":     _epreuves_html(t.get("epreuves", []), enriched.get("formats_list")),
+        "epreuves":     _epreuves_html(t.get("epreuves", []), enriched.get("formats_list"), only_natures=only_natures),
         "epreuves_keys": _epreuves_data(t.get("epreuves", [])),
         "inscription":  t.get("inscriptionEnLigne", False),
         "paiement":     t.get("paiementEnLigne", False),
@@ -235,13 +242,14 @@ def generate_html(
     new_ids=None,
     title: str = "Tournois TenUp",
     fetched_at: str = "",
+    only_natures: list = None,
 ):
     new_ids = new_ids or set()
     for t in tournaments:
         tid = t.get("originalId") or t.get("id", "")
         t["_is_new"] = tid in new_ids
 
-    rows = [_tournament_to_row(t) for t in tournaments]
+    rows = [_tournament_to_row(t, only_natures=only_natures) for t in tournaments]
     epreuve_options = _collect_epreuve_options(rows)
 
     tbody_lines = []
@@ -668,7 +676,7 @@ function resetFilters() {{
     print(f"Rapport HTML genere : {os.path.abspath(output_path)}")
 
 
-def generate_from_file(data_file, output_path, new_ids=None):
+def generate_from_file(data_file, output_path, new_ids=None, only_natures=None):
     with open(data_file, encoding="utf-8") as f:
         data = json.load(f)
     generate_html(
@@ -676,4 +684,5 @@ def generate_from_file(data_file, output_path, new_ids=None):
         output_path,
         new_ids=new_ids,
         fetched_at=data.get("fetched_at", ""),
+        only_natures=only_natures,
     )
