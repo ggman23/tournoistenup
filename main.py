@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime
 
 from scraper import TenupScraper
 from storage import update_storage, load_json
@@ -50,6 +51,12 @@ def parse_args():
                    help="Re-enrich existing data (no scraping) then regenerate HTML")
     p.add_argument("--pages-max", type=int, default=0, metavar="N",
                    help="Stop scraping after N pages (0 = all). Use to test pagination quickly.")
+    p.add_argument("--date-start", default=None, metavar="DD/MM/YY",
+                   help="Start date for search (overrides config). Format: 01/04/26")
+    p.add_argument("--date-end", default=None, metavar="DD/MM/YY",
+                   help="End date for search (overrides config). Format: 01/09/26")
+    p.add_argument("--no-prompt", action="store_true",
+                   help="Never prompt interactively (use config dates as-is)")
     return p.parse_args()
 
 
@@ -63,6 +70,31 @@ def main():
 
     with open(args.config) as f:
         config = json.load(f)
+
+    # ── Date prompts (interactive if not supplied via CLI or --no-prompt) ────────
+    def _ask_date(label: str, default: str) -> str:
+        """Prompt user for a date; return default if empty input."""
+        try:
+            val = input(f"{label} [{default}] : ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return default
+        return val if val else default
+
+    if args.html_only or args.enrich_only:
+        pass  # no scraping → no date needed
+    else:
+        cfg_start = config["search"].get("date_start", "")
+        cfg_end   = config["search"].get("date_end", "")
+        if args.date_start:
+            config["search"]["date_start"] = args.date_start
+        elif not args.no_prompt:
+            config["search"]["date_start"] = _ask_date("Date de début (DD/MM/YY)", cfg_start)
+        if args.date_end:
+            config["search"]["date_end"] = args.date_end
+        elif not args.no_prompt:
+            config["search"]["date_end"] = _ask_date("Date de fin   (DD/MM/YY)", cfg_end)
+        logger.info("Plage de recherche : %s → %s",
+                    config["search"]["date_start"], config["search"]["date_end"])
 
     data_file    = config["storage"]["data_file"]
     history_file = config["storage"]["history_file"]
@@ -131,6 +163,23 @@ def main():
     if not tournaments:
         logger.warning("No tournaments returned. Check your search criteria or cookies.")
         sys.exit(0)
+
+    # ── Post-filter: drop tournaments that START before date_start ────────────
+    raw_start = config["search"].get("date_start", "")
+    try:
+        # Config format is DD/MM/YY (e.g. "01/04/26")
+        cutoff = datetime.strptime(raw_start, "%d/%m/%y")
+        before = [t for t in tournaments
+                  if datetime.fromisoformat(
+                      t.get("dateDebut", {}).get("date", "9999-01-01")[:10]
+                  ) < cutoff]
+        if before:
+            names = [t.get("libelle", "?") for t in before]
+            logger.info("Filtered out %d tournament(s) starting before %s: %s",
+                        len(before), cutoff.strftime("%d/%m/%Y"), names)
+        tournaments = [t for t in tournaments if t not in before]
+    except Exception as e:
+        logger.debug("Date post-filter skipped: %s", e)
 
     # ── Merge previously enriched data (format, detail_url) ──────────────────
     # Fresh scraped data has no 'enriched' key. Reload from the saved file so
