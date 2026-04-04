@@ -4,6 +4,7 @@ Fetches individual tournament detail pages to extract additional info:
 """
 
 import logging
+import os
 import re
 import time
 from typing import Optional
@@ -131,24 +132,49 @@ def _extract_formats(soup: BeautifulSoup) -> tuple:
     return best, best_desc, formats_list
 
 
+def _reload_session_cookies(session: requests.Session, cookies_file: str) -> bool:
+    """Reload cookies from file into session. Returns True if file was readable."""
+    try:
+        import json as _json
+        with open(cookies_file, encoding="utf-8") as f:
+            cookies = _json.load(f)
+        session.cookies.clear()
+        for c in cookies:
+            session.cookies.set(c["name"], c["value"],
+                                domain=c.get("domain", ".tenup.fft.fr"))
+        logger.info("Cookies rechargés depuis %s (%d cookies)", cookies_file, len(cookies))
+        return True
+    except Exception as e:
+        logger.warning("Impossible de recharger %s : %s", cookies_file, e)
+        return False
+
+
+def _is_queueit(resp: requests.Response) -> bool:
+    """Return True if the response is a queue-it waiting room page."""
+    return "queue-it.net" in resp.url or "enqueuetoken" in resp.text[:500]
+
+
 def enrich_tournament(
     tournament: dict,
     session: requests.Session,
     delay_s: float = 1.5,
     max_retries: int = 3,
+    cookies_file: Optional[str] = None,
 ) -> dict:
     url = get_tournament_url(tournament)
     enriched = {"detail_url": url}
     tid = tournament.get("id", "?")
     name = tournament.get("libelle", "?")
 
-    # Retry loop for network errors
+    wait_poll_s = 15
+    wait_max_s  = 600
+
+    # Retry loop for network errors + queue-it recovery
     resp = None
     for attempt in range(1, max_retries + 1):
         try:
             resp = session.get(url, timeout=20)
             resp.raise_for_status()
-            break
         except Exception as e:
             logger.warning("[%s] %s → attempt %d/%d failed: %s", tid, name, attempt, max_retries, e)
             if attempt == max_retries:
@@ -157,8 +183,41 @@ def enrich_tournament(
                 tournament["enriched"] = enriched
                 return tournament
             time.sleep(min(2 ** attempt, 30))
+            continue
 
-    # Detect auth redirect
+        # Detect queue-it redirect (cookie expired)
+        if _is_queueit(resp):
+            if not cookies_file:
+                logger.warning("[%s] %s → queue-it détecté, pas de cookies_file pour recharger", tid, name)
+                enriched["fetch_failed"] = True
+                tournament["enriched"] = enriched
+                return tournament
+
+            mtime_before = os.path.getmtime(cookies_file) if os.path.exists(cookies_file) else 0
+            waited = 0
+            logger.warning(
+                "[%s] ⚠️  Queue-it détecté — cookie expiré. Attente de TamperMonkey... (max %ds)",
+                tid, wait_max_s,
+            )
+            while waited < wait_max_s:
+                time.sleep(wait_poll_s)
+                waited += wait_poll_s
+                mtime_after = os.path.getmtime(cookies_file) if os.path.exists(cookies_file) else 0
+                if mtime_after > mtime_before:
+                    logger.info("[%s] ✅  cookies.json mis à jour — rechargement...", tid)
+                    _reload_session_cookies(session, cookies_file)
+                    break
+                logger.info("[%s] ⏳  cookies.json inchangé (%ds / %ds)...", tid, waited, wait_max_s)
+            else:
+                logger.error("[%s] Timeout — abandon après %ds", tid, wait_max_s)
+                enriched["fetch_failed"] = True
+                tournament["enriched"] = enriched
+                return tournament
+            continue  # retry with fresh cookies
+
+        break  # good response, exit retry loop
+
+    # Detect login redirect
     if any(kw in resp.text[:2000].lower() for kw in ["connexion", "se connecter", "login"]):
         logger.warning("[%s] %s → redirected to login page, cookies may be expired", tid, name)
         tournament["enriched"] = enriched
@@ -192,6 +251,7 @@ def enrich_all(
     delay_s: float = 1.5,
     max_enrich: int = 0,
     max_rounds: int = 3,
+    cookies_file: Optional[str] = None,
 ) -> list[dict]:
     """
     Enrich tournaments with detail page data.
@@ -234,7 +294,7 @@ def enrich_all(
             if t.get("enriched", {}).get("fetch_failed"):
                 del t["enriched"]["fetch_failed"]
             logger.info("[%d/%d] %s", i, total, t.get("libelle", "?"))
-            enrich_tournament(t, session, delay_s=delay_s)
+            enrich_tournament(t, session, delay_s=delay_s, cookies_file=cookies_file)
 
         still_failed = [t for t in tournaments if _failed(t)]
         if not still_failed:

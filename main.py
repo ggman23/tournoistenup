@@ -241,6 +241,7 @@ def main():
         enrich_all(
             tournaments, enrich_scraper.session,
             delay_s=1.5, max_enrich=args.enrich_max,
+            cookies_file=cookies_file,
         )
         # Save updated data
         import json as _json, datetime as _dt
@@ -325,6 +326,7 @@ def main():
         enrich_all(
             tournaments, scraper.session,
             delay_s=1.5, max_enrich=args.enrich_max,
+            cookies_file=cookies_file,
         )
 
     # ── Persist & detect new ─────────────────────────────────────────────────
