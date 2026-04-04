@@ -143,6 +143,17 @@ def _epreuves_data(epreuves):
     return result
 
 
+def _parse_distance_km(raw: str) -> float:
+    """Parse '1,5 km' or '903 m' or '1.5 km' → float km."""
+    raw = raw.replace("\xa0", "").replace(",", ".").strip()
+    try:
+        if raw.endswith(" m") or raw == "m":
+            return float(raw.replace(" m", "").strip()) / 1000.0
+        return float(raw.replace(" km", "").strip() or 0)
+    except ValueError:
+        return 0.0
+
+
 def _tournament_to_row(t, only_natures=None):
     install  = t.get("installation", {})
     juge     = t.get("jugeArbitre", {})
@@ -194,10 +205,7 @@ def _tournament_to_row(t, only_natures=None):
         "cp":           cp,
         "adresse":      adresse,
         "distance_raw": t.get("distanceEnMetres", ""),
-        "distance_km":  float(
-            t.get("distanceEnMetres", "0 km")
-            .replace(",", ".").replace(" km", "").replace("\xa0", "").strip() or 0
-        ),
+        "distance_km":  _parse_distance_km(t.get("distanceEnMetres", "")),
         "ref_city":     t.get("_ref_city", ""),
         "surfaces":     _surfaces(t.get("naturesTerrains", [])),
         "epreuves":     _epreuves_html(t.get("epreuves", []), enriched.get("formats_list"), only_natures=only_natures),
