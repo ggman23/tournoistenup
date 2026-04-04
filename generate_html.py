@@ -277,8 +277,10 @@ def generate_html(
 
         ep_keys_json = json.dumps(r["epreuves_keys"])
 
+        tid_esc = html.escape(str(r['id']))
         tbody_lines.append(f"""
         <tr class="{'table-warning' if r['is_new'] else ''}"
+            data-id="{tid_esc}"
             data-ep-keys='{ep_keys_json}'
             data-distance="{r['distance_km']}"
             data-fmt="{html.escape(','.join(r['fmt_all']))}"
@@ -297,6 +299,7 @@ def generate_html(
           <td><small>{html.escape(r['juge_nom'])}<br>{tel_str}</small></td>
           <td><small>{email_link}</small></td>
           <td><small>{html.escape(r['ouverture'])}</small></td>
+          <td class="text-center"><button class="fav-btn" data-id="{tid_esc}" onclick="toggleFav(this)">&#9734;</button></td>
         </tr>""")
 
     tbody        = "\n".join(tbody_lines)
@@ -337,7 +340,9 @@ def generate_html(
     .stat-card  {{ border-radius:8px; padding:8px 16px; color:white;
                    display:inline-block; margin-right:8px; margin-bottom:6px; font-weight:600; }}
     .dt-buttons {{ margin-bottom:8px; }}
-    tr.hidden-row {{ display:none !important; }}
+    .fav-btn {{ background:none; border:none; cursor:pointer; font-size:1.15em;
+               padding:0 3px; color:#ccc; line-height:1; transition:color .15s; }}
+    .fav-btn.fav-active {{ color:#f39c12; }}
   </style>
 </head>
 <body>
@@ -409,6 +414,10 @@ def generate_html(
           <input class="form-check-input" type="checkbox" id="chk-insc" onchange="applyFilters()">
           <label class="form-check-label small" for="chk-insc">Inscr. en ligne</label>
         </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-fav" onchange="applyFilters()">
+          <label class="form-check-label small" for="chk-fav">⭐ Favoris</label>
+        </div>
       </div>
 
       <div class="col-auto ms-auto align-self-end">
@@ -438,6 +447,7 @@ def generate_html(
           <th>Juge / Tél</th>
           <th>Email</th>
           <th>Ouv. inscr.</th>
+          <th>⭐</th>
         </tr>
       </thead>
       <tbody>{tbody}</tbody>
@@ -458,20 +468,56 @@ def generate_html(
 var dt;
 
 $(function() {{
-  // Bootstrap tooltips (format descriptions)
   $('[data-bs-toggle="tooltip"]').each(function() {{
     new bootstrap.Tooltip(this);
   }});
 
+  // ── Custom DataTables row filter ──────────────────────────────────────────
+  $.fn.dataTable.ext.search.push(function(settings, _data, index) {{
+    var node = settings.aoData[index] && settings.aoData[index].nTr;
+    if (!node) return true;
+    var $tr = $(node);
+
+    var epKey    = $('#filter-epreuve').val();
+    var maxDist  = parseFloat($('#filter-distance').val()) || null;
+    var surface  = $('#filter-surface').val().toLowerCase();
+    var fmt      = $('#filter-format').val();
+    var onlyNew  = $('#chk-new').prop('checked');
+    var onlyTmc  = $('#chk-tmc').prop('checked');
+    var onlyInsc = $('#chk-insc').prop('checked');
+    var onlyFav  = $('#chk-fav').prop('checked');
+
+    if (epKey) {{
+      var keys = JSON.parse($tr.attr('data-ep-keys') || '[]');
+      if (keys.indexOf(epKey) === -1) return false;
+    }}
+    if (maxDist !== null && (parseFloat($tr.attr('data-distance')) || 0) > maxDist) return false;
+    if (surface && $tr.find('td:nth-child(6)').text().toLowerCase().indexOf(surface) === -1) return false;
+    if (fmt) {{
+      var fmts = ($tr.attr('data-fmt') || '').split(',');
+      if (fmts.indexOf(fmt) === -1) return false;
+    }}
+    if (onlyNew  && $tr.attr('data-new') !== 'true')  return false;
+    if (onlyTmc  && $tr.attr('data-tmc') !== 'true')  return false;
+    if (onlyInsc && $tr.find('td:nth-child(9)').text().trim() !== '✅') return false;
+    if (onlyFav) {{
+      var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}');
+      if (!favs[$tr.attr('data-id')]) return false;
+    }}
+    return true;
+  }});
+
   dt = $('#t').DataTable({{
     pageLength: 25,
+    lengthMenu: [[25, 50, 100, -1], [25, 50, 100, "Tout"]],
     order: [[0, 'asc']],
     language: {{ url: 'https://cdn.datatables.net/plug-ins/2.0.5/i18n/fr-FR.json' }},
     columnDefs: [
       {{ targets: [2,3,5,8,9], searchable: false }},
       {{ targets: [3,7], type: 'num' }},
+      {{ targets: [-1], orderable: false, searchable: false }},
     ],
-    dom: '<"row"<"col-sm-6"B><"col-sm-6"f>>rtip',
+    dom: '<"row"<"col-sm-4"B><"col-sm-4"l><"col-sm-4"f>>rtip',
     buttons: [
       {{ extend:'excelHtml5', text:'📥 Excel', className:'btn-sm btn-outline-success',
          exportOptions:{{ columns:':visible' }} }},
@@ -479,77 +525,59 @@ $(function() {{
          exportOptions:{{ columns:':visible' }} }},
       {{ extend:'print',      text:'🖨 Print',  className:'btn-sm btn-outline-secondary' }},
     ],
+    drawCallback: function() {{
+      restoreFavs();
+      applyEpLineFilter();
+      $('#filter-count').text(dt.page.info().recordsDisplay + ' affiché(s)');
+    }}
   }});
-
-  // Hide rows via class instead of DataTables draw (keeps sorting)
-  applyFilters();
 }});
 
 function applyFilters() {{
-  var epKey   = $('#filter-epreuve').val();
-  var maxDist = parseFloat($('#filter-distance').val()) || null;
-  var surface = $('#filter-surface').val().toLowerCase();
-  var fmt     = $('#filter-format').val();
-  var onlyNew  = $('#chk-new').prop('checked');
-  var onlyTmc  = $('#chk-tmc').prop('checked');
-  var onlyInsc = $('#chk-insc').prop('checked');
-
-  var visible = 0;
-
-  $('#t tbody tr').each(function() {{
-    var $tr = $(this);
-    var show = true;
-
-    if (epKey) {{
-      var keys = JSON.parse($tr.attr('data-ep-keys') || '[]');
-      if (keys.indexOf(epKey) === -1) show = false;
-    }}
-    if (maxDist !== null) {{
-      var d = parseFloat($tr.attr('data-distance')) || 0;
-      if (d > maxDist) show = false;
-    }}
-    if (surface) {{
-      var srfText = $tr.find('td:nth-child(6)').text().toLowerCase();
-      if (srfText.indexOf(surface) === -1) show = false;
-    }}
-    if (fmt) {{
-      var fmts = ($tr.attr('data-fmt') || '').split(',');
-      if (fmts.indexOf(fmt) === -1) show = false;
-    }}
-    if (onlyNew  && $tr.attr('data-new')  !== 'true') show = false;
-    if (onlyTmc  && $tr.attr('data-tmc')  !== 'true') show = false;
-    if (onlyInsc) {{
-      var inscCell = $tr.find('td:nth-child(9)').text().trim();
-      if (inscCell !== '✅') show = false;
-    }}
-
-    $tr.toggleClass('hidden-row', !show);
-    if (show) visible++;
-
-  }});
-
-  // Inject/remove a <style> rule to hide non-matching ep-lines.
-  // Using CSS (not per-element classes) so it survives DataTables redraws.
-  applyEpLineFilter(epKey);
-  $('#filter-count').text(visible + ' affiché(s)');
+  if (dt) dt.draw();
 }}
 
-function applyEpLineFilter(epKey) {{
+function applyEpLineFilter() {{
+  var epKey = $('#filter-epreuve').val();
   $('#ep-line-filter-style').remove();
   if (epKey) {{
     $('<style id="ep-line-filter-style">')
-      .text('.ep-line:not([data-ep-key="' + epKey + '"]) {{ display: none !important; }}')
+      .text('.ep-line:not([data-ep-key="' + epKey + '"]) {{ display:none !important; }}')
       .appendTo('head');
   }}
 }}
 
+// ── Favorites (stored in localStorage) ───────────────────────────────────────
+function toggleFav(btn) {{
+  var id   = btn.getAttribute('data-id');
+  var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}');
+  if (favs[id]) {{
+    delete favs[id];
+    btn.textContent = '\u2606';
+    btn.classList.remove('fav-active');
+  }} else {{
+    favs[id] = true;
+    btn.textContent = '\u2605';
+    btn.classList.add('fav-active');
+  }}
+  localStorage.setItem('tenup_favs', JSON.stringify(favs));
+  if ($('#chk-fav').prop('checked')) dt.draw();
+}}
+
+function restoreFavs() {{
+  var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}');
+  $('.fav-btn').each(function() {{
+    var id  = $(this).attr('data-id');
+    var isFav = !!favs[id];
+    $(this).text(isFav ? '\u2605' : '\u2606').toggleClass('fav-active', isFav);
+  }});
+}}
+
 function resetFilters() {{
-  $('#filter-epreuve').val('');
+  $('#filter-epreuve, #filter-surface, #filter-format').val('');
   $('#filter-distance').val('');
-  $('#filter-surface').val('');
-  $('#filter-format').val('');
-  $('#chk-new, #chk-tmc, #chk-insc').prop('checked', false);
-  applyFilters();
+  $('#chk-new, #chk-tmc, #chk-insc, #chk-fav').prop('checked', false);
+  if (dt) dt.draw();
 }}
 </script>
 </body>
