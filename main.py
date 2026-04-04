@@ -16,14 +16,86 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 from datetime import datetime
+
+import requests as _req
 
 from scraper import TenupScraper
 from storage import update_storage, load_json
 from notify import notify
 from generate_html import generate_html, generate_from_file
 from enrich import enrich_all
+
+def _search_city_fr(name: str) -> list[dict]:
+    """Search French communes via geo.api.gouv.fr."""
+    try:
+        url = (
+            "https://geo.api.gouv.fr/communes"
+            f"?nom={_req.utils.quote(name)}&fields=nom,codesPostaux,centre"
+            "&format=json&geometry=centre&boost=population&limit=10"
+        )
+        r = _req.get(url, timeout=8)
+        r.raise_for_status()
+        results = []
+        for city in r.json():
+            coords = city.get("centre", {}).get("coordinates", [None, None])
+            if len(coords) < 2 or None in coords:
+                continue
+            lng, lat = coords[0], coords[1]
+            postal = city.get("codesPostaux", ["?"])[0]
+            nom    = city["nom"].upper()
+            label  = f"{nom}, {postal}"
+            results.append({"label": label, "value": label,
+                            "lat": round(lat, 6), "lng": round(lng, 6), "country": "fr"})
+        return results
+    except Exception as e:
+        logging.getLogger(__name__).warning("City search failed: %s", e)
+        return []
+
+
+def _city_slug(ville_cfg: dict) -> str:
+    """Filesystem-safe slug: 'bordeaux_33000_50km'."""
+    label = ville_cfg.get("label", "default")
+    km    = ville_cfg.get("distance_km", 100)
+    slug  = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
+    return f"{slug}_{km}km"
+
+
+def _prompt_city(default_ville: dict) -> dict:
+    while True:
+        try:
+            name = input(f"Ville [{default_ville.get('label','')}] : ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return default_ville
+        if not name:
+            return default_ville
+        cities = _search_city_fr(name)
+        if not cities:
+            print("  Aucune ville trouvée, réessaye.")
+            continue
+        for i, c in enumerate(cities, 1):
+            print(f"  {i}. {c['label']}")
+        print("  0. Autre recherche")
+        try:
+            choice = int(input("Choix : ").strip())
+        except (ValueError, EOFError, KeyboardInterrupt):
+            return default_ville
+        if choice == 0:
+            continue
+        if 1 <= choice <= len(cities):
+            return cities[choice - 1]
+        print("  Numéro invalide.")
+
+
+def _prompt_km(default_km: int) -> int:
+    try:
+        val = input(f"Distance max (km) [{default_km}] : ").strip()
+        return int(val) if val else default_km
+    except (ValueError, EOFError, KeyboardInterrupt):
+        return default_km
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,7 +128,11 @@ def parse_args():
     p.add_argument("--date-end", default=None, metavar="DD/MM/YY",
                    help="End date for search (overrides config). Format: 01/09/26")
     p.add_argument("--no-prompt", action="store_true",
-                   help="Never prompt interactively (use config dates as-is)")
+                   help="Never prompt interactively (use config values as-is)")
+    p.add_argument("--city", default=None, metavar="NOM,CP",
+                   help="Use this city label directly, e.g. 'BORDEAUX, 33000'")
+    p.add_argument("--km", type=int, default=None, metavar="N",
+                   help="Distance max in km (overrides config)")
     return p.parse_args()
 
 
@@ -71,18 +147,34 @@ def main():
     with open(args.config) as f:
         config = json.load(f)
 
-    # ── Date prompts (interactive if not supplied via CLI or --no-prompt) ────────
+    # ── Interactive prompts (city → km → dates) ──────────────────────────────
     def _ask_date(label: str, default: str) -> str:
-        """Prompt user for a date; return default if empty input."""
         try:
             val = input(f"{label} [{default}] : ").strip()
         except (EOFError, KeyboardInterrupt):
             return default
         return val if val else default
 
-    if args.html_only or args.enrich_only:
-        pass  # no scraping → no date needed
-    else:
+    do_scrape = not (args.html_only or args.enrich_only)
+
+    # City
+    if args.city:
+        config["search"]["ville"]["label"] = args.city
+        config["search"]["ville"]["value"] = args.city
+    elif not args.no_prompt:
+        ville = _prompt_city(config["search"]["ville"])
+        config["search"]["ville"].update(ville)
+
+    # KM
+    if args.km:
+        config["search"]["ville"]["distance_km"] = args.km
+    elif not args.no_prompt:
+        config["search"]["ville"]["distance_km"] = _prompt_km(
+            config["search"]["ville"].get("distance_km", 100)
+        )
+
+    # Dates (only needed for actual scraping)
+    if do_scrape:
         cfg_start = config["search"].get("date_start", "")
         cfg_end   = config["search"].get("date_end", "")
         if args.date_start:
@@ -93,14 +185,20 @@ def main():
             config["search"]["date_end"] = args.date_end
         elif not args.no_prompt:
             config["search"]["date_end"] = _ask_date("Date de fin   (DD/MM/YY)", cfg_end)
-        logger.info("Plage de recherche : %s → %s",
-                    config["search"]["date_start"], config["search"]["date_end"])
+        logger.info("Plage : %s → %s | Ville : %s %dkm",
+                    config["search"]["date_start"], config["search"]["date_end"],
+                    config["search"]["ville"]["label"],
+                    config["search"]["ville"]["distance_km"])
 
-    data_file    = config["storage"]["data_file"]
-    history_file = config["storage"]["history_file"]
+    # ── Per-city file paths ───────────────────────────────────────────────────
+    slug         = _city_slug(config["search"]["ville"])
+    data_file    = os.path.join("data", f"tournaments_{slug}.json")
+    history_file = os.path.join("data", f"history_{slug}.json")
+    html_file    = os.path.join("data", f"tournaments_{slug}.html")
+    html_dir     = "data"
     output_file  = config["notifications"]["output_file"]
     print_console = config["notifications"]["print_to_console"]
-    html_file    = config["notifications"].get("html_file", "data/tournaments.html")
+    logger.info("Fichiers ville : %s", slug)
 
     # ── HTML-only mode: just regenerate the report ──────────────────────────
     if args.html_only:
@@ -235,7 +333,6 @@ def main():
     saved_data   = load_json(data_file)
     fetched_at   = saved_data.get("fetched_at", "")
     stamp        = datetime.now().strftime("%Y%m%d_%Hh%M")
-    html_dir     = os.path.dirname(html_file) or "data"
 
     # 1) Full report (fixed name → toujours le dernier)
     generate_html(tournaments, html_file, new_ids=new_ids, fetched_at=fetched_at)

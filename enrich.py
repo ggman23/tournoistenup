@@ -179,6 +179,7 @@ def enrich_tournament(
                     [f["num"] for f in formats_list], keys)
     else:
         logger.warning("[%s] %s → format not found (page fetched OK)", tid, name)
+        enriched["no_format_in_html"] = True  # don't retry — likely JS-rendered
 
     time.sleep(delay_s)
     tournament["enriched"] = enriched
@@ -202,9 +203,11 @@ def enrich_all(
     """
     def _needs_enrich(t):
         e = t.get("enriched", {})
-        return "enriched" not in t or e.get("fetch_failed") or (
-            "format" not in e and not e.get("fetch_failed")
-        )
+        if "enriched" not in t:         return True   # never processed
+        if e.get("fetch_failed"):       return True   # network error → retry
+        if e.get("no_format_in_html"):  return False  # JS-rendered, won't improve
+        if "format" not in e:           return True   # has enriched but no format yet
+        return False                                  # already has format → skip
 
     def _failed(t):
         return t.get("enriched", {}).get("fetch_failed", False)
