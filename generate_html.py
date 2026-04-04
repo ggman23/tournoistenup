@@ -181,6 +181,8 @@ def _tournament_to_row(t):
         "fmt_sort":     int(fmt_all[0]) if fmt_all else 99,
         "dates":        dates,
         "date_debut_sort": t.get("dateDebut", {}).get("date", ""),
+        "date_debut_iso": t.get("dateDebut", {}).get("date", "")[:10],
+        "date_fin_iso":   t.get("dateFin",   {}).get("date", "")[:10],
         "ville":        ville,
         "cp":           cp,
         "adresse":      adresse,
@@ -287,7 +289,11 @@ def generate_html(
             data-fmt="{html.escape(','.join(r['fmt_all']))}"
             data-has-format="{has_fmt}"
             data-new="{str(r['is_new']).lower()}"
-            data-tmc="{str(r['tmc']).lower()}">
+            data-tmc="{str(r['tmc']).lower()}"
+            data-libelle="{html.escape(r['libelle'].lower())}"
+            data-cat="{html.escape(r['cat'].lower())}"
+            data-date-debut="{r['date_debut_iso']}"
+            data-date-fin="{r['date_fin_iso']}">
           <td data-sort="{html.escape(r['date_debut_sort'])}">{html.escape(r['dates'])}</td>
           <td>{nom_link}</td>
           <td>{html.escape(r['cat'])}</td>
@@ -433,6 +439,41 @@ def generate_html(
         <span id="filter-count" class="ms-2 text-muted small"></span>
       </div>
     </div>
+
+    <!-- Ligne 2 : masquer mots-clés + plage de dates -->
+    <div class="row g-2 align-items-end mt-2 pt-2 border-top">
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Masquer tournois contenant</label><br>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-hide-vert" onchange="applyFilters()">
+          <label class="form-check-label small fw-bold" for="chk-hide-vert" style="color:#198754">Vert</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-hide-orange" onchange="applyFilters()">
+          <label class="form-check-label small fw-bold" for="chk-hide-orange" style="color:#fd7e14">Orange</label>
+        </div>
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Mots à exclure (séparés par espace)</label>
+        <input type="text" class="form-control form-control-sm" id="filter-exclude"
+               placeholder="ex: hiver open fédéral" style="min-width:260px" oninput="applyFilters()">
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Dates du</label>
+        <input type="date" class="form-control form-control-sm" id="filter-date-start"
+               style="width:150px" onchange="applyFilters()">
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">au</label>
+        <input type="date" class="form-control form-control-sm" id="filter-date-end"
+               style="width:150px" onchange="applyFilters()">
+      </div>
+
+    </div>
   </div>
 
   <!-- Table -->
@@ -512,6 +553,33 @@ $(function() {{
       var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}');
       if (!favs[$tr.attr('data-id')]) return false;
     }}
+
+    // ── Masquer Vert / Orange (nom + catégorie uniquement) ────────────────
+    var libelle = $tr.attr('data-libelle') || '';
+    var cat     = $tr.attr('data-cat') || '';
+    var nameCat = libelle + ' ' + cat;
+    if ($('#chk-hide-vert').prop('checked')   && nameCat.indexOf('vert')   !== -1) return false;
+    if ($('#chk-hide-orange').prop('checked') && nameCat.indexOf('orange') !== -1) return false;
+
+    // ── Exclure mots personnalisés (nom + catégorie) ──────────────────────
+    var excludeRaw = $('#filter-exclude').val().trim().toLowerCase();
+    if (excludeRaw) {{
+      var words = excludeRaw.split(/\s+/).filter(Boolean);
+      for (var wi = 0; wi < words.length; wi++) {{
+        if (nameCat.indexOf(words[wi]) !== -1) return false;
+      }}
+    }}
+
+    // ── Filtre plage de dates ─────────────────────────────────────────────
+    var fStart = $('#filter-date-start').val();
+    var fEnd   = $('#filter-date-end').val();
+    if (fStart || fEnd) {{
+      var tStart = $tr.attr('data-date-debut') || '';
+      var tEnd   = $tr.attr('data-date-fin')   || '';
+      if (fEnd   && tStart && tStart > fEnd)   return false;
+      if (fStart && tEnd   && tEnd   < fStart) return false;
+    }}
+
     return true;
   }});
 
@@ -583,8 +651,10 @@ function restoreFavs() {{
 
 function resetFilters() {{
   $('#filter-epreuve, #filter-surface, #filter-format').val('');
-  $('#filter-distance').val('');
+  $('#filter-distance, #filter-exclude').val('');
+  $('#filter-date-start, #filter-date-end').val('');
   $('#chk-new, #chk-tmc, #chk-insc, #chk-fav, #chk-no-fmt').prop('checked', false);
+  $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
   if (dt) dt.draw();
 }}
 </script>
