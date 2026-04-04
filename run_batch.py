@@ -102,8 +102,15 @@ def merge_and_generate(args: argparse.Namespace):
 
     logger.info("Fichiers à fusionner: %d", len(json_files))
 
-    all_tournaments: dict = {}   # id → tournament (deduplicate)
+    all_tournaments: dict = {}   # id → tournament (keep nearest city)
     fetched_at = ""
+
+    def _dist_km(t: dict) -> float:
+        raw = t.get("distanceEnMetres", "0 km")
+        try:
+            return float(raw.replace(",", ".").replace(" km", "").replace("\xa0", "").strip() or 0)
+        except ValueError:
+            return 9999.0
 
     for jf in sorted(json_files):
         data = load_json(jf)
@@ -113,8 +120,14 @@ def merge_and_generate(args: argparse.Namespace):
             fetched_at = data.get("fetched_at", "")
         for t in data.get("tournaments", []):
             tid = t.get("originalId") or t.get("id", "")
-            if tid and tid not in all_tournaments:
+            if not tid:
+                continue
+            if tid not in all_tournaments:
                 all_tournaments[tid] = t
+            else:
+                # Keep the entry with the shorter distance (= more relevant ref city)
+                if _dist_km(t) < _dist_km(all_tournaments[tid]):
+                    all_tournaments[tid] = t
 
     tournaments = list(all_tournaments.values())
     logger.info("Total unique tournaments France entière: %d", len(tournaments))

@@ -284,6 +284,11 @@ def main():
         logger.warning("No tournaments returned. Check your search criteria or cookies.")
         sys.exit(0)
 
+    # Tag each tournament with the reference city used for this search
+    ref_city = config["search"]["ville"]["label"]
+    for t in tournaments:
+        t["_ref_city"] = ref_city
+
     # ── Merge previously enriched data (format, detail_url) ──────────────────
     # Look in the city-slug file first, then fall back to legacy tournaments.json
     # so existing enriched data is reused after the rename.

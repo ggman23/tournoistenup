@@ -191,6 +191,7 @@ def _tournament_to_row(t):
             t.get("distanceEnMetres", "0 km")
             .replace(",", ".").replace(" km", "").replace("\xa0", "").strip() or 0
         ),
+        "ref_city":     t.get("_ref_city", ""),
         "surfaces":     _surfaces(t.get("naturesTerrains", [])),
         "epreuves":     _epreuves_html(t.get("epreuves", []), enriched.get("formats_list")),
         "epreuves_keys": _epreuves_data(t.get("epreuves", [])),
@@ -301,7 +302,7 @@ def generate_html(
           <td>{r['epreuves']}</td>
           <td>{r['surfaces']}</td>
           <td>{html.escape(r['ville'])} <small class="text-muted">{html.escape(r['cp'])}</small></td>
-          <td data-sort="{r['distance_km']}">{html.escape(r['distance_raw'])}</td>
+          <td data-sort="{r['distance_km']}">{html.escape(r['distance_raw'])}{f'<br><small class="text-muted">/ {html.escape(r["ref_city"])}</small>' if r.get("ref_city") else ""}</td>
           <td class="text-center">{insc}</td>
           <td class="text-center">{paiem}</td>
           <td><small>{html.escape(r['juge_nom'])}<br>{tel_str}</small></td>
