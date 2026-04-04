@@ -232,12 +232,29 @@ def main():
     notify(new_tournaments, output_file, print_to_console=print_console)
 
     # ── Generate HTML report ──────────────────────────────────────────────────
-    generate_html(
-        tournaments,
-        html_file,
-        new_ids=new_ids,
-        fetched_at=load_json(data_file).get("fetched_at", ""),
-    )
+    saved_data   = load_json(data_file)
+    fetched_at   = saved_data.get("fetched_at", "")
+    stamp        = datetime.now().strftime("%Y%m%d_%Hh%M")
+    html_dir     = os.path.dirname(html_file) or "data"
+
+    # 1) Full report (fixed name → toujours le dernier)
+    generate_html(tournaments, html_file, new_ids=new_ids, fetched_at=fetched_at)
+
+    # 2) Full report horodaté
+    all_stamped  = os.path.join(html_dir, f"tournois_{stamp}.html")
+    generate_html(tournaments, all_stamped, new_ids=new_ids, fetched_at=fetched_at)
+    logger.info("Rapport complet horodaté : %s", all_stamped)
+
+    # 3) Rapport "nouveaux seulement" horodaté (seulement si nouveaux)
+    if new_tournaments:
+        new_stamped = os.path.join(html_dir, f"nouveaux_{stamp}.html")
+        all_new_ids = {t.get("originalId") or t.get("id", "") for t in new_tournaments}
+        generate_html(
+            new_tournaments, new_stamped,
+            new_ids=all_new_ids, fetched_at=fetched_at,
+            title="Nouveaux Tournois TenUp",
+        )
+        logger.info("Rapport nouveaux horodaté  : %s (%d tournois)", new_stamped, len(new_tournaments))
 
 
 if __name__ == "__main__":
