@@ -114,7 +114,7 @@ def _epreuves_html(epreuves, formats_list=None):
             )
 
         lines.append(
-            f'<div class="ep-line">'
+            f'<div class="ep-line" data-ep-key="{html.escape(ep_key)}">'
             f'<span class="ep-nature">{html.escape(nature)}</span> '
             f'<span class="ep-age">{html.escape(age)}</span> '
             f'<span class="ep-range">{html.escape(bas)} → {html.escape(haut)}</span> '
@@ -525,6 +525,16 @@ function applyFilters() {{
 
     $tr.toggleClass('hidden-row', !show);
     if (show) visible++;
+
+    // Show/hide individual épreuve lines based on selected épreuve
+    if (epKey) {{
+      $tr.find('.ep-line').each(function() {{
+        var lineKey = $(this).attr('data-ep-key') || '';
+        $(this).toggleClass('d-none', lineKey !== epKey);
+      }});
+    }} else {{
+      $tr.find('.ep-line').removeClass('d-none');
+    }}
   }});
 
   $('#filter-count').text(visible + ' affiché(s)');
@@ -536,6 +546,7 @@ function resetFilters() {{
   $('#filter-surface').val('');
   $('#filter-format').val('');
   $('#chk-new, #chk-tmc, #chk-insc').prop('checked', false);
+  $('.ep-line').removeClass('d-none');
   applyFilters();
 }}
 </script>
