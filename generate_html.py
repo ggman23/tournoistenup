@@ -277,13 +277,15 @@ def generate_html(
 
         ep_keys_json = json.dumps(r["epreuves_keys"])
 
-        tid_esc = html.escape(str(r['id']))
+        tid_esc  = html.escape(str(r['id']))
+        has_fmt  = "true" if r["fmt_all"] else "false"
         tbody_lines.append(f"""
         <tr class="{'table-warning' if r['is_new'] else ''}"
             data-id="{tid_esc}"
             data-ep-keys='{ep_keys_json}'
             data-distance="{r['distance_km']}"
             data-fmt="{html.escape(','.join(r['fmt_all']))}"
+            data-has-format="{has_fmt}"
             data-new="{str(r['is_new']).lower()}"
             data-tmc="{str(r['tmc']).lower()}">
           <td data-sort="{html.escape(r['date_debut_sort'])}">{html.escape(r['dates'])}</td>
@@ -398,6 +400,10 @@ def generate_html(
           <option value="5">F5</option><option value="6">F6</option>
           <option value="7">F7</option>
         </select>
+        <div class="form-check mt-1">
+          <input class="form-check-input" type="checkbox" id="chk-no-fmt" onchange="applyFilters()">
+          <label class="form-check-label small" for="chk-no-fmt">+ sans format</label>
+        </div>
       </div>
 
       <div class="col-auto">
@@ -494,8 +500,10 @@ $(function() {{
     if (maxDist !== null && (parseFloat($tr.attr('data-distance')) || 0) > maxDist) return false;
     if (surface && $tr.find('td:nth-child(6)').text().toLowerCase().indexOf(surface) === -1) return false;
     if (fmt) {{
-      var fmts = ($tr.attr('data-fmt') || '').split(',');
-      if (fmts.indexOf(fmt) === -1) return false;
+      var fmts      = ($tr.attr('data-fmt') || '').split(',');
+      var hasFmt    = $tr.attr('data-has-format') === 'true';
+      var inclNoFmt = $('#chk-no-fmt').prop('checked');
+      if (fmts.indexOf(fmt) === -1 && !(inclNoFmt && !hasFmt)) return false;
     }}
     if (onlyNew  && $tr.attr('data-new') !== 'true')  return false;
     if (onlyTmc  && $tr.attr('data-tmc') !== 'true')  return false;
@@ -576,7 +584,7 @@ function restoreFavs() {{
 function resetFilters() {{
   $('#filter-epreuve, #filter-surface, #filter-format').val('');
   $('#filter-distance').val('');
-  $('#chk-new, #chk-tmc, #chk-insc, #chk-fav').prop('checked', false);
+  $('#chk-new, #chk-tmc, #chk-insc, #chk-fav, #chk-no-fmt').prop('checked', false);
   if (dt) dt.draw();
 }}
 </script>

@@ -135,41 +135,50 @@ def enrich_tournament(
     tournament: dict,
     session: requests.Session,
     delay_s: float = 1.5,
+    max_retries: int = 3,
 ) -> dict:
     url = get_tournament_url(tournament)
     enriched = {"detail_url": url}
     tid = tournament.get("id", "?")
     name = tournament.get("libelle", "?")
 
-    try:
-        resp = session.get(url, timeout=20)
-        resp.raise_for_status()
+    # Retry loop for network errors
+    resp = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = session.get(url, timeout=20)
+            resp.raise_for_status()
+            break
+        except Exception as e:
+            logger.warning("[%s] %s → attempt %d/%d failed: %s", tid, name, attempt, max_retries, e)
+            if attempt == max_retries:
+                enriched["fetch_failed"] = True
+                time.sleep(delay_s)
+                tournament["enriched"] = enriched
+                return tournament
+            time.sleep(min(2 ** attempt, 30))
 
-        # Detect auth redirect (page title contains "connexion" / "login")
-        if any(kw in resp.text[:2000].lower() for kw in ["connexion", "se connecter", "login"]):
-            logger.warning("[%s] %s → redirected to login page, cookies may be expired", tid, name)
-            tournament["enriched"] = enriched
-            return tournament
+    # Detect auth redirect
+    if any(kw in resp.text[:2000].lower() for kw in ["connexion", "se connecter", "login"]):
+        logger.warning("[%s] %s → redirected to login page, cookies may be expired", tid, name)
+        tournament["enriched"] = enriched
+        return tournament
 
-        soup = BeautifulSoup(resp.text, "lxml")
+    soup = BeautifulSoup(resp.text, "lxml")
 
-        # Count how many epreuve-detail-format divs exist
-        fmt_divs = soup.find_all(class_="epreuve-detail-format")
-        logger.info("[%s] %s → found %d epreuve-detail-format div(s)", tid, name, len(fmt_divs))
+    fmt_divs = soup.find_all(class_="epreuve-detail-format")
+    logger.info("[%s] %s → found %d epreuve-detail-format div(s)", tid, name, len(fmt_divs))
 
-        fmt, fmt_desc, formats_list = _extract_formats(soup)
-        if fmt:
-            enriched["format"]       = fmt
-            enriched["format_desc"]  = fmt_desc
-            enriched["formats_list"] = formats_list
-            keys = [f.get("epreuve_key", "?") for f in formats_list]
-            logger.info("[%s] %s → formats %s (keys: %s)", tid, name,
-                        [f["num"] for f in formats_list], keys)
-        else:
-            logger.warning("[%s] %s → format not found (page fetched OK)", tid, name)
-
-    except Exception as e:
-        logger.warning("[%s] %s → request failed: %s", tid, name, e)
+    fmt, fmt_desc, formats_list = _extract_formats(soup)
+    if fmt:
+        enriched["format"]       = fmt
+        enriched["format_desc"]  = fmt_desc
+        enriched["formats_list"] = formats_list
+        keys = [f.get("epreuve_key", "?") for f in formats_list]
+        logger.info("[%s] %s → formats %s (keys: %s)", tid, name,
+                    [f["num"] for f in formats_list], keys)
+    else:
+        logger.warning("[%s] %s → format not found (page fetched OK)", tid, name)
 
     time.sleep(delay_s)
     tournament["enriched"] = enriched
@@ -181,37 +190,65 @@ def enrich_all(
     session: requests.Session,
     delay_s: float = 1.5,
     max_enrich: int = 0,
+    max_rounds: int = 3,
 ) -> list[dict]:
     """
     Enrich tournaments with detail page data.
-    max_enrich=0 means no limit.
+
+    Round 1: all unenriched + those without format.
+    Rounds 2-N: only those that had a network failure (fetch_failed flag).
+    max_enrich=0 means no limit (applied to round 1 only).
+    max_rounds: how many retry passes for network failures (default 3).
     """
-    # Prioritize: never enriched first, then enriched-but-no-format
-    without_any    = [t for t in tournaments if "enriched" not in t]
-    without_format = [t for t in tournaments
-                      if "enriched" in t and (
-                          "format" not in t.get("enriched", {}) or
-                          "formats_list" not in t.get("enriched", {})
-                      )]
-    to_enrich = without_any + without_format
-    if max_enrich:
-        to_enrich = to_enrich[:max_enrich]
+    def _needs_enrich(t):
+        e = t.get("enriched", {})
+        return "enriched" not in t or e.get("fetch_failed") or (
+            "format" not in e and not e.get("fetch_failed")
+        )
 
-    total = len(to_enrich)
-    if total == 0:
-        logger.info("All tournaments already enriched.")
-        return tournaments
+    def _failed(t):
+        return t.get("enriched", {}).get("fetch_failed", False)
 
-    logger.info("Enriching %d tournaments (delay=%.1fs → ~%dm)",
-                total, delay_s, int(total * delay_s / 60))
+    for round_num in range(1, max_rounds + 1):
+        if round_num == 1:
+            to_enrich = [t for t in tournaments if _needs_enrich(t)]
+            if max_enrich:
+                to_enrich = to_enrich[:max_enrich]
+        else:
+            to_enrich = [t for t in tournaments if _failed(t)]
 
-    for i, t in enumerate(to_enrich, 1):
-        logger.info("[%d/%d] %s", i, total, t.get("libelle", "?"))
-        enrich_tournament(t, session, delay_s=delay_s)
+        if not to_enrich:
+            if round_num == 1:
+                logger.info("All tournaments already enriched.")
+            break
 
-    # Ensure every tournament has at least the URL set
+        total = len(to_enrich)
+        logger.info("Enrichment round %d/%d: %d tournament(s) (delay=%.1fs → ~%dm)",
+                    round_num, max_rounds, total, delay_s, int(total * delay_s / 60))
+
+        for i, t in enumerate(to_enrich, 1):
+            # Clear failed flag before retry
+            if t.get("enriched", {}).get("fetch_failed"):
+                del t["enriched"]["fetch_failed"]
+            logger.info("[%d/%d] %s", i, total, t.get("libelle", "?"))
+            enrich_tournament(t, session, delay_s=delay_s)
+
+        still_failed = [t for t in tournaments if _failed(t)]
+        if not still_failed:
+            break
+        if round_num < max_rounds:
+            logger.warning("%d tournament(s) still failed after round %d — retrying in 10s…",
+                           len(still_failed), round_num)
+            time.sleep(10)
+
+    # Ensure every tournament has at least the URL
     for t in tournaments:
         if "enriched" not in t:
             t["enriched"] = {"detail_url": get_tournament_url(t)}
+
+    failed_total = sum(1 for t in tournaments if _failed(t))
+    if failed_total:
+        logger.warning("%d tournament(s) still have no format after all rounds "
+                       "(likely JS-rendered — cannot be fixed by retrying).", failed_total)
 
     return tournaments
