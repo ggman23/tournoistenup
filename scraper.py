@@ -28,6 +28,7 @@ class TenupScraper:
         self.config = config
         self.search_cfg = config["search"]
         self.scraper_cfg = config["scraper"]
+        self.cookies_file = cookies_file   # kept for hot-reload on queue-it
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": self.scraper_cfg["user_agent"],
@@ -56,18 +57,76 @@ class TenupScraper:
         except Exception as e:
             logger.warning("Could not load cookies from %s: %s", cookies_file, e)
 
+    def _reload_cookies(self):
+        """Reload cookies from file into session (called when queue-it is detected)."""
+        if not self.cookies_file:
+            return
+        self.session.cookies.clear()
+        self._load_cookies(self.cookies_file)
+        logger.info("Cookies rechargés depuis %s", self.cookies_file)
+
     def _get_form_tokens(self) -> tuple[str, str, str, str]:
         """
         GET the search page to obtain a fresh Drupal form_build_id, form_token,
         theme_token and jquery_version_token.
         Returns (form_build_id, form_token, theme_token, jquery_version_token).
-        Raises RuntimeError if form tokens cannot be found.
+
+        If queue-it is detected (cookie expired), waits for cookies.json to be
+        updated (by TamperMonkey / cookie_server.py) then retries automatically.
+        Raises RuntimeError if tokens cannot be found after all retries.
         """
+        import os as _os
+
         url = BASE_URL + SEARCH_PAGE
-        logger.debug("Fetching form tokens from %s", url)
-        resp = self.session.get(url, timeout=30)
-        logger.info("GET %s → HTTP %d (final URL: %s)", url, resp.status_code, resp.url)
-        resp.raise_for_status()
+        wait_poll_s   = 15    # check cookies.json every 15 seconds
+        wait_max_s    = 600   # give up after 10 minutes
+        wait_total    = 0
+
+        while True:
+            logger.debug("Fetching form tokens from %s", url)
+            resp = self.session.get(url, timeout=30)
+            logger.info("GET %s → HTTP %d (final URL: %s)", url, resp.status_code, resp.url)
+            resp.raise_for_status()
+
+            # Detect queue-it redirect
+            if "queue-it.net" in resp.url:
+                if not self.cookies_file or wait_total >= wait_max_s:
+                    raise RuntimeError(
+                        "Redirigé vers queue-it.net — cookie expiré. "
+                        "Lancez cookie_server.py + TamperMonkey pour renouveler les cookies."
+                    )
+                # Get mtime before waiting
+                try:
+                    mtime_before = _os.path.getmtime(self.cookies_file)
+                except OSError:
+                    mtime_before = 0
+
+                logger.warning(
+                    "⚠️  Queue-it détecté — cookie expiré. "
+                    "Attente de la mise à jour de %s par TamperMonkey... "
+                    "(max %ds, vérification toutes les %ds)",
+                    self.cookies_file, wait_max_s - wait_total, wait_poll_s,
+                )
+                time.sleep(wait_poll_s)
+                wait_total += wait_poll_s
+
+                # Check if cookies.json was updated
+                try:
+                    mtime_after = _os.path.getmtime(self.cookies_file)
+                except OSError:
+                    mtime_after = mtime_before
+
+                if mtime_after > mtime_before:
+                    logger.info("✅  cookies.json mis à jour — rechargement et nouvelle tentative...")
+                    self._reload_cookies()
+                    wait_total = 0  # reset timeout after a successful cookie refresh
+                else:
+                    logger.info("⏳  cookies.json inchangé (%ds écoulés / %ds max)...",
+                                wait_total, wait_max_s)
+                continue   # retry the GET
+
+            # Not queue-it — we have the real page
+            break
 
         soup = BeautifulSoup(resp.text, "lxml")
 
