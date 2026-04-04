@@ -54,8 +54,10 @@ def run_city(city: dict, args: argparse.Namespace) -> bool:
     ]
 
     if args.enrich_only:
-        # Enrich-only: no scraping, no cookies needed
+        # Enrich-only needs cookies: TenUp serves different HTML without queue-it cookie
         cmd.append("--enrich-only")
+        if args.cookies:
+            cmd += ["--cookies", args.cookies]
     else:
         if args.cookies:
             cmd += ["--cookies", args.cookies]
