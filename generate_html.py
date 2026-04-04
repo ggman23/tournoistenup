@@ -564,7 +564,7 @@ $(function() {{
     // ── Exclure mots personnalisés (nom + catégorie) ──────────────────────
     var excludeRaw = $('#filter-exclude').val().trim().toLowerCase();
     if (excludeRaw) {{
-      var words = excludeRaw.split(/\s+/).filter(Boolean);
+      var words = excludeRaw.split(/\\s+/).filter(Boolean);
       for (var wi = 0; wi < words.length; wi++) {{
         if (nameCat.indexOf(words[wi]) !== -1) return false;
       }}
