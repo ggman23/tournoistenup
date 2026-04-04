@@ -270,23 +270,6 @@ def main():
         logger.warning("No tournaments returned. Check your search criteria or cookies.")
         sys.exit(0)
 
-    # ── Post-filter: drop tournaments that START before date_start ────────────
-    raw_start = config["search"].get("date_start", "")
-    try:
-        # Config format is DD/MM/YY (e.g. "01/04/26")
-        cutoff = datetime.strptime(raw_start, "%d/%m/%y")
-        before = [t for t in tournaments
-                  if datetime.fromisoformat(
-                      t.get("dateDebut", {}).get("date", "9999-01-01")[:10]
-                  ) < cutoff]
-        if before:
-            names = [t.get("libelle", "?") for t in before]
-            logger.info("Filtered out %d tournament(s) starting before %s: %s",
-                        len(before), cutoff.strftime("%d/%m/%Y"), names)
-        tournaments = [t for t in tournaments if t not in before]
-    except Exception as e:
-        logger.debug("Date post-filter skipped: %s", e)
-
     # ── Merge previously enriched data (format, detail_url) ──────────────────
     # Look in the city-slug file first, then fall back to legacy tournaments.json
     # so existing enriched data is reused after the rename.
