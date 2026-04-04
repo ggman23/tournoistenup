@@ -231,13 +231,19 @@ def main():
         if not os.path.exists(data_file):
             logger.error("No data file found at %s — run a full scrape first.", data_file)
             sys.exit(1)
-        cookies_file = args.cookies or os.environ.get("TENUP_COOKIES_FILE")
-        scraper = TenupScraper(config, cookies_file=cookies_file)
         saved = load_json(data_file)
         tournaments = saved.get("tournaments", [])
         logger.info("Loaded %d tournaments from cache — running enrichment only.", len(tournaments))
+        # Tournament pages are public — no cookies needed for enrichment.
+        import requests as _req2
+        enrich_session = _req2.Session()
+        enrich_session.headers.update({
+            "User-Agent": config["scraper"]["user_agent"],
+            "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+            "Accept-Language": "fr-FR,fr;q=0.9",
+        })
         enrich_all(
-            tournaments, scraper.session,
+            tournaments, enrich_session,
             delay_s=1.5, max_enrich=args.enrich_max,
         )
         # Save updated data
@@ -313,8 +319,17 @@ def main():
 
     # ── Enrich (format 1-7 + detail URL) ─────────────────────────────────────
     if args.enrich:
+        # Tournament detail pages are public — use a fresh session without
+        # cookies so enrichment never fails due to cookie expiry.
+        import requests as _req2
+        enrich_session = _req2.Session()
+        enrich_session.headers.update({
+            "User-Agent": config["scraper"]["user_agent"],
+            "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+            "Accept-Language": "fr-FR,fr;q=0.9",
+        })
         enrich_all(
-            tournaments, scraper.session,
+            tournaments, enrich_session,
             delay_s=1.5, max_enrich=args.enrich_max,
         )
 

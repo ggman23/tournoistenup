@@ -53,18 +53,22 @@ def run_city(city: dict, args: argparse.Namespace) -> bool:
         "--lng", str(lng),
     ]
 
-    if args.cookies:
-        cmd += ["--cookies", args.cookies]
-    if args.enrich or args.all:
-        cmd.append("--enrich")
-    if args.date_start:
-        cmd += ["--date-start", args.date_start]
-    if args.date_end:
-        cmd += ["--date-end", args.date_end]
-    if args.pages_max:
-        cmd += ["--pages-max", str(args.pages_max)]
-    if args.html_only:
-        cmd.append("--html-only")
+    if args.enrich_only:
+        # Enrich-only: no scraping, no cookies needed
+        cmd.append("--enrich-only")
+    else:
+        if args.cookies:
+            cmd += ["--cookies", args.cookies]
+        if args.enrich:
+            cmd.append("--enrich")
+        if args.date_start:
+            cmd += ["--date-start", args.date_start]
+        if args.date_end:
+            cmd += ["--date-end", args.date_end]
+        if args.pages_max:
+            cmd += ["--pages-max", str(args.pages_max)]
+        if args.html_only:
+            cmd.append("--html-only")
 
     logger.info("=== Ville: %s (%dkm) ===", label, km)
     logger.info("CMD: %s", " ".join(cmd))
@@ -137,13 +141,28 @@ def merge_and_generate(args: argparse.Namespace):
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Batch scraper — toutes les villes de France")
+    p = argparse.ArgumentParser(
+        description="Batch scraper — toutes les villes de France",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Workflow recommandé (2 phases) :
+
+  # Phase 1 — collecter les listes de tournois pour chaque ville (cookies requis, ~30-60 min)
+  python run_batch.py --cookies cookies.json --date-start 01/04/26 --date-end 01/09/26
+
+  # Phase 2 — enrichir (pages publiques, sans cookies, ~2h, peut s'interrompre/reprendre)
+  python run_batch.py --enrich-only
+
+  # Ou tout en une seule commande (cookies valables ~24h-7j)
+  python run_batch.py --cookies cookies.json --enrich --date-start 01/04/26 --date-end 01/09/26
+""",
+    )
     p.add_argument("--cookies", default=None,
-                   help="Path to cookies JSON file (passed to main.py)")
+                   help="Path to cookies JSON file (required for scraping phase)")
     p.add_argument("--enrich", action="store_true",
-                   help="Enrich each city's tournaments (fetch format pages)")
-    p.add_argument("--all", action="store_true",
-                   help="Alias for --enrich")
+                   help="Enrich each city's tournaments after scraping (no cookies needed)")
+    p.add_argument("--enrich-only", action="store_true",
+                   help="Only enrich existing city data files, no scraping (no cookies needed)")
     p.add_argument("--date-start", default=None, metavar="DD/MM/YY",
                    help="Start date (e.g. 01/04/26) — passed to main.py")
     p.add_argument("--date-end", default=None, metavar="DD/MM/YY",
