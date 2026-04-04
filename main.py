@@ -151,10 +151,17 @@ def main():
     # ── Interactive prompts (city → km → dates) ──────────────────────────────
     def _ask_date(label: str, default: str) -> str:
         try:
-            val = input(f"{label} [{default}] : ").strip()
+            val = input(f"{label} [{default}] (format DD/MM/YY) : ").strip()
         except (EOFError, KeyboardInterrupt):
             return default
-        return val if val else default
+        if not val:
+            return default
+        # Normalize DD/MM/YYYY → DD/MM/YY
+        parts = val.replace("-", "/").split("/")
+        if len(parts) == 3 and len(parts[2]) == 4:
+            parts[2] = parts[2][2:]
+            val = "/".join(parts)
+        return val
 
     do_scrape = not (args.html_only or args.enrich_only)
 
