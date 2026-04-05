@@ -179,6 +179,7 @@ def _tournament_to_row(t, only_natures=None):
 
     ville = install.get("ville", "")
     cp    = install.get("codePostal", "")
+    dept  = cp[:2].upper() if cp else ""
     adresse_parts = [
         install.get("adresse1", ""),
         install.get("adresse2", ""),
@@ -203,6 +204,7 @@ def _tournament_to_row(t, only_natures=None):
         "date_fin_iso":   t.get("dateFin",   {}).get("date", "")[:10],
         "ville":        ville,
         "cp":           cp,
+        "dept":         dept,
         "adresse":      adresse,
         "distance_raw": t.get("distanceEnMetres", ""),
         "distance_km":  _parse_distance_km(t.get("distanceEnMetres", "")),
@@ -310,7 +312,8 @@ def generate_html(
             data-libelle="{html.escape(r['libelle'].lower())}"
             data-cat="{html.escape(r['cat'].lower())}"
             data-date-debut="{r['date_debut_iso']}"
-            data-date-fin="{r['date_fin_iso']}">
+            data-date-fin="{r['date_fin_iso']}"
+            data-dept="{html.escape(r['dept'])}">
           <td data-sort="{html.escape(r['date_debut_sort'])}">{html.escape(r['dates'])}</td>
           <td>{nom_link}</td>
           <td>{html.escape(r['cat'])}</td>
@@ -368,6 +371,15 @@ def generate_html(
     .fav-btn {{ background:none; border:none; cursor:pointer; font-size:1.15em;
                padding:0 3px; color:#ccc; line-height:1; transition:color .15s; }}
     .fav-btn.fav-active {{ color:#f39c12; }}
+    .dept-group {{ display:flex; align-items:center; flex-wrap:wrap; gap:3px; font-size:.8em; }}
+    .dept-ligue-btn {{ font-size:.72em; white-space:nowrap; user-select:none; }}
+    .dept-ligue-btn:hover {{ opacity:.8; }}
+    .dept-chips {{ display:inline-flex; flex-wrap:wrap; gap:2px; margin-left:4px; }}
+    .dept-chip {{ display:inline-flex; align-items:center; gap:2px; padding:1px 5px;
+                 border:1px solid #dee2e6; border-radius:3px; cursor:pointer;
+                 background:#f8f9fa; white-space:nowrap; }}
+    .dept-chip:has(input:checked) {{ background:#0d6efd; color:white; border-color:#0d6efd; }}
+    .dept-chip input {{ display:none; }}
   </style>
 </head>
 <body>
@@ -383,6 +395,85 @@ def generate_html(
 
   <!-- Filter bar -->
   <div id="filter-bar">
+
+    <!-- Ligne 0 : Recherche + Ligue + Comités -->
+    <div class="row g-2 align-items-end mb-2 pb-2 border-bottom">
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">🔍 Rechercher</label>
+        <input type="search" class="form-control form-control-sm" id="filter-search"
+               placeholder="Nom, juge, ville, club…" style="min-width:240px"
+               oninput="applySearch(this.value)">
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Ligue</label>
+        <select class="form-select form-select-sm" id="filter-ligue"
+                style="min-width:210px" onchange="onLigueChange()">
+          <option value="">Toutes les ligues</option>
+          <option>Auvergne-Rhône-Alpes</option>
+          <option>Bourgogne-Franche-Comté</option>
+          <option>Bretagne</option>
+          <option>Centre-Val de Loire</option>
+          <option>Corse</option>
+          <option>Grand Est</option>
+          <option>Hauts-de-France</option>
+          <option>Île-de-France</option>
+          <option>Normandie</option>
+          <option>Nouvelle-Aquitaine</option>
+          <option>Occitanie</option>
+          <option>Pays de la Loire</option>
+          <option>PACA</option>
+        </select>
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Comités (depts)</label><br>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                  id="dept-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                  aria-expanded="false">
+            Tous les comités
+          </button>
+          <div class="dropdown-menu p-2" style="min-width:480px;max-height:320px;overflow-y:auto">
+            <div class="d-flex justify-content-between mb-1">
+              <small class="text-muted fst-italic">Cliquez sur une ligue pour tout cocher</small>
+              <button class="btn btn-xs btn-link p-0 text-danger" onclick="clearDepts()">Tout décocher</button>
+            </div>
+            <div id="dept-checkboxes">
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Auvergne-Rhône-Alpes')" style="cursor:pointer">Auvergne-Rhône-Alpes</span>
+                <span class="dept-chips">{''.join(f'<label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-{d}" value="{d}" onchange="onDeptChange()"> {d}</label>' for d in ['01','03','15','26','38','42','43','63','69','73','74'])}</span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Bourgogne-Franche-Comté')" style="cursor:pointer">Bourgogne-Franche-Comté</span>
+                <span class="dept-chips">{''.join(f'<label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-{d}" value="{d}" onchange="onDeptChange()"> {d}</label>' for d in ['21','25','39','58','70','71','89','90'])}</span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Bretagne')" style="cursor:pointer">Bretagne</span>
+                <span class="dept-chips">{''.join(f'<label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-{d}" value="{d}" onchange="onDeptChange()"> {d}</label>' for d in ['22','29','35','56'])}</span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Centre-Val de Loire')" style="cursor:pointer">Centre-Val de Loire</span>
+                <span class="dept-chips">{''.join(f'<label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-{d}" value="{d}" onchange="onDeptChange()"> {d}</label>' for d in ['18','28','36','37','41','45'])}</span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Corse')" style="cursor:pointer">Corse</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-20" value="20" onchange="onDeptChange()"> 20 (2A/2B)</label></span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Grand Est')" style="cursor:pointer">Grand Est</span>
+                <span class="dept-chips">{''.join(f'<label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-{d}" value="{d}" onchange="onDeptChange()"> {d}</label>' for d in ['08','10','51','52','54','55','57','67','68','88'])}</span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Hauts-de-France')" style="cursor:pointer">Hauts-de-France</span>
+                <span class="dept-chips">{''.join(f'<label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-{d}" value="{d}" onchange="onDeptChange()"> {d}</label>' for d in ['02','59','60','62','80'])}</span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Île-de-France')" style="cursor:pointer">Île-de-France</span>
+                <span class="dept-chips">{''.join(f'<label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-{d}" value="{d}" onchange="onDeptChange()"> {d}</label>' for d in ['75','77','78','91','92','93','94','95'])}</span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Normandie')" style="cursor:pointer">Normandie</span>
+                <span class="dept-chips">{''.join(f'<label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-{d}" value="{d}" onchange="onDeptChange()"> {d}</label>' for d in ['14','27','50','61','76'])}</span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Nouvelle-Aquitaine')" style="cursor:pointer">Nouvelle-Aquitaine</span>
+                <span class="dept-chips">{''.join(f'<label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-{d}" value="{d}" onchange="onDeptChange()"> {d}</label>' for d in ['16','17','19','23','24','33','40','47','64','79','86','87'])}</span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Occitanie')" style="cursor:pointer">Occitanie</span>
+                <span class="dept-chips">{''.join(f'<label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-{d}" value="{d}" onchange="onDeptChange()"> {d}</label>' for d in ['09','11','12','30','31','32','34','46','48','65','66','81','82'])}</span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Pays de la Loire')" style="cursor:pointer">Pays de la Loire</span>
+                <span class="dept-chips">{''.join(f'<label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-{d}" value="{d}" onchange="onDeptChange()"> {d}</label>' for d in ['44','49','53','72','85'])}</span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('PACA')" style="cursor:pointer">PACA</span>
+                <span class="dept-chips">{''.join(f'<label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-{d}" value="{d}" onchange="onDeptChange()"> {d}</label>' for d in ['04','05','06','13','83','84'])}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
     <div class="row g-2 align-items-end">
 
       <div class="col-auto">
@@ -551,6 +642,13 @@ $(function() {{
     var onlyInsc = $('#chk-insc').prop('checked');
     var onlyFav  = $('#chk-fav').prop('checked');
 
+    // ── Filtre comités/départements ───────────────────────────────────────────
+    var checkedDepts = $('.dept-chk:checked').map(function() {{ return $(this).val(); }}).get();
+    if (checkedDepts.length > 0) {{
+      var dept = $tr.attr('data-dept') || '';
+      if (checkedDepts.indexOf(dept) === -1) return false;
+    }}
+
     if (epKey) {{
       var keys = JSON.parse($tr.attr('data-ep-keys') || '[]');
       if (keys.indexOf(epKey) === -1) return false;
@@ -610,7 +708,7 @@ $(function() {{
       {{ targets: [3,7], type: 'num' }},
       {{ targets: [-1], orderable: false, searchable: false }},
     ],
-    dom: '<"row"<"col-sm-4"B><"col-sm-4"l><"col-sm-4"f>>rtip',
+    dom: '<"row"<"col-sm-6"B><"col-sm-6"l>>rtip',
     buttons: [
       {{ extend:'excelHtml5', text:'📥 Excel', className:'btn-sm btn-outline-success',
          exportOptions:{{ columns:':visible' }} }},
@@ -628,6 +726,77 @@ $(function() {{
 
 function applyFilters() {{
   if (dt) dt.draw();
+}}
+
+// ── Recherche texte (toutes colonnes via DataTables) ─────────────────────────
+function applySearch(val) {{
+  if (dt) dt.search(val).draw();
+}}
+
+// ── Ligue → Comités ──────────────────────────────────────────────────────────
+var LIGUES = {{
+  "Auvergne-Rhône-Alpes":    ["01","03","15","26","38","42","43","63","69","73","74"],
+  "Bourgogne-Franche-Comté": ["21","25","39","58","70","71","89","90"],
+  "Bretagne":                ["22","29","35","56"],
+  "Centre-Val de Loire":     ["18","28","36","37","41","45"],
+  "Corse":                   ["20"],
+  "Grand Est":               ["08","10","51","52","54","55","57","67","68","88"],
+  "Hauts-de-France":         ["02","59","60","62","80"],
+  "\u00cele-de-France":      ["75","77","78","91","92","93","94","95"],
+  "Normandie":               ["14","27","50","61","76"],
+  "Nouvelle-Aquitaine":      ["16","17","19","23","24","33","40","47","64","79","86","87"],
+  "Occitanie":               ["09","11","12","30","31","32","34","46","48","65","66","81","82"],
+  "Pays de la Loire":        ["44","49","53","72","85"],
+  "PACA":                    ["04","05","06","13","83","84"]
+}};
+
+function onLigueChange() {{
+  var ligue = $('#filter-ligue').val();
+  $('.dept-chk').prop('checked', false);
+  if (ligue && LIGUES[ligue]) {{
+    LIGUES[ligue].forEach(function(d) {{
+      $('#dept-chk-' + d).prop('checked', true);
+    }});
+  }}
+  updateDeptBtn();
+  applyFilters();
+}}
+
+function selectLigueGroup(ligue) {{
+  if (LIGUES[ligue]) {{
+    var allChecked = LIGUES[ligue].every(function(d) {{
+      return $('#dept-chk-' + d).prop('checked');
+    }});
+    LIGUES[ligue].forEach(function(d) {{
+      $('#dept-chk-' + d).prop('checked', !allChecked);
+    }});
+    updateDeptBtn();
+    applyFilters();
+  }}
+}}
+
+function onDeptChange() {{
+  // Clear ligue select when manually picking depts
+  $('#filter-ligue').val('');
+  updateDeptBtn();
+  applyFilters();
+}}
+
+function clearDepts() {{
+  $('.dept-chk').prop('checked', false);
+  $('#filter-ligue').val('');
+  updateDeptBtn();
+  applyFilters();
+}}
+
+function updateDeptBtn() {{
+  var checked = $('.dept-chk:checked').map(function() {{ return $(this).val(); }}).get();
+  var btn = $('#dept-btn');
+  if (checked.length === 0) {{
+    btn.text('Tous les comités').removeClass('btn-primary').addClass('btn-outline-secondary');
+  }} else {{
+    btn.text(checked.join(', ')).removeClass('btn-outline-secondary').addClass('btn-primary');
+  }}
 }}
 
 function applyEpLineFilter() {{
@@ -670,9 +839,13 @@ function resetFilters() {{
   $('#filter-epreuve, #filter-surface, #filter-format').val('');
   $('#filter-distance, #filter-exclude').val('');
   $('#filter-date-start, #filter-date-end').val('');
+  $('#filter-ligue').val('');
+  $('.dept-chk').prop('checked', false);
+  updateDeptBtn();
   $('#chk-new, #chk-tmc, #chk-insc, #chk-fav, #chk-no-fmt').prop('checked', false);
   $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
-  if (dt) dt.draw();
+  $('#filter-search').val('');
+  if (dt) {{ dt.search('').draw(); }} else {{ applyFilters(); }}
 }}
 </script>
 </body>
