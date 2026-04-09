@@ -86,8 +86,8 @@ def _batch_geocode(tournaments: list) -> int:
         reader = csv.DictReader(io.StringIO(resp.text))
         for row in reader:
             tid   = row.get("id", "").strip()
-            lat   = row.get("result_latitude", "").strip()
-            lng   = row.get("result_longitude", "").strip()
+            lat   = row.get("latitude", "").strip()    # API returns 'latitude', not 'result_latitude'
+            lng   = row.get("longitude", "").strip()   # API returns 'longitude', not 'result_longitude'
             score = float(row.get("result_score", 0) or 0)
 
             if not lat or not lng or score < GEO_SCORE_MIN:
