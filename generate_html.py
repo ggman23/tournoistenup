@@ -209,6 +209,8 @@ def _tournament_to_row(t, only_natures=None):
         "distance_raw": t.get("distanceEnMetres", ""),
         "distance_km":  _parse_distance_km(t.get("distanceEnMetres", "")),
         "ref_city":     t.get("_ref_city", ""),
+        "road_km":      enriched.get("road_km"),
+        "road_min":     enriched.get("road_min"),
         "surfaces":     _surfaces(t.get("naturesTerrains", [])),
         "epreuves":     _epreuves_html(t.get("epreuves", []), enriched.get("formats_list"), only_natures=only_natures),
         "epreuves_keys": _epreuves_data(t.get("epreuves", [])),
@@ -313,7 +315,9 @@ def generate_html(
             data-cat="{html.escape(r['cat'].lower())}"
             data-date-debut="{r['date_debut_iso']}"
             data-date-fin="{r['date_fin_iso']}"
-            data-dept="{html.escape(r['dept'])}">
+            data-dept="{html.escape(r['dept'])}"
+            data-road-km="{r['road_km'] if r['road_km'] is not None else ''}"
+            data-road-min="{r['road_min'] if r['road_min'] is not None else ''}">
           <td data-sort="{html.escape(r['date_debut_sort'])}">{html.escape(r['dates'])}</td>
           <td>{nom_link}</td>
           <td>{html.escape(r['cat'])}</td>
@@ -321,7 +325,7 @@ def generate_html(
           <td>{r['epreuves']}</td>
           <td>{r['surfaces']}</td>
           <td>{html.escape(r['ville'])} <small class="text-muted">{html.escape(r['cp'])}</small></td>
-          <td data-sort="{r['distance_km']}">{html.escape(r['distance_raw'])}{f'<br><small class="text-muted">/ {html.escape(r["ref_city"])}</small>' if r.get("ref_city") else ""}</td>
+          <td data-sort="{r['road_km'] if r['road_km'] is not None else r['distance_km']}">{html.escape(r['distance_raw'])}{f'<br><small class="text-muted">/ {html.escape(r["ref_city"])}</small>' if r.get("ref_city") else ""}{f'<br><small class="text-success">🚗 {r["road_km"]} km · {r["road_min"]} min</small>' if r.get("road_km") is not None else ""}</td>
           <td class="text-center">{insc}</td>
           <td class="text-center">{paiem}</td>
           <td><small>{html.escape(r['juge_nom'])}<br>{tel_str}</small></td>
@@ -485,9 +489,21 @@ def generate_html(
       </div>
 
       <div class="col-auto">
-        <label class="form-label mb-1 fw-semibold small">Distance max (km)</label>
+        <label class="form-label mb-1 fw-semibold small">Vol d'oiseau max (km)</label>
         <input type="number" class="form-control form-control-sm" id="filter-distance"
                placeholder="ex: 50" style="width:110px" oninput="applyFilters()">
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">🚗 Trajet max (km)</label>
+        <input type="number" class="form-control form-control-sm" id="filter-road-km"
+               placeholder="ex: 60" style="width:110px" oninput="applyFilters()">
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">🕐 Trajet max (min)</label>
+        <input type="number" class="form-control form-control-sm" id="filter-road-min"
+               placeholder="ex: 45" style="width:110px" oninput="applyFilters()">
       </div>
 
       <div class="col-auto">
@@ -654,6 +670,18 @@ $(function() {{
       if (keys.indexOf(epKey) === -1) return false;
     }}
     if (maxDist !== null && (parseFloat($tr.attr('data-distance')) || 0) > maxDist) return false;
+
+    var maxRoadKm  = parseFloat($('#filter-road-km').val())  || null;
+    var maxRoadMin = parseFloat($('#filter-road-min').val()) || null;
+    if (maxRoadKm !== null) {{
+      var roadKm = $tr.attr('data-road-km');
+      if (!roadKm || parseFloat(roadKm) > maxRoadKm) return false;
+    }}
+    if (maxRoadMin !== null) {{
+      var roadMin = $tr.attr('data-road-min');
+      if (!roadMin || parseFloat(roadMin) > maxRoadMin) return false;
+    }}
+
     if (surface && $tr.find('td:nth-child(6)').text().toLowerCase().indexOf(surface) === -1) return false;
     if (fmt) {{
       var fmts      = ($tr.attr('data-fmt') || '').split(',');
@@ -837,7 +865,7 @@ function restoreFavs() {{
 
 function resetFilters() {{
   $('#filter-epreuve, #filter-surface, #filter-format').val('');
-  $('#filter-distance, #filter-exclude').val('');
+  $('#filter-distance, #filter-road-km, #filter-road-min, #filter-exclude').val('');
   $('#filter-date-start, #filter-date-end').val('');
   $('#filter-ligue').val('');
   $('.dept-chk').prop('checked', false);

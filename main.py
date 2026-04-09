@@ -27,6 +27,7 @@ from storage import update_storage, load_json
 from notify import notify
 from generate_html import generate_html, generate_from_file
 from enrich import enrich_all
+from enrich_geo import enrich_geo_all
 
 def _search_city_fr(name: str) -> list[dict]:
     """Search French communes via geo.api.gouv.fr."""
@@ -138,6 +139,10 @@ def parse_args():
                    help="Latitude of the city (overrides config)")
     p.add_argument("--lng", type=float, default=None, metavar="LNG",
                    help="Longitude of the city (overrides config)")
+    p.add_argument("--enrich-geo", action="store_true",
+                   help="Geocode installations + compute road distances from ref city (no cookies needed)")
+    p.add_argument("--enrich-geo-only", action="store_true",
+                   help="Only run geo enrichment on existing data, then regenerate HTML")
     return p.parse_args()
 
 
@@ -167,7 +172,7 @@ def main():
             val = "/".join(parts)
         return val
 
-    do_scrape = not (args.html_only or args.enrich_only)
+    do_scrape = not (args.html_only or args.enrich_only or args.enrich_geo_only)
 
     # City
     if args.city:
@@ -258,6 +263,29 @@ def main():
         )
         sys.exit(0)
 
+    # ── Enrich-geo-only mode: geocode + road distances without re-scraping ───
+    if args.enrich_geo_only:
+        if not os.path.exists(data_file):
+            logger.error("No data file found at %s — run a full scrape first.", data_file)
+            sys.exit(1)
+        saved = load_json(data_file)
+        tournaments = saved.get("tournaments", [])
+        logger.info("Loaded %d tournaments — running geo enrichment only.", len(tournaments))
+        ref_lat = config["search"]["ville"].get("lat", 0.0)
+        ref_lng = config["search"]["ville"].get("lng", 0.0)
+        enrich_geo_all(tournaments, ref_lat, ref_lng)
+        import json as _json
+        saved["tournaments"] = tournaments
+        os.makedirs(os.path.dirname(data_file) or ".", exist_ok=True)
+        with open(data_file, "w", encoding="utf-8") as f:
+            _json.dump(saved, f, ensure_ascii=False, indent=2)
+        history   = load_json(history_file)
+        new_ids   = set(history.get("last_new_ids", []))
+        only_natures = config["search"].get("epreuves") or None
+        generate_html(tournaments, html_file, new_ids=new_ids,
+                      fetched_at=saved.get("fetched_at", ""), only_natures=only_natures)
+        sys.exit(0)
+
     # ── Reset history ────────────────────────────────────────────────────────
     if args.reset:
         if os.path.exists(history_file):
@@ -328,6 +356,12 @@ def main():
             delay_s=1.5, max_enrich=args.enrich_max,
             cookies_file=cookies_file,
         )
+
+    # ── Geo enrichment (road distance + travel time) ─────────────────────────
+    if args.enrich_geo or args.enrich_geo_only:
+        ref_lat = config["search"]["ville"].get("lat", 0.0)
+        ref_lng = config["search"]["ville"].get("lng", 0.0)
+        enrich_geo_all(tournaments, ref_lat, ref_lng)
 
     # ── Persist & detect new ─────────────────────────────────────────────────
     new_tournaments, current_ids = update_storage(tournaments, data_file, history_file)

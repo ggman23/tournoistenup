@@ -53,7 +53,9 @@ def run_city(city: dict, args: argparse.Namespace) -> bool:
         "--lng", str(lng),
     ]
 
-    if args.enrich_only:
+    if args.enrich_geo_only:
+        cmd.append("--enrich-geo-only")
+    elif args.enrich_only:
         # Enrich-only needs cookies: TenUp serves different HTML without queue-it cookie
         cmd.append("--enrich-only")
         if args.cookies:
@@ -63,6 +65,8 @@ def run_city(city: dict, args: argparse.Namespace) -> bool:
             cmd += ["--cookies", args.cookies]
         if args.enrich:
             cmd.append("--enrich")
+        if args.enrich_geo:
+            cmd.append("--enrich-geo")
         if args.date_start:
             cmd += ["--date-start", args.date_start]
         if args.date_end:
@@ -198,6 +202,10 @@ Workflow recommandé (2 phases) :
                    help="Limit pages per city (for testing)")
     p.add_argument("--html-only", action="store_true",
                    help="Regenerate all city HTMLs + combined HTML without scraping")
+    p.add_argument("--enrich-geo", action="store_true",
+                   help="Add geo enrichment (road distance + travel time) during scrape")
+    p.add_argument("--enrich-geo-only", action="store_true",
+                   help="Only run geo enrichment on existing data files")
     p.add_argument("--cities-file", default=CITIES_FILE,
                    help=f"JSON file listing cities (default: {CITIES_FILE})")
     p.add_argument("--no-combine", action="store_true",
