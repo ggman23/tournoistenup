@@ -32,12 +32,13 @@
 | Détection nouveaux | Badge NEW, historique par ville, rapport horodaté |
 | Favoris | Sauvegardés en localStorage dans le navigateur |
 | Masquer Vert/Orange | Filtre tournois débutants par mot-clé dans le nom |
+| Statut d'inscription | Badge par épreuve (Ouvert/Bientôt/Clôturé/etc.), filtre, fraîcheur 24h, commentaire club |
 
 ---
 
 ## Sélectionné — à implémenter 🔵
 
-### 1. Statut d'inscription (PRIORITÉ 1)
+### 1. Statut d'inscription (PRIORITÉ 1) — ✅ Implémenté le 09/04/2026
 
 **Objectif :** Récupérer et afficher le statut actuel des inscriptions de chaque tournoi.
 

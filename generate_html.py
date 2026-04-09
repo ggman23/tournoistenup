@@ -6,7 +6,7 @@ Uses Bootstrap 5 + DataTables (CDN) for sorting, filtering, pagination.
 import json
 import os
 import html
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 
 SURFACE_COLORS = {
@@ -25,6 +25,28 @@ FORMAT_COLORS = {
     "1": "#c0392b", "2": "#e67e22", "3": "#f39c12",
     "4": "#27ae60", "5": "#2980b9", "6": "#8e44ad", "7": "#7f8c8d",
 }
+
+STATUT_CONFIG = {
+    "ouvert":       ("#27ae60", "Ouvert"),
+    "bientot":      ("#2980b9", "Bientôt"),
+    "attente":      ("#e67e22", "Liste d'attente"),
+    "cloture":      ("#c0392b", "Clôturé"),
+    "hors_bornes":  ("#7f8c8d", "Hors bornes"),
+    "impossible":   ("#95a5a6", "Hors ligne"),
+    "deja_inscrit": ("#1abc9c", "Déjà inscrit"),
+    "ineligible":   ("#34495e", "Non éligible"),
+    "autre":        ("#bdc3c7", "?"),
+}
+
+
+def _statut_badge_html(code: str, message: str = "") -> str:
+    color, label = STATUT_CONFIG.get(code, ("#bdc3c7", code))
+    tip = html.escape(message) if message else html.escape(label)
+    return (
+        f' <span class="badge statut-badge" style="background:{color}" '
+        f'title="{tip}" data-bs-toggle="tooltip">{html.escape(label)}</span>'
+    )
+
 
 # Age category IDs → short label for filter UI
 AGE_LABELS = {
@@ -56,10 +78,10 @@ def _surfaces(terrains):
     return " ".join(parts)
 
 
-def _epreuves_html(epreuves, formats_list=None, only_natures=None):
+def _epreuves_html(epreuves, formats_list=None, statuts=None, only_natures=None):
     """
-    Render one line per épreuve.  If formats_list is provided (from enriched data),
-    attach an inline format badge.
+    Render one line per épreuve.  If formats_list is provided, attach a format badge.
+    If statuts (dict from enriched["statuts_inscription"]) is provided, attach a statut badge.
 
     only_natures: if set (e.g. ["SM"]), only render épreuves whose natureEpreuve.code
                   is in the list. Others are silently skipped.
@@ -120,13 +142,19 @@ def _epreuves_html(epreuves, formats_list=None, only_natures=None):
                 f'title="{html.escape(tip)}" data-bs-toggle="tooltip">F{fn}</span>'
             )
 
+        statut_badge = ""
+        if statuts is not None:
+            s_entry = statuts.get(ep_key) or statuts.get(nat_code)
+            if s_entry:
+                statut_badge = _statut_badge_html(s_entry["statut"], s_entry["message"])
+
         lines.append(
             f'<div class="ep-line" data-ep-key="{html.escape(ep_key)}">'
             f'<span class="ep-nature">{html.escape(nature)}</span> '
             f'<span class="ep-age">{html.escape(age)}</span> '
             f'<span class="ep-range">{html.escape(bas)} → {html.escape(haut)}</span> '
             f'<span class="ep-tarif">{tarif}€</span>'
-            f'{fmt_badge}'
+            f'{fmt_badge}{statut_badge}'
             f'</div>'
         )
     return "\n".join(lines) if lines else '<span class="text-muted">—</span>'
@@ -187,6 +215,50 @@ def _tournament_to_row(t, only_natures=None):
     ]
     adresse = ", ".join(p for p in adresse_parts if p.strip())
 
+    statuts_inscription = enriched.get("statuts_inscription")
+    commentaire_club    = enriched.get("commentaire_club", "")
+    statut_fetched_at   = enriched.get("statut_fetched_at", "")
+
+    # Unique statut codes across all épreuves, for JS filtering
+    statuts_set: list[str] = []
+    if statuts_inscription:
+        seen_codes: set[str] = set()
+        for v in statuts_inscription.values():
+            c = v.get("statut", "")
+            if c and c not in seen_codes:
+                seen_codes.add(c)
+                statuts_set.append(c)
+
+    # Freshness: warn if statut_fetched_at is older than 24h
+    statut_stale = False
+    if statut_fetched_at:
+        try:
+            fetched_dt = datetime.fromisoformat(statut_fetched_at)
+            if fetched_dt.tzinfo is None:
+                fetched_dt = fetched_dt.replace(tzinfo=timezone.utc)
+            statut_stale = (datetime.now(timezone.utc) - fetched_dt) > timedelta(hours=24)
+        except Exception:
+            pass
+
+    ep_html = _epreuves_html(
+        t.get("epreuves", []),
+        enriched.get("formats_list"),
+        statuts=statuts_inscription,
+        only_natures=only_natures,
+    )
+    if commentaire_club:
+        short = commentaire_club[:100] + ("…" if len(commentaire_club) > 100 else "")
+        ep_html += (
+            f'\n<div class="ep-comment text-muted fst-italic" style="font-size:.78em;margin-top:4px" '
+            f'title="{html.escape(commentaire_club)}" data-bs-toggle="tooltip">'
+            f'📋 {html.escape(short)}</div>'
+        )
+    if statut_stale:
+        ep_html += (
+            '\n<div class="text-warning" style="font-size:.75em;margin-top:2px">'
+            '⚠️ Statut &gt; 24h</div>'
+        )
+
     return {
         "id":           t.get("id", ""),
         "detail_url":   detail_url,
@@ -212,8 +284,9 @@ def _tournament_to_row(t, only_natures=None):
         "road_km":      enriched.get("road_km"),
         "road_min":     enriched.get("road_min"),
         "surfaces":     _surfaces(t.get("naturesTerrains", [])),
-        "epreuves":     _epreuves_html(t.get("epreuves", []), enriched.get("formats_list"), only_natures=only_natures),
+        "epreuves":     ep_html,
         "epreuves_keys": _epreuves_data(t.get("epreuves", [])),
+        "statuts_set":  statuts_set,
         "inscription":  t.get("inscriptionEnLigne", False),
         "paiement":     t.get("paiementEnLigne", False),
         "juge_nom":     f"{juge.get('prenom', '')} {juge.get('nom', '')}".strip(),
@@ -298,7 +371,8 @@ def generate_html(
         insc  = "✅" if r["inscription"] else "❌"
         paiem = "✅" if r["paiement"]    else "❌"
 
-        ep_keys_json = json.dumps(r["epreuves_keys"])
+        ep_keys_json   = json.dumps(r["epreuves_keys"])
+        statuts_json   = json.dumps(r["statuts_set"])
 
         tid_esc  = html.escape(str(r['id']))
         has_fmt  = "true" if r["fmt_all"] else "false"
@@ -306,6 +380,7 @@ def generate_html(
         <tr class="{'table-warning' if r['is_new'] else ''}"
             data-id="{tid_esc}"
             data-ep-keys='{ep_keys_json}'
+            data-statuts='{statuts_json}'
             data-distance="{r['distance_km']}"
             data-fmt="{html.escape(','.join(r['fmt_all']))}"
             data-has-format="{has_fmt}"
@@ -364,8 +439,10 @@ def generate_html(
     .ep-tarif  {{ background:#e9ecef; border-radius:3px; padding:0 5px; font-weight:600; font-size:.85em; }}
     .badge        {{ font-size:.72em; }}
     .fmt-badge    {{ font-size:.85em; padding:.35em .6em; }}
-    .fmt-ep-badge {{ font-size:.75em; padding:.2em .45em; vertical-align:middle; opacity:.9; }}
-    .srf-badge    {{ font-size:.75em; }}
+    .fmt-ep-badge    {{ font-size:.75em; padding:.2em .45em; vertical-align:middle; opacity:.9; }}
+    .statut-badge    {{ font-size:.72em; padding:.2em .45em; vertical-align:middle; }}
+    .srf-badge       {{ font-size:.75em; }}
+    .ep-comment      {{ border-top:1px solid #eee; margin-top:4px; padding-top:2px; }}
     table.dataTable td {{ vertical-align:middle; }}
     #filter-bar {{ background:white; border-radius:8px; padding:14px 18px; margin-bottom:14px;
                    box-shadow:0 1px 4px rgba(0,0,0,.08); }}
@@ -537,6 +614,22 @@ def generate_html(
       </div>
 
       <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Statut inscription</label>
+        <select class="form-select form-select-sm" id="filter-statut"
+                style="min-width:175px" onchange="applyFilters()">
+          <option value="">Tous statuts</option>
+          <option value="ouvert">✅ Ouvert</option>
+          <option value="bientot">🔵 Bientôt</option>
+          <option value="attente">🟠 Liste d'attente</option>
+          <option value="cloture">🔴 Clôturé</option>
+          <option value="impossible">⬜ Hors ligne</option>
+          <option value="hors_bornes">⬜ Hors bornes</option>
+          <option value="deja_inscrit">🟢 Déjà inscrit</option>
+          <option value="ineligible">⬛ Non éligible</option>
+        </select>
+      </div>
+
+      <div class="col-auto">
         <label class="form-label mb-1 fw-semibold small">&nbsp;</label><br>
         <div class="form-check form-check-inline">
           <input class="form-check-input" type="checkbox" id="chk-new" onchange="applyFilters()">
@@ -689,6 +782,12 @@ $(function() {{
       var inclNoFmt = $('#chk-no-fmt').prop('checked');
       if (fmts.indexOf(fmt) === -1 && !(inclNoFmt && !hasFmt)) return false;
     }}
+    var filterStatut = $('#filter-statut').val();
+    if (filterStatut) {{
+      var statuts = JSON.parse($tr.attr('data-statuts') || '[]');
+      if (statuts.indexOf(filterStatut) === -1) return false;
+    }}
+
     if (onlyNew  && $tr.attr('data-new') !== 'true')  return false;
     if (onlyTmc  && $tr.attr('data-tmc') !== 'true')  return false;
     if (onlyInsc && $tr.find('td:nth-child(9)').text().trim() !== '✅') return false;
@@ -864,7 +963,7 @@ function restoreFavs() {{
 }}
 
 function resetFilters() {{
-  $('#filter-epreuve, #filter-surface, #filter-format').val('');
+  $('#filter-epreuve, #filter-surface, #filter-format, #filter-statut').val('');
   $('#filter-distance, #filter-road-km, #filter-road-min, #filter-exclude').val('');
   $('#filter-date-start, #filter-date-end').val('');
   $('#filter-ligue').val('');

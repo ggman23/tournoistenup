@@ -1,12 +1,14 @@
 """
 Fetches individual tournament detail pages to extract additional info:
 - Format (1-7, determines point coefficient)
+- Statut d'inscription (ouvert, clôturé, bientôt, etc.)
 """
 
 import logging
 import os
 import re
 import time
+from datetime import datetime, timezone
 from typing import Optional
 
 import requests
@@ -39,6 +41,92 @@ _AGE_PATTERN_TO_ID = [
     (r"\b14\b",      145),       # 14 ans seul
     (r"\bsenior|adulte\b", 200),
 ]
+
+
+def _normalize_statut(text: str, is_closed: bool = False) -> str:
+    """Normalize raw status text to a category code."""
+    t = text.strip().lower()
+    if not t:
+        return "cloture" if is_closed else "ouvert"
+    if "débutent" in t or "debutent" in t or "à partir" in t or "a partir" in t or "ouvrent" in t:
+        return "bientot"
+    if "liste d'attente" in t or "liste d attente" in t or "attente" in t:
+        return "attente"
+    if "clôtur" in t or "clotur" in t or "fermé" in t or "ferme" in t or "close" in t:
+        return "cloture"
+    if "classement" in t and ("bornes" in t or "compris" in t or "possédez" in t or "possedez" in t):
+        return "hors_bornes"
+    if ("pas possible" in t or "non disponible" in t) and ("en ligne" in t or "inscri" in t):
+        return "impossible"
+    if "déjà inscrit" in t or "deja inscrit" in t:
+        return "deja_inscrit"
+    if ("ne pouvez pas" in t or "ne peut pas" in t) and ("dame" in t or "messieu" in t or "genre" in t):
+        return "ineligible"
+    if "âge sportif" in t or "age sportif" in t or "ne vous permet pas" in t:
+        return "ineligible"
+    return "autre"
+
+
+def _epreuve_key_from_detail(nature_code: str, titre: str) -> Optional[str]:
+    """Build 'NATURE_ageid' key from nature code and épreuve title (e.g. 'SM_140')."""
+    if not nature_code:
+        return None
+    lower = titre.lower()
+    for pattern, age_id in _AGE_PATTERN_TO_ID:
+        if re.search(pattern, lower):
+            return f"{nature_code}_{age_id}"
+    return None
+
+
+def _extract_statut_inscription(soup: BeautifulSoup) -> dict:
+    """
+    Extract inscription status per épreuve from the detail page.
+
+    Structure: div.epreuve-step-0 [class may include 'title-closed']
+                 └── div.epreuve-detail
+                       └── div.epreuve-titre-info-wrapper
+                             ├── div.epreuve-detail-nature       → "SM"
+                             ├── div.epreuve-detail-titre        → "Simple Messieurs 13/14 ans"
+                             └── div.epreuve-detail-info         → status text (empty = ouvert)
+
+    Returns:
+        {
+          "statuts": { "SM_140": {"statut": "bientot", "message": "...", "nature": "SM", "titre": "..."}, ... },
+          "commentaire_club": "...",
+        }
+    """
+    statuts = {}
+
+    for block in soup.find_all(class_=re.compile(r"\bepreuve-step-0\b")):
+        classes = block.get("class") or []
+        is_closed = "title-closed" in classes
+
+        nature_div = block.find(class_="epreuve-detail-nature")
+        nature_code = nature_div.get_text(strip=True) if nature_div else ""
+
+        titre_div = block.find(class_="epreuve-detail-titre")
+        titre = titre_div.get_text(" ", strip=True) if titre_div else ""
+
+        info_div = block.find(class_="epreuve-detail-info")
+        info_text = info_div.get_text(" ", strip=True) if info_div else ""
+
+        statut_code = _normalize_statut(info_text, is_closed=is_closed)
+
+        entry = {
+            "statut":  statut_code,
+            "message": info_text,
+            "nature":  nature_code,
+            "titre":   titre,
+        }
+
+        ep_key = _epreuve_key_from_detail(nature_code, titre)
+        key = ep_key if ep_key else (nature_code or f"ep_{len(statuts)}")
+        statuts[key] = entry
+
+    comment_div = soup.find(class_="tournoi-detail-page-comment-content")
+    commentaire = comment_div.get_text(" ", strip=True) if comment_div else ""
+
+    return {"statuts": statuts, "commentaire_club": commentaire}
 
 
 def get_tournament_url(tournament: dict) -> str:
@@ -240,6 +328,18 @@ def enrich_tournament(
         logger.warning("[%s] %s → format not found (page fetched OK)", tid, name)
         enriched["no_format_in_html"] = True  # don't retry — likely JS-rendered
 
+    # Extract inscription status
+    statut_data = _extract_statut_inscription(soup)
+    if statut_data["statuts"]:
+        enriched["statuts_inscription"] = statut_data["statuts"]
+        codes = [v["statut"] for v in statut_data["statuts"].values()]
+        logger.info("[%s] %s → statuts: %s", tid, name, codes)
+    else:
+        logger.debug("[%s] %s → aucun bloc epreuve-step-0 trouvé", tid, name)
+    if statut_data["commentaire_club"]:
+        enriched["commentaire_club"] = statut_data["commentaire_club"]
+    enriched["statut_fetched_at"] = datetime.now(timezone.utc).isoformat()
+
     time.sleep(delay_s)
     tournament["enriched"] = enriched
     return tournament
@@ -263,11 +363,12 @@ def enrich_all(
     """
     def _needs_enrich(t):
         e = t.get("enriched", {})
-        if "enriched" not in t:         return True   # never processed
-        if e.get("fetch_failed"):       return True   # network error → retry
-        if e.get("no_format_in_html"):  return False  # JS-rendered, won't improve
-        if "format" not in e:           return True   # has enriched but no format yet
-        return False                                  # already has format → skip
+        if "enriched" not in t:                return True   # never processed
+        if e.get("fetch_failed"):              return True   # network error → retry
+        if e.get("no_format_in_html"):         return False  # JS-rendered, won't improve
+        if "format" not in e:                  return True   # has enriched but no format yet
+        if "statut_fetched_at" not in e:       return True   # statut not yet fetched
+        return False                                         # fully enriched → skip
 
     def _failed(t):
         return t.get("enriched", {}).get("fetch_failed", False)
