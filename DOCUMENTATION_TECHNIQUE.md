@@ -87,7 +87,7 @@ qu'un nouveau cookie a été reçu sans avoir à analyser le contenu du fichier 
 
 ---
 
-### `enrich.py` — Récupération des formats F1-F7
+### `enrich.py` — Récupération des formats F1-F7 et statuts d'inscription
 
 #### Pourquoi enrichir séparément
 
@@ -121,6 +121,30 @@ liés aux épreuves. L'extraction se fait en deux passes :
 1. **Par clé épreuve** (`SM_140` = Simple Messieurs + catégorie âge 140) : le plus fiable
 2. **Positionnel** : si le nombre de divs format = nombre d'épreuves, on les associe par index
 3. **Format unique** : si toutes les épreuves ont le même format, on l'applique à toutes
+
+#### Statut d'inscription (`_extract_statut_inscription`)
+
+La même page de détail contient aussi le statut des inscriptions pour chaque épreuve.
+La structure HTML : `div.epreuve-step-0` (1 par épreuve), avec `div.epreuve-detail-info` contenant
+le message (vide = ouvert). La présence de la classe CSS `title-closed` sur ce bloc indique
+que l'inscription est bloquée, même sans message explicite.
+
+**Statuts normalisés :** `ouvert`, `bientot`, `attente`, `cloture`, `hors_bornes`,
+`impossible`, `deja_inscrit`, `ineligible`, `autre`
+
+**Commande dédiée `--enrich-statut-only` :**
+Re-fetcher les statuts sans re-fetcher les formats. Ignore automatiquement les tournois
+dont la `dateFin` est passée (inutile de vérifier le statut d'un tournoi terminé).
+
+```python
+# Stocké dans enriched:
+"statuts_inscription": {
+    "SM_140": {"statut": "bientot", "message": "Les inscriptions débutent le 14/04/2026",
+               "nature": "SM", "titre": "Simple Messieurs 13/14 ans"}
+},
+"commentaire_club": "Parking gratuit...",
+"statut_fetched_at": "2026-04-09T13:00:00+00:00"
+```
 
 ---
 
@@ -359,7 +383,12 @@ pour qu'ils soient retentés au prochain `--enrich-only` avec des cookies valide
         "geo_lat": 48.6963,
         "geo_lng": 2.3897,
         "road_km": 28.5,
-        "road_min": 34
+        "road_min": 34,
+        "statuts_inscription": {
+          "SM_140": {"statut": "ouvert", "message": "", "nature": "SM", "titre": "Simple Messieurs 13/14 ans"}
+        },
+        "commentaire_club": "Parking gratuit avec disque...",
+        "statut_fetched_at": "2026-04-09T13:00:00+00:00"
       }
     }
   ]

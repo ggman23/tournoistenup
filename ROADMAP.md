@@ -98,20 +98,50 @@ sont détectés dans la zone surveillée.
 
 ---
 
-### 3. Calendrier visuel (PRIORITÉ 3)
+### 2. Calendrier visuel + Gantt (PRIORITÉ 2) — ✅ Implémenté le 09/04/2026
 
-**Objectif :** Vue calendrier mensuelle en complément du tableau, avec clic sur une date
-pour voir la liste des tournois commençant ce jour-là.
+**Objectif :** Deux vues complémentaires au tableau, respectant les filtres actifs.
 
-**Décisions de design :**
-- Afficher sur la **date de début** du tournoi (pas une barre sur toute la durée)
-- Nombre de tournois par case (ex: badge `7`), couleur selon format majoritaire
-- Clic sur la case → panneau latéral avec liste des tournois du jour
-- Tournois longs (> 3 semaines) marqués avec une pastille "long"
-- Navigation mois par mois
-- Intégré dans le même fichier HTML (onglet ou bouton bascule tableau/calendrier)
+**Vue Calendrier :**
+- Grille mensuelle (Lun-Dim), navigation mois par mois
+- Chaque case affiche le nombre de tournois débutant ce jour + chips colorées (format)
+- Clic sur une case → panneau de détail avec liens TenUp, badges format + statut
+- Démarre automatiquement sur le premier mois avec des tournois
 
-**Complexité :** Moyenne — 100% JS/CSS dans `generate_html.py`, pas de nouveau backend.
+**Vue Gantt :**
+- Axe temporel sur toute la plage des tournois filtrés
+- Une barre par tournoi (dateDebut → dateFin), colorée par format
+- Étiquettes des mois sur l'axe X, ville dans la barre si assez large
+- Clic sur une barre → ouvre TenUp
+- Scrollable verticalement (max 500px) pour les listes longues
+
+**Architecture :** 100% JS/CSS dans `generate_html.py`, onglets Tableau / Calendrier / Gantt.
+Les données sont lues depuis les attributs `data-*` des `<tr>` DataTables déjà présents.
+Re-rendu automatique quand les filtres changent (via `drawCallback`).
+
+---
+
+### 3. Notifications Telegram (PRIORITÉ 3)
+
+**Objectif :** Recevoir un message Telegram automatiquement quand de nouveaux tournois
+sont détectés dans la zone surveillée.
+
+**Architecture proposée :**
+- `notify_telegram.py` : ~30 lignes, appelle l'API Telegram Bot
+- Déclenché à la fin de `main.py` si `new_tournaments` non vide
+- Message formaté : nom, dates, ville, distance, format, lien TenUp
+- Configuration dans `config.json` :
+  ```json
+  "telegram": {
+    "bot_token": "XXXX:YYYY",
+    "chat_id": "123456789"
+  }
+  ```
+
+**Prérequis utilisateur :**
+1. Créer un bot Telegram via @BotFather → obtenir `bot_token`
+2. Obtenir son `chat_id` (envoyer un message au bot, récupérer l'ID via l'API)
+3. Renseigner dans `config.json`
 
 ---
 
@@ -119,15 +149,15 @@ pour voir la liste des tournois commençant ce jour-là.
 
 | # | Fonctionnalité | Pourquoi pas encore |
 |---|---|---|
-| 4 | Détection conflits de dates avec favoris | Utile mais dépend du calendrier visuel |
+| 4 | Détection conflits de dates avec favoris | Utile mais calendrier maintenant dispo |
 | 5 | Export agenda ICS (favoris → Google Calendar) | Simple à faire, faible priorité |
 | 6 | Dotation financière des tournois | Info peu disponible sur TenUp |
 | 7 | Historique des éditions passées | Complexe, base de données nécessaire |
 | 8 | Windows Task Scheduler / cron | À faire quand Telegram sera en place |
 | 9 | Mise sur NAS | Quand l'accès au NAS sera disponible |
-| 10 | Déduplication avant enrichissement | Gain de temps ~80% sur le batch — optimisation technique, pas une feature |
+| 10 | Déduplication avant enrichissement | Gain de temps ~80% sur le batch — optimisation technique |
 | 11 | Normalisation noms de clubs | Heuristique difficile à fiabiliser |
-| 12 | Bouton "Actualiser statut" temps réel | Dépend de l'implémentation du statut d'inscription |
+| 12 | Bouton "Actualiser statut" temps réel | Peu utile : clic sur le lien TenUp est plus simple |
 
 ---
 

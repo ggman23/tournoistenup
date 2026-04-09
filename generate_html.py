@@ -461,6 +461,37 @@ def generate_html(
                  background:#f8f9fa; white-space:nowrap; }}
     .dept-chip:has(input:checked) {{ background:#0d6efd; color:white; border-color:#0d6efd; }}
     .dept-chip input {{ display:none; }}
+    /* ── Vue onglets ──────────────────────────────────────────────────────── */
+    .view-tab {{ transition:all .15s; }}
+    /* ── Calendrier ──────────────────────────────────────────────────────── */
+    .cal-grid {{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }}
+    .cal-dow  {{ text-align:center; font-weight:600; font-size:.78em; padding:5px 2px;
+                background:#e9ecef; border-radius:4px; }}
+    .cal-cell {{ min-height:78px; border:1px solid #dee2e6; border-radius:5px;
+                padding:4px 5px; cursor:pointer; transition:background .12s; }}
+    .cal-cell:hover:not(.cal-empty) {{ background:#f0f7ff; }}
+    .cal-has-events {{ background:#f5faff; border-color:#bee3f8; }}
+    .cal-today  {{ border:2px solid #e74c3c !important; }}
+    .cal-empty  {{ border:none !important; background:transparent !important; cursor:default; }}
+    .cal-day-num {{ font-size:.82em; font-weight:600; color:#6c757d; line-height:1.2; }}
+    .cal-today .cal-day-num {{ color:#e74c3c; }}
+    .cal-count  {{ font-weight:700; font-size:1.05em; color:#0d6efd; line-height:1.3; }}
+    .cal-chip   {{ font-size:.67em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+                  padding:1px 3px; border-radius:2px; margin-top:1px; }}
+    .cal-chip-more {{ font-size:.67em; color:#6c757d; margin-top:1px; }}
+    .cal-panel  {{ border:1px solid #dee2e6; border-radius:6px; padding:14px 16px;
+                  background:#f8f9fa; margin-top:10px; }}
+    /* ── Gantt ────────────────────────────────────────────────────────────── */
+    .gantt-row   {{ display:flex; align-items:center; border-bottom:1px solid #f0f0f0; min-height:26px; }}
+    .gantt-row:hover {{ background:#f8f9fa; }}
+    .gantt-label {{ width:210px; min-width:210px; font-size:.75em; overflow:hidden;
+                   text-overflow:ellipsis; white-space:nowrap; padding-right:8px;
+                   color:#495057; text-align:right; }}
+    .gantt-bar   {{ position:absolute; height:16px; top:3px; border-radius:3px;
+                   cursor:pointer; opacity:.82; transition:opacity .12s; }}
+    .gantt-bar:hover {{ opacity:1; box-shadow:0 2px 5px rgba(0,0,0,.2); }}
+    .gantt-today {{ position:absolute; top:0; bottom:0; width:2px;
+                   background:#e74c3c; opacity:.55; pointer-events:none; z-index:5; }}
   </style>
 </head>
 <body>
@@ -697,8 +728,25 @@ def generate_html(
     </div>
   </div>
 
+  <!-- Onglets de vue -->
+  <div class="d-flex gap-2 mb-2 align-items-center">
+    <button class="btn btn-sm btn-primary view-tab" id="tab-table"
+            onclick="showView('table')">📋 Tableau</button>
+    <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-cal"
+            onclick="showView('calendar')">📅 Calendrier</button>
+    <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-gantt"
+            onclick="showView('gantt')">📊 Gantt</button>
+    <small class="text-muted ms-2" id="view-info"></small>
+  </div>
+
+  <!-- Vue Calendrier -->
+  <div id="view-calendar" style="display:none" class="bg-white rounded shadow-sm p-3"></div>
+
+  <!-- Vue Gantt -->
+  <div id="view-gantt" style="display:none" class="bg-white rounded shadow-sm p-3" style="overflow-x:auto"></div>
+
   <!-- Table -->
-  <div class="bg-white rounded shadow-sm p-3">
+  <div id="view-table" class="bg-white rounded shadow-sm p-3">
     <table id="t" class="table table-hover table-striped" style="width:100%">
       <thead class="table-dark">
         <tr>
@@ -734,6 +782,8 @@ def generate_html(
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.print.min.js"></script>
 <script>
 var dt;
+var currentView = 'table';
+var calYear, calMonth;
 
 $(function() {{
   $('[data-bs-toggle="tooltip"]').each(function() {{
@@ -862,7 +912,11 @@ $(function() {{
     drawCallback: function() {{
       restoreFavs();
       applyEpLineFilter();
-      $('#filter-count').text(dt.page.info().recordsDisplay + ' affiché(s)');
+      var n = dt.page.info().recordsDisplay;
+      $('#filter-count').text(n + ' affiché(s)');
+      $('#view-info').text(n + ' tournois dans la vue');
+      if (currentView === 'calendar') renderCalendar();
+      if (currentView === 'gantt')    renderGantt();
     }}
   }});
 }});
@@ -990,6 +1044,227 @@ function resetFilters() {{
   $('#chk-hide-past').prop('checked', true);  // remet masquer-terminés coché par défaut
   $('#filter-search').val('');
   if (dt) {{ dt.search('').draw(); }} else {{ applyFilters(); }}
+}}
+
+// ── Gestion des vues (Tableau / Calendrier / Gantt) ──────────────────────────
+function showView(view) {{
+  currentView = view;
+  $('#view-table').toggle(view === 'table');
+  $('#view-calendar').toggle(view === 'calendar');
+  $('#view-gantt').toggle(view === 'gantt');
+  $('.view-tab').removeClass('btn-primary').addClass('btn-outline-secondary');
+  var tabId = view === 'table' ? 'tab-table' : view === 'calendar' ? 'tab-cal' : 'tab-gantt';
+  $('#' + tabId).removeClass('btn-outline-secondary').addClass('btn-primary');
+  if (view === 'calendar') {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
+  if (view === 'gantt')    renderGantt();
+}}
+
+// ── Extraction des données filtrées depuis DataTables ────────────────────────
+function getFilteredData() {{
+  var result = [];
+  dt.rows({{ search: 'applied' }}).nodes().each(function(node) {{
+    var $tr = $(node);
+    var $link = $tr.find('a.tournament-link').first();
+    result.push({{
+      id:    $tr.attr('data-id') || '',
+      nom:   $link.text().trim(),
+      url:   $link.attr('href') || '',
+      debut: $tr.attr('data-date-debut') || '',
+      fin:   $tr.attr('data-date-fin')   || '',
+      fmt:   ($tr.attr('data-fmt') || '').split(',')[0] || '',
+      ville: $tr.find('td:eq(6)').contents().first().text().trim(),
+      statuts: $tr.attr('data-statuts') || '[]',
+    }});
+  }});
+  return result;
+}}
+
+var _FMT_COLORS = {{'1':'#c0392b','2':'#e67e22','3':'#f39c12','4':'#27ae60','5':'#2980b9','6':'#8e44ad','7':'#7f8c8d'}};
+var _STATUT_CFG = {{'ouvert':['#27ae60','Ouvert'],'bientot':['#2980b9','Bientôt'],'attente':['#e67e22','Attente'],'cloture':['#c0392b','Clôturé'],'impossible':['#95a5a6','Hors ligne'],'hors_bornes':['#7f8c8d','Hors bornes'],'deja_inscrit':['#1abc9c','Déjà inscrit'],'ineligible':['#34495e','Non éligible'],'autre':['#bdc3c7','?']}};
+var _MONTH_NAMES = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+var _MONTH_SHORT = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
+var _DAY_NAMES   = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+
+// ── Calendrier ────────────────────────────────────────────────────────────────
+function renderCalendar() {{
+  var data = getFilteredData();
+
+  // Initialise le mois : 1er mois avec des tournois ≥ aujourd'hui, sinon mois courant
+  if (calYear === undefined) {{
+    var today = new Date();
+    var todayYM = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0');
+    var earliest = null;
+    data.forEach(function(t) {{
+      var ym = t.debut.slice(0,7);
+      if (ym >= todayYM && (!earliest || ym < earliest)) earliest = ym;
+    }});
+    var initYM = earliest || todayYM;
+    calYear  = parseInt(initYM.slice(0,4));
+    calMonth = parseInt(initYM.slice(5,7)) - 1;
+  }}
+
+  // Regroupement par date de début
+  var byDate = {{}};
+  data.forEach(function(t) {{
+    if (!t.debut) return;
+    if (!byDate[t.debut]) byDate[t.debut] = [];
+    byDate[t.debut].push(t);
+  }});
+
+  var firstDay    = new Date(calYear, calMonth, 1);
+  var daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  var startDow    = (firstDay.getDay() + 6) % 7; // Lundi = 0
+  var now         = new Date();
+  var todayStr    = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+
+  // Compte total du mois
+  var monthTotal = 0;
+  for (var d2 = 1; d2 <= daysInMonth; d2++) {{
+    var ds2 = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d2).padStart(2,'0');
+    monthTotal += (byDate[ds2] || []).length;
+  }}
+
+  var html = '<div class="d-flex align-items-center gap-3 mb-3">';
+  html += '<button class="btn btn-sm btn-outline-secondary" onclick="calNav(-1)">‹ Préc</button>';
+  html += '<h5 class="mb-0 fw-bold" style="min-width:220px;text-align:center">' + _MONTH_NAMES[calMonth] + ' ' + calYear + '</h5>';
+  html += '<button class="btn btn-sm btn-outline-secondary" onclick="calNav(1)">Suiv ›</button>';
+  html += '<small class="text-muted ms-3">' + monthTotal + ' tournoi(s) débutant ce mois · ' + data.length + ' au total</small>';
+  html += '</div>';
+
+  html += '<div class="cal-grid mb-2">';
+  ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].forEach(function(d3) {{
+    html += '<div class="cal-dow">' + d3 + '</div>';
+  }});
+  for (var i = 0; i < startDow; i++) html += '<div class="cal-cell cal-empty"></div>';
+
+  for (var d = 1; d <= daysInMonth; d++) {{
+    var ds = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    var ts = byDate[ds] || [];
+    var isToday = ds === todayStr;
+    var cls = 'cal-cell' + (isToday ? ' cal-today' : '') + (ts.length ? ' cal-has-events' : '');
+    html += '<div class="' + cls + '" onclick="showDayPanel(\'' + ds + '\')">';
+    html += '<div class="cal-day-num">' + d + '</div>';
+    if (ts.length) {{
+      html += '<div class="cal-count">' + ts.length + ' 🎾</div>';
+      ts.slice(0, 3).forEach(function(t) {{
+        var color = _FMT_COLORS[t.fmt] || '#999';
+        var nomCourt = t.nom.length > 20 ? t.nom.substring(0,19)+'…' : t.nom;
+        html += '<div class="cal-chip" style="background:' + color + '22;border-left:3px solid ' + color + '">' + nomCourt + '</div>';
+      }});
+      if (ts.length > 3) html += '<div class="cal-chip-more">+' + (ts.length-3) + ' autres</div>';
+    }}
+    html += '</div>';
+  }}
+  html += '</div>';
+  html += '<div id="cal-day-panel"></div>';
+  $('#view-calendar').html(html);
+}}
+
+function calNav(dir) {{
+  calMonth += dir;
+  if (calMonth < 0)  {{ calMonth = 11; calYear--; }}
+  if (calMonth > 11) {{ calMonth = 0;  calYear++; }}
+  renderCalendar();
+}}
+
+function showDayPanel(dateStr) {{
+  var data  = getFilteredData();
+  var ts    = data.filter(function(t) {{ return t.debut === dateStr; }});
+  var panel = $('#cal-day-panel');
+  if (!ts.length) {{ panel.html('').hide(); return; }}
+
+  var d = new Date(dateStr + 'T12:00:00');
+  var title = _DAY_NAMES[d.getDay()] + ' ' + d.getDate() + ' ' + _MONTH_NAMES[d.getMonth()].toLowerCase() + ' ' + d.getFullYear();
+
+  var html = '<div class="cal-panel">';
+  html += '<div class="d-flex align-items-center mb-2 gap-2">';
+  html += '<strong>' + title + '</strong>';
+  html += '<span class="badge bg-primary">' + ts.length + ' tournoi(s)</span>';
+  html += '<button class="btn btn-sm btn-close ms-auto" onclick="$(\'#cal-day-panel\').html(\'\')"></button>';
+  html += '</div><div class="row g-2">';
+  ts.forEach(function(t) {{
+    var color   = _FMT_COLORS[t.fmt] || '#aaa';
+    var statuts = [];
+    try {{ statuts = JSON.parse(t.statuts); }} catch(e) {{}}
+    var statutsHtml = statuts.map(function(s) {{
+      var cfg = _STATUT_CFG[s] || ['#bdc3c7', s];
+      return '<span class="badge" style="background:' + cfg[0] + ';font-size:.68em">' + cfg[1] + '</span>';
+    }}).join(' ');
+    html += '<div class="col-xl-3 col-lg-4 col-md-6">';
+    html += '<div class="border rounded p-2 h-100" style="border-left:4px solid ' + color + ' !important">';
+    html += '<div><a href="' + t.url + '" target="_blank" class="fw-semibold text-decoration-none" style="font-size:.85em">' + t.nom.replace(/</g,'&lt;') + '</a></div>';
+    html += '<div class="text-muted" style="font-size:.78em">' + t.ville + '</div>';
+    if (t.fmt) html += '<span class="badge mt-1" style="background:' + color + ';font-size:.68em">F' + t.fmt + '</span> ';
+    html += statutsHtml;
+    html += '</div></div>';
+  }});
+  html += '</div></div>';
+  panel.html(html);
+}}
+
+// ── Gantt ─────────────────────────────────────────────────────────────────────
+function renderGantt() {{
+  var data = getFilteredData().filter(function(t) {{ return t.debut && t.fin; }});
+  data.sort(function(a,b) {{ return a.debut < b.debut ? -1 : a.debut > b.debut ? 1 : 0; }});
+
+  if (!data.length) {{
+    $('#view-gantt').html('<p class="text-muted p-3">Aucun tournoi dans la vue courante.</p>');
+    return;
+  }}
+
+  var minDate = data[0].debut;
+  var maxDate = data.reduce(function(m,t) {{ return t.fin > m ? t.fin : m; }}, data[0].fin);
+  var minMs   = new Date(minDate + 'T00:00:00').getTime();
+  var maxMs   = new Date(maxDate + 'T00:00:00').getTime();
+  var spanMs  = maxMs - minMs || 86400000;
+
+  // Aujourd'hui
+  var now = new Date(); now.setHours(0,0,0,0);
+  var todayPct = (now.getTime() - minMs) / spanMs * 100;
+
+  var html = '<p class="text-muted mb-2" style="font-size:.82em">'
+           + data.length + ' tournois — cliquer sur une barre pour ouvrir TenUp</p>';
+
+  // Axe des mois
+  html += '<div style="display:flex;margin-left:212px;margin-bottom:3px;position:relative;height:18px;overflow:hidden">';
+  var cur = new Date(minDate + 'T00:00:00'); cur.setDate(1);
+  while (cur.getTime() <= maxMs + 86400000*31) {{
+    var pct = (cur.getTime() - minMs) / spanMs * 100;
+    if (pct > 100) break;
+    if (pct >= -5) {{
+      html += '<div style="position:absolute;left:' + Math.max(0,pct).toFixed(1) + '%;font-size:.7em;color:#888;white-space:nowrap;border-left:1px solid #ddd;padding-left:3px">'
+            + _MONTH_SHORT[cur.getMonth()] + ' ' + cur.getFullYear() + '</div>';
+    }}
+    cur.setMonth(cur.getMonth() + 1);
+  }}
+  html += '</div>';
+
+  // Barres
+  html += '<div style="max-height:520px;overflow-y:auto;position:relative">';
+  // Ligne "aujourd'hui"
+  if (todayPct >= 0 && todayPct <= 100) {{
+    html += '<div class="gantt-today" style="left:calc(212px + ' + todayPct.toFixed(2) + '% * (100% - 212px) / 100)"></div>';
+  }}
+  data.forEach(function(t) {{
+    var startMs = new Date(t.debut + 'T00:00:00').getTime();
+    var endMs   = new Date(t.fin   + 'T00:00:00').getTime() + 86400000; // inclure dernier jour
+    var left    = (startMs - minMs) / spanMs * 100;
+    var width   = Math.max((endMs  - startMs) / spanMs * 100, 0.4);
+    var color   = _FMT_COLORS[t.fmt] || '#aaa';
+    var nbDays  = Math.round((endMs - startMs) / 86400000);
+    var tip     = t.nom + '\\n' + t.debut + ' → ' + t.fin + ' (' + nbDays + ' j)\\n' + t.ville;
+    html += '<div class="gantt-row">';
+    html += '<div class="gantt-label" title="' + t.nom.replace(/"/g,'&quot;') + '">' + (t.nom.length>28 ? t.nom.substring(0,27)+'…' : t.nom) + '</div>';
+    html += '<div style="flex:1;position:relative;height:22px">';
+    html += '<div class="gantt-bar" style="left:' + left.toFixed(2) + '%;width:' + width.toFixed(2) + '%;background:' + color + ';min-width:4px" ';
+    html += 'title="' + tip.replace(/"/g,'&quot;') + '" onclick="window.open(\'' + t.url + '\',\'_blank\')">';
+    if (width > 6) {{
+      html += '<span style="font-size:.62em;color:rgba(255,255,255,.9);padding:0 4px;line-height:16px;overflow:hidden;white-space:nowrap;display:block">' + t.ville + '</span>';
+    }}
+    html += '</div></div></div>';
+  }});
+  html += '</div>';
+  $('#view-gantt').html(html);
 }}
 </script>
 </body>

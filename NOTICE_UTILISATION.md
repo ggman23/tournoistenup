@@ -59,6 +59,14 @@ python main.py --enrich-geo-only --no-prompt --city "VAIRES SUR MARNE, 77360" --
 ```
 Pas besoin de cookies. Durée : ~45 secondes pour 368 tournois.
 
+### Mettre à jour uniquement les statuts d'inscription
+```
+python main.py --enrich-statut-only --cookies cookies.json --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100 --lat 48.874 --lng 2.638
+```
+Rafraîchit les statuts (Ouvert / Clôturé / Bientôt…) sans re-fetcher les formats.
+Ignore automatiquement les tournois dont la date de fin est passée.
+Durée : ~1.5s × nombre de tournois à venir (ex: 80 tournois ≈ 2 minutes).
+
 ### Seulement régénérer le fichier HTML (sans rien télécharger)
 ```
 python main.py --html-only --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100
@@ -73,7 +81,7 @@ python main.py --cookies cookies.json
 
 ## CAS 2 — Run France entière (toutes les villes de cities_france.json)
 
-> **Temps estimé :** scraping ~30-60 min | enrichissement ~2-15h | distances routières ~3 min
+> **Temps estimé :** scraping ~30-60 min | enrichissement ~2-15h | distances routières ~3 min | statuts ~5-15 min (tournois à venir uniquement)
 
 ### Étape 1 — Scraper toutes les villes (cookies requis)
 ```
@@ -193,7 +201,9 @@ Utile après une correction de bug dans le géocodage.
 | 🚗 Trajet max (km) | Distance réelle par la route |
 | 🕐 Trajet max (min) | Temps de trajet estimé en voiture |
 | Format | F1 à F7 (coefficient de points) |
+| Statut inscription | Ouvert / Bientôt / Clôturé / Liste d'attente / etc. |
 | Surface | Terre battue, Résine, Béton poreux… |
+| Masquer terminés | Cochée par défaut — cache les tournois dont la date de fin est passée |
 | Nouveaux | Affiche uniquement les tournois apparus au dernier run |
 | TMC | Tournois "Match Compétition" internes |
 | Inscr. en ligne | Seulement ceux avec inscription en ligne |
@@ -201,6 +211,21 @@ Utile après une correction de bug dans le géocodage.
 | Mots à exclure | Ex : `hiver open` → cache tout tournoi contenant ces mots |
 | Dates | Plage de dates de début/fin |
 | ⭐ Favoris | Sauvegardés dans le navigateur (localStorage) |
+
+---
+
+## Vues du rapport HTML
+
+Le rapport propose 3 vues accessibles via les onglets en haut du tableau :
+
+| Vue | Description |
+|---|---|
+| 📋 Tableau | Vue par défaut — tableau trié/paginé avec tous les filtres |
+| 📅 Calendrier | Vue mensuelle — nombre de tournois par jour, clic pour voir la liste |
+| 📊 Gantt | Diagramme de Gantt — barres de durée des tournois sur un axe temporel |
+
+Les vues Calendrier et Gantt respectent les filtres actifs (mêmes tournois que le tableau).
+Navigation mois par mois dans le calendrier. Clic sur une barre Gantt ouvre TenUp.
 
 ---
 
