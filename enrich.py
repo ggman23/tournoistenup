@@ -363,12 +363,11 @@ def enrich_all(
     """
     def _needs_enrich(t):
         e = t.get("enriched", {})
-        if "enriched" not in t:                return True   # never processed
-        if e.get("fetch_failed"):              return True   # network error → retry
-        if e.get("no_format_in_html"):         return False  # JS-rendered, won't improve
-        if "format" not in e:                  return True   # has enriched but no format yet
-        if "statut_fetched_at" not in e:       return True   # statut not yet fetched
-        return False                                         # fully enriched → skip
+        if "enriched" not in t:         return True   # never processed
+        if e.get("fetch_failed"):       return True   # network error → retry
+        if e.get("no_format_in_html"):  return False  # JS-rendered, won't improve
+        if "format" not in e:           return True   # has enriched but no format yet
+        return False                                  # already has format → skip
 
     def _failed(t):
         return t.get("enriched", {}).get("fetch_failed", False)
@@ -414,5 +413,104 @@ def enrich_all(
     if failed_total:
         logger.warning("%d tournament(s) still have no format after all rounds "
                        "(likely JS-rendered — cannot be fixed by retrying).", failed_total)
+
+    return tournaments
+
+
+def enrich_statut_all(
+    tournaments: list[dict],
+    session: requests.Session,
+    delay_s: float = 1.5,
+    cookies_file: Optional[str] = None,
+) -> list[dict]:
+    """
+    Fetch/refresh inscription status for all previously enriched tournaments.
+
+    Skips tournaments that:
+    - were never enriched (no 'enriched' key)
+    - had a fetch failure
+    - are JS-rendered (no_format_in_html) — those pages also won't have status
+    """
+    to_process = [
+        t for t in tournaments
+        if t.get("enriched")
+        and not t["enriched"].get("fetch_failed")
+        and not t["enriched"].get("no_format_in_html")
+    ]
+    total = len(to_process)
+    logger.info(
+        "Rafraîchissement statuts : %d tournois (delay=%.1fs → ~%dm)",
+        total, delay_s, int(total * delay_s / 60),
+    )
+
+    for i, t in enumerate(to_process, 1):
+        tid  = t.get("id", "?")
+        name = t.get("libelle", "?")
+        logger.info("[%d/%d] %s", i, total, name)
+        url = get_tournament_url(t)
+
+        wait_poll_s = 15
+        wait_max_s  = 600
+        resp = None
+
+        for attempt in range(1, 4):
+            try:
+                resp = session.get(url, timeout=20)
+                resp.raise_for_status()
+            except Exception as e:
+                logger.warning("[%s] tentative %d/3 : %s", tid, attempt, e)
+                if attempt == 3:
+                    resp = None
+                    break
+                time.sleep(min(2 ** attempt, 30))
+                continue
+
+            if _is_queueit(resp):
+                if not cookies_file:
+                    logger.warning("[%s] queue-it sans cookies_file", tid)
+                    resp = None
+                    break
+                mtime_before = os.path.getmtime(cookies_file) if os.path.exists(cookies_file) else 0
+                waited = 0
+                logger.warning("[%s] ⚠️  Queue-it — attente TamperMonkey... (max %ds)", tid, wait_max_s)
+                while waited < wait_max_s:
+                    time.sleep(wait_poll_s)
+                    waited += wait_poll_s
+                    mtime_after = os.path.getmtime(cookies_file) if os.path.exists(cookies_file) else 0
+                    if mtime_after > mtime_before:
+                        logger.info("[%s] ✅  cookies.json mis à jour", tid)
+                        _reload_session_cookies(session, cookies_file)
+                        break
+                    logger.info("[%s] ⏳  %ds / %ds", tid, waited, wait_max_s)
+                else:
+                    logger.error("[%s] Timeout statut", tid)
+                    resp = None
+                    break
+                continue  # retry with fresh cookies
+
+            break  # good response
+
+        if resp is None:
+            time.sleep(delay_s)
+            continue
+
+        soup = BeautifulSoup(resp.text, "lxml")
+        statut_data = _extract_statut_inscription(soup)
+        enriched = t.setdefault("enriched", {})
+
+        if statut_data["statuts"]:
+            enriched["statuts_inscription"] = statut_data["statuts"]
+            codes = [v["statut"] for v in statut_data["statuts"].values()]
+            logger.info("[%s] statuts: %s", tid, codes)
+        else:
+            enriched.pop("statuts_inscription", None)
+
+        if statut_data["commentaire_club"]:
+            enriched["commentaire_club"] = statut_data["commentaire_club"]
+        else:
+            enriched.pop("commentaire_club", None)
+
+        enriched["statut_fetched_at"] = datetime.now(timezone.utc).isoformat()
+        time.sleep(delay_s)
 
     return tournaments

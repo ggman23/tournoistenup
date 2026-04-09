@@ -26,7 +26,7 @@ from scraper import TenupScraper
 from storage import update_storage, load_json
 from notify import notify
 from generate_html import generate_html, generate_from_file
-from enrich import enrich_all
+from enrich import enrich_all, enrich_statut_all
 from enrich_geo import enrich_geo_all, reset_geo
 
 def _search_city_fr(name: str) -> list[dict]:
@@ -145,6 +145,8 @@ def parse_args():
                    help="Only run geo enrichment on existing data, then regenerate HTML")
     p.add_argument("--reset-geo", action="store_true",
                    help="Reset all geo data (geo_lat/lng, road_km/min) before --enrich-geo-only")
+    p.add_argument("--enrich-statut-only", action="store_true",
+                   help="Refresh inscription status only (no scraping, no format re-fetch)")
     return p.parse_args()
 
 
@@ -174,7 +176,7 @@ def main():
             val = "/".join(parts)
         return val
 
-    do_scrape = not (args.html_only or args.enrich_only or args.enrich_geo_only)
+    do_scrape = not (args.html_only or args.enrich_only or args.enrich_geo_only or args.enrich_statut_only)
 
     # City
     if args.city:
@@ -263,6 +265,29 @@ def main():
             tournaments, html_file, new_ids=new_ids,
             fetched_at=saved.get("fetched_at", ""),
         )
+        sys.exit(0)
+
+    # ── Enrich-statut-only mode: refresh inscription status only ─────────────
+    if args.enrich_statut_only:
+        if not os.path.exists(data_file):
+            logger.error("No data file found at %s — run a full scrape first.", data_file)
+            sys.exit(1)
+        saved = load_json(data_file)
+        tournaments = saved.get("tournaments", [])
+        logger.info("Loaded %d tournaments — refreshing inscription status.", len(tournaments))
+        cookies_file = args.cookies or os.environ.get("TENUP_COOKIES_FILE")
+        enrich_scraper = TenupScraper(config, cookies_file=cookies_file)
+        enrich_statut_all(tournaments, enrich_scraper.session, delay_s=1.5, cookies_file=cookies_file)
+        import json as _json
+        saved["tournaments"] = tournaments
+        os.makedirs(os.path.dirname(data_file) or ".", exist_ok=True)
+        with open(data_file, "w", encoding="utf-8") as f:
+            _json.dump(saved, f, ensure_ascii=False, indent=2)
+        history      = load_json(history_file)
+        new_ids      = set(history.get("last_new_ids", []))
+        only_natures = config["search"].get("epreuves") or None
+        generate_html(tournaments, html_file, new_ids=new_ids,
+                      fetched_at=saved.get("fetched_at", ""), only_natures=only_natures)
         sys.exit(0)
 
     # ── Enrich-geo-only mode: geocode + road distances without re-scraping ───
