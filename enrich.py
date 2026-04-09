@@ -431,12 +431,36 @@ def enrich_statut_all(
     - had a fetch failure
     - are JS-rendered (no_format_in_html) — those pages also won't have status
     """
-    to_process = [
+    today = datetime.now(timezone.utc).date()
+
+    def _date_fin(t: dict):
+        raw = (t.get("dateFin") or {}).get("date", "")
+        if not raw:
+            return None
+        try:
+            return datetime.fromisoformat(raw.split(".")[0]).date()
+        except Exception:
+            return None
+
+    candidates = [
         t for t in tournaments
         if t.get("enriched")
         and not t["enriched"].get("fetch_failed")
         and not t["enriched"].get("no_format_in_html")
     ]
+
+    to_process = []
+    skipped_past = 0
+    for t in candidates:
+        d = _date_fin(t)
+        if d is not None and d < today:
+            skipped_past += 1
+        else:
+            to_process.append(t)
+
+    if skipped_past:
+        logger.info("Ignorés (tournoi terminé) : %d — seuls %d restants", skipped_past, len(to_process))
+
     total = len(to_process)
     logger.info(
         "Rafraîchissement statuts : %d tournois (delay=%.1fs → ~%dm)",

@@ -632,6 +632,10 @@ def generate_html(
       <div class="col-auto">
         <label class="form-label mb-1 fw-semibold small">&nbsp;</label><br>
         <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-hide-past" checked onchange="applyFilters()">
+          <label class="form-check-label small fw-semibold" for="chk-hide-past" style="color:#6c757d">Masquer terminés</label>
+        </div>
+        <div class="form-check form-check-inline">
           <input class="form-check-input" type="checkbox" id="chk-new" onchange="applyFilters()">
           <label class="form-check-label small" for="chk-new">Nouveaux</label>
         </div>
@@ -782,6 +786,18 @@ $(function() {{
       var inclNoFmt = $('#chk-no-fmt').prop('checked');
       if (fmts.indexOf(fmt) === -1 && !(inclNoFmt && !hasFmt)) return false;
     }}
+    // ── Masquer tournois terminés (date de fin dépassée) ─────────────────────
+    if ($('#chk-hide-past').prop('checked')) {{
+      var dateFin = $tr.attr('data-date-fin') || '';
+      if (dateFin) {{
+        var todayStr = (function() {{
+          var d = new Date();
+          return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        }})();
+        if (dateFin < todayStr) return false;
+      }}
+    }}
+
     var filterStatut = $('#filter-statut').val();
     if (filterStatut) {{
       var statuts = JSON.parse($tr.attr('data-statuts') || '[]');
@@ -971,6 +987,7 @@ function resetFilters() {{
   updateDeptBtn();
   $('#chk-new, #chk-tmc, #chk-insc, #chk-fav, #chk-no-fmt').prop('checked', false);
   $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
+  $('#chk-hide-past').prop('checked', true);  // remet masquer-terminés coché par défaut
   $('#filter-search').val('');
   if (dt) {{ dt.search('').draw(); }} else {{ applyFilters(); }}
 }}
