@@ -54,10 +54,22 @@ KEYWORDS = [
 ]
 
 
-def load_cookies(path: str) -> dict:
+def load_cookies(path: str) -> requests.Session:
+    """Load cookies exactly like scraper.py — domain+path required for queue-it."""
+    session = requests.Session()
+    session.headers["User-Agent"] = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
     with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    return {c["name"]: c["value"] for c in data}
+        raw = json.load(f)
+    for c in raw:
+        session.cookies.set(
+            c["name"], c["value"],
+            domain=c.get("domain", ".tenup.fft.fr"),
+            path=c.get("path", "/"),
+        )
+    return session
 
 
 def fetch(url: str, session: requests.Session) -> str | None:
@@ -157,13 +169,7 @@ def main():
                    help="Inspecter seulement ce tournoi ID (ex: 197251)")
     args = p.parse_args()
 
-    cookies = load_cookies(args.cookies)
-    session = requests.Session()
-    session.cookies.update(cookies)
-    session.headers["User-Agent"] = (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
+    session = load_cookies(args.cookies)
 
     urls = URLS if not args.id else [(args.id, "Inspection manuelle")]
 
