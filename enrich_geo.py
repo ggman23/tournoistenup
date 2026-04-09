@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 GEOCODE_URL   = "https://api-adresse.data.gouv.fr/search/csv/"
 OSRM_TABLE    = "http://router.project-osrm.org/table/v1/driving/{coords}"
 OSRM_BATCH    = 90     # max destinations per OSRM request on public server
-GEO_SCORE_MIN = 0.3    # min geocoding confidence (0-1)
+GEO_SCORE_MIN = 0.1    # min geocoding confidence — city-level geocoding (~0.4) is enough
 
 
 # ── Step 1 : Batch geocoding ────────────────────────────────────────────────
@@ -46,30 +46,36 @@ def _batch_geocode(tournaments: list) -> int:
 
     logger.info("Géocodage batch de %d installations...", len(to_geocode))
 
-    # Build CSV: id, adresse, postcode
-    csv_rows = ["id,adresse,postcode"]
+    # Build CSV: id, ville, cp
+    # We geocode at city level (ville + cp) — precise enough for road distance,
+    # and far more reliable than trying to geocode club names as street addresses.
+    csv_rows = ["id,ville,cp"]
     for t in to_geocode:
         install = t.get("installation", {})
-        adresse = " ".join(filter(None, [
-            install.get("adresse1", ""),
-            install.get("ville", ""),
-        ])).replace('"', "'").strip()
-        cp  = install.get("codePostal", "")
-        tid = str(t.get("id", ""))
-        csv_rows.append(f'{tid},"{adresse}",{cp}')
+        ville   = install.get("ville", "").replace('"', "'").strip()
+        cp      = install.get("codePostal", "").strip()
+        tid     = str(t.get("id", ""))
+        csv_rows.append(f'{tid},"{ville}",{cp}')
 
     csv_body = "\n".join(csv_rows)
 
     try:
         resp = requests.post(
             GEOCODE_URL,
+            # NOTE: use list of tuples so requests sends multiple form fields correctly.
+            # data={"columns": ["ville"]} would encode as the string "['ville']" — wrong.
             files={"data": ("addr.csv", csv_body.encode("utf-8"), "text/csv")},
-            data={"columns": ["adresse"], "postcode": "postcode"},
+            data=[("columns", "ville"), ("postcode", "cp")],
             timeout=120,
         )
         resp.raise_for_status()
     except Exception as e:
         logger.error("Géocodage batch échoué : %s", e)
+        return 0
+
+    # Validate response looks like CSV (not an HTML error page)
+    if not resp.text.strip().startswith("id,"):
+        logger.error("Réponse géocodage inattendue (pas du CSV) : %s", resp.text[:200])
         return 0
 
     # Build id → tournament map
