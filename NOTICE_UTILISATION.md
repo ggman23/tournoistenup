@@ -53,6 +53,12 @@ python main.py --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100 --lat 48.87
 python main.py --enrich-only --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100 --lat 48.874 --lng 2.638 --cookies cookies.json
 ```
 
+### Ajouter les distances routières et temps de trajet
+```
+python main.py --enrich-geo-only --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100 --lat 48.874 --lng 2.638
+```
+Pas besoin de cookies. Durée : ~45 secondes pour 368 tournois.
+
 ### Seulement régénérer le fichier HTML (sans rien télécharger)
 ```
 python main.py --html-only --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100
@@ -67,7 +73,7 @@ python main.py --cookies cookies.json
 
 ## CAS 2 — Run France entière (toutes les villes de cities_france.json)
 
-> **Temps estimé :** scraping ~30-60 min | enrichissement ~2-15h selon les doublons
+> **Temps estimé :** scraping ~30-60 min | enrichissement ~2-15h | distances routières ~3 min
 
 ### Étape 1 — Scraper toutes les villes (cookies requis)
 ```
@@ -82,12 +88,19 @@ python run_batch.py --enrich-only --cookies cookies.json
 Lit les fichiers JSON existants, va chercher le format (F1-F7) sur chaque page de tournoi.
 **Les tournois déjà enrichis sont ignorés** → peut être interrompu et relancé.
 
-### Étape 3 — (Auto) Génération du rapport combiné
-Le rapport `data/tournaments_france_entiere.html` est généré automatiquement à la fin.
+### Étape 3 — Distances routières et temps de trajet (optionnel)
+```
+python run_batch.py --enrich-geo-only
+```
+Pas besoin de cookies. Géocode les installations (API gouvernementale française) puis calcule
+distance réelle et temps de trajet via OSRM. Skippé si déjà calculé.
+
+### Étape 4 — (Auto) Génération du rapport combiné
+Le rapport `data/tournaments_france_entiere.html` est généré automatiquement à la fin de chaque étape.
 
 ### Ou tout en une seule commande (si les cookies restent valides assez longtemps)
 ```
-python run_batch.py --cookies cookies.json --enrich --date-start 01/04/26 --date-end 31/12/26
+python run_batch.py --cookies cookies.json --enrich --enrich-geo --date-start 01/04/26 --date-end 31/12/26
 ```
 
 ### Juste régénérer les HTMLs sans rien télécharger
@@ -136,7 +149,7 @@ python check_new.py data/tournaments_vaires_sur_marne_77360_100km.json
 
 ## CAS 6 — Corriger des mauvais flags
 
-Parfois, si l'enrichissement s'est fait sans cookie valide, des tournois sont marqués `no_format_in_html=True` à tort (la page existait mais sans les divs de format car pas de cookie).
+Parfois, si l'enrichissement s'est fait sans cookie valide, des tournois sont marqués `no_format_in_html=True` à tort.
 
 **Réinitialiser ces flags puis re-enrichir :**
 ```
@@ -144,6 +157,13 @@ python reset_no_format.py --dry-run   ← aperçu sans modifier
 python reset_no_format.py             ← applique la correction
 python run_batch.py --enrich-only --cookies cookies.json
 ```
+
+**Recalculer les distances routières depuis zéro :**
+```
+python main.py --enrich-geo-only --reset-geo --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100 --lat 48.874 --lng 2.638
+```
+Le `--reset-geo` efface tous les geo_lat/lng/road_km/road_min et recalcule tout.
+Utile après une correction de bug dans le géocodage.
 
 ---
 
@@ -169,7 +189,9 @@ python run_batch.py --enrich-only --cookies cookies.json
 | Ligue | Sélectionne une ligue → coche automatiquement ses départements |
 | Comités | Sélection multiple de départements (77, 93, 95… simultanément) |
 | Épreuve | Filtre par type + catégorie d'âge (SM 13/14 ans, etc.) |
-| Distance max | N'affiche que les tournois à moins de X km |
+| Vol d'oiseau max (km) | Distance à vol d'oiseau depuis la ville de référence |
+| 🚗 Trajet max (km) | Distance réelle par la route |
+| 🕐 Trajet max (min) | Temps de trajet estimé en voiture |
 | Format | F1 à F7 (coefficient de points) |
 | Surface | Terre battue, Résine, Béton poreux… |
 | Nouveaux | Affiche uniquement les tournois apparus au dernier run |
@@ -200,6 +222,9 @@ import requests
 r = requests.get('https://geo.api.gouv.fr/communes?nom=Vaires-sur-Marne&fields=nom,codesPostaux,centre&boost=population&limit=3')
 for c in r.json(): print(c['nom'], c.get('codesPostaux'), c.get('centre',{}).get('coordinates'))
 "
+
+# Tester le géocodage batch sur quelques adresses
+python test_geocode.py
 ```
 
 ---

@@ -257,6 +257,51 @@ afficher le badge NEW sans re-scraper.
 
 ---
 
+### `enrich_geo.py` — Distances routières et temps de trajet
+
+#### Pourquoi deux étapes séparées
+
+Le calcul de distance routière nécessite les coordonnées GPS de chaque installation.
+TenUp ne fournit pas ces coordonnées, il faut donc les géocoder depuis l'adresse.
+
+**Étape 1 — Géocodage batch via `api-adresse.data.gouv.fr`**
+
+L'API gouvernementale française permet d'envoyer toutes les adresses en une seule requête CSV.
+368 adresses → 1 requête → ~3 secondes. Gratuit, sans clé API.
+
+Stratégie d'adresse : on envoie `"VILLE CP"` (ex: `"US 95450"`) dans un seul champ.
+Envoyer ville et CP séparément causait des échecs sur les communes courtes (US, If, Eu…)
+car l'API ne trouvait pas "US" seul. "US 95450" est non-ambigu.
+
+```python
+data=[("columns", "adresse")]   # liste de tuples, PAS dict
+# data={"columns": "adresse"}  # bug potentiel: requests encode mal les listes
+```
+
+Colonnes retournées par l'API : `latitude`, `longitude`, `result_score` (PAS `result_latitude`).
+
+**Étape 2 — Distances OSRM via `router.project-osrm.org`**
+
+OSRM fournit une API "table" qui calcule les distances depuis UN point source vers N destinations
+en une seule requête. On envoie la ville de référence en index 0, puis tous les tournois.
+
+```
+GET /table/v1/driving/REF_LNG,REF_LAT;T1_LNG,T1_LAT;T2_LNG,T2_LAT;...
+    ?sources=0&annotations=duration,distance
+```
+
+Résultat : `durations[0][j]` = durée de ref_city vers tournoi j (en secondes).
+Batché par 90 pour respecter les limites du serveur public. ~29 requêtes pour 2600 tournois.
+
+**Champs ajoutés dans `enriched` :**
+- `geo_lat`, `geo_lng` : coordonnées de l'installation (géocodées)
+- `road_km` : distance réelle par la route (km)
+- `road_min` : temps de trajet estimé (minutes)
+
+**Idempotent :** les champs déjà calculés sont ignorés. Utiliser `--reset-geo` pour recalculer.
+
+---
+
 ### `reset_no_format.py` — Correction des faux positifs
 
 #### Quand l'utiliser
@@ -282,6 +327,9 @@ pour qu'ils soient retentés au prochain `--enrich-only` avec des cookies valide
 | 15h au lieu de 2h pour l'enrichissement | Doublons inter-villes enrichis plusieurs fois | Connu, non optimisé — dédupliquer avant enrichissement serait la solution |
 | 187 tournois `fetch_failed` après coupure réseau | Panne réseau en cours de run | Relancer `--enrich-only` → les `fetch_failed` sont automatiquement retentés |
 | Mauvais `no_format_in_html` après run sans cookies | Enrichissement sans cookie → pas de divs | `reset_no_format.py` + re-run avec cookies |
+| Géocodage : 0/368 réussis | Colonnes API mal nommées (`result_latitude` vs `latitude`) | Utiliser `latitude`/`longitude` (sans préfixe) |
+| Géocodage : 0/368 réussis (bis) | `data={"columns": ["ville"]}` → requests encode la liste comme string | Utiliser `data=[("columns", "ville")]` (liste de tuples) |
+| Communes courtes non géocodées (US, If…) | Ville seule trop ambiguë pour le géocodeur | Envoyer `"VILLE CP"` combiné dans un seul champ |
 
 ---
 
@@ -307,7 +355,11 @@ pour qu'ils soient retentés au prochain `--enrich-only` avec des cookies valide
         "detail_url": "https://tenup.fft.fr/tournoi/206919",
         "format": "2",
         "format_desc": "Tournoi régional homologué",
-        "formats_list": [{"num":"2","desc":"...","epreuve_key":"SM_140"}]
+        "formats_list": [{"num":"2","desc":"...","epreuve_key":"SM_140"}],
+        "geo_lat": 48.6963,
+        "geo_lng": 2.3897,
+        "road_km": 28.5,
+        "road_min": 34
       }
     }
   ]
