@@ -1142,7 +1142,7 @@ function renderCalendar() {{
     var ts = byDate[ds] || [];
     var isToday = ds === todayStr;
     var cls = 'cal-cell' + (isToday ? ' cal-today' : '') + (ts.length ? ' cal-has-events' : '');
-    html += '<div class="' + cls + '" onclick="showDayPanel(\'' + ds + '\')">';
+    html += '<div class="' + cls + '" onclick="showDayPanel(\\'' + ds + '\\')">';
     html += '<div class="cal-day-num">' + d + '</div>';
     if (ts.length) {{
       html += '<div class="cal-count">' + ts.length + ' 🎾</div>';
@@ -1180,7 +1180,7 @@ function showDayPanel(dateStr) {{
   html += '<div class="d-flex align-items-center mb-2 gap-2">';
   html += '<strong>' + title + '</strong>';
   html += '<span class="badge bg-primary">' + ts.length + ' tournoi(s)</span>';
-  html += '<button class="btn btn-sm btn-close ms-auto" onclick="$(\'#cal-day-panel\').html(\'\')"></button>';
+  html += '<button class="btn btn-sm btn-close ms-auto" onclick="$(\\\'#cal-day-panel\\\').html(\\\'\\\')" ></button>';
   html += '</div><div class="row g-2">';
   ts.forEach(function(t) {{
     var color   = _FMT_COLORS[t.fmt] || '#aaa';
@@ -1257,7 +1257,7 @@ function renderGantt() {{
     html += '<div class="gantt-label" title="' + t.nom.replace(/"/g,'&quot;') + '">' + (t.nom.length>28 ? t.nom.substring(0,27)+'…' : t.nom) + '</div>';
     html += '<div style="flex:1;position:relative;height:22px">';
     html += '<div class="gantt-bar" style="left:' + left.toFixed(2) + '%;width:' + width.toFixed(2) + '%;background:' + color + ';min-width:4px" ';
-    html += 'title="' + tip.replace(/"/g,'&quot;') + '" onclick="window.open(\'' + t.url + '\',\'_blank\')">';
+    html += 'title="' + tip.replace(/"/g,'&quot;') + '" onclick="window.open(\\'' + t.url + '\\',\\'_blank\\')">';
     if (width > 6) {{
       html += '<span style="font-size:.62em;color:rgba(255,255,255,.9);padding:0 4px;line-height:16px;overflow:hidden;white-space:nowrap;display:block">' + t.ville + '</span>';
     }}
