@@ -46,26 +46,25 @@ def _batch_geocode(tournaments: list) -> int:
 
     logger.info("Géocodage batch de %d installations...", len(to_geocode))
 
-    # Build CSV: id, ville, cp
-    # We geocode at city level (ville + cp) — precise enough for road distance,
-    # and far more reliable than trying to geocode club names as street addresses.
-    csv_rows = ["id,ville,cp"]
+    # Build CSV: single 'adresse' column = "VILLE CP" (e.g. "US 95450")
+    # Combining ville+cp in one field handles short/ambiguous city names far
+    # better than using ville alone — "US 95450" is unambiguous, "US" alone is not.
+    csv_rows = ["id,adresse"]
     for t in to_geocode:
         install = t.get("installation", {})
         ville   = install.get("ville", "").replace('"', "'").strip()
         cp      = install.get("codePostal", "").strip()
+        q       = f"{ville} {cp}".strip().replace('"', "'")
         tid     = str(t.get("id", ""))
-        csv_rows.append(f'{tid},"{ville}",{cp}')
+        csv_rows.append(f'{tid},"{q}"')
 
     csv_body = "\n".join(csv_rows)
 
     try:
         resp = requests.post(
             GEOCODE_URL,
-            # NOTE: use list of tuples so requests sends multiple form fields correctly.
-            # data={"columns": ["ville"]} would encode as the string "['ville']" — wrong.
             files={"data": ("addr.csv", csv_body.encode("utf-8"), "text/csv")},
-            data=[("columns", "ville"), ("postcode", "cp")],
+            data=[("columns", "adresse")],
             timeout=120,
         )
         resp.raise_for_status()
@@ -86,8 +85,8 @@ def _batch_geocode(tournaments: list) -> int:
         reader = csv.DictReader(io.StringIO(resp.text))
         for row in reader:
             tid   = row.get("id", "").strip()
-            lat   = row.get("latitude", "").strip()    # API returns 'latitude', not 'result_latitude'
-            lng   = row.get("longitude", "").strip()   # API returns 'longitude', not 'result_longitude'
+            lat   = row.get("latitude", "").strip()
+            lng   = row.get("longitude", "").strip()
             score = float(row.get("result_score", 0) or 0)
 
             if not lat or not lng or score < GEO_SCORE_MIN:
@@ -192,6 +191,21 @@ def _batch_road_distances(tournaments: list, ref_lat: float, ref_lng: float) -> 
 
 
 # ── Public entry point ───────────────────────────────────────────────────────
+
+def reset_geo(tournaments: list):
+    """Remove geo_lat/geo_lng/road_km/road_min from all tournaments (force re-geocode)."""
+    count = 0
+    for t in tournaments:
+        e = t.get("enriched", {})
+        removed = False
+        for key in ("geo_lat", "geo_lng", "road_km", "road_min"):
+            if key in e:
+                del e[key]
+                removed = True
+        if removed:
+            count += 1
+    logger.info("Reset géo : %d tournois remis à zéro", count)
+
 
 def enrich_geo_all(tournaments: list, ref_lat: float, ref_lng: float):
     """

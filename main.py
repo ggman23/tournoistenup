@@ -27,7 +27,7 @@ from storage import update_storage, load_json
 from notify import notify
 from generate_html import generate_html, generate_from_file
 from enrich import enrich_all
-from enrich_geo import enrich_geo_all
+from enrich_geo import enrich_geo_all, reset_geo
 
 def _search_city_fr(name: str) -> list[dict]:
     """Search French communes via geo.api.gouv.fr."""
@@ -143,6 +143,8 @@ def parse_args():
                    help="Geocode installations + compute road distances from ref city (no cookies needed)")
     p.add_argument("--enrich-geo-only", action="store_true",
                    help="Only run geo enrichment on existing data, then regenerate HTML")
+    p.add_argument("--reset-geo", action="store_true",
+                   help="Reset all geo data (geo_lat/lng, road_km/min) before --enrich-geo-only")
     return p.parse_args()
 
 
@@ -271,6 +273,8 @@ def main():
         saved = load_json(data_file)
         tournaments = saved.get("tournaments", [])
         logger.info("Loaded %d tournaments — running geo enrichment only.", len(tournaments))
+        if args.reset_geo:
+            reset_geo(tournaments)
         ref_lat = config["search"]["ville"].get("lat", 0.0)
         ref_lng = config["search"]["ville"].get("lng", 0.0)
         enrich_geo_all(tournaments, ref_lat, ref_lng)

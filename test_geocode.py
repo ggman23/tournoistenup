@@ -4,7 +4,7 @@ Lance : python test_geocode.py
 """
 import requests, csv, io
 
-csv_body = "id,ville,cp\n1,BRUNOY,91800\n2,PARIS,75001\n3,VERSAILLES,78000\n"
+csv_body = "id,adresse\n1,BRUNOY 91800\n2,PARIS 75001\n3,US 95450\n4,VERSAILLES 78000\n"
 
 print("=== Envoi CSV ===")
 print(csv_body)
@@ -12,7 +12,7 @@ print(csv_body)
 resp = requests.post(
     "https://api-adresse.data.gouv.fr/search/csv/",
     files={"data": ("addr.csv", csv_body.encode("utf-8"), "text/csv")},
-    data=[("columns", "ville"), ("postcode", "cp")],
+    data=[("columns", "adresse")],
     timeout=30,
 )
 
