@@ -27,15 +27,16 @@ FORMAT_COLORS = {
 }
 
 STATUT_CONFIG = {
-    "ouvert":       ("#27ae60", "Ouvert"),
-    "bientot":      ("#2980b9", "Bientôt"),
-    "attente":      ("#e67e22", "Liste d'attente"),
-    "cloture":      ("#c0392b", "Clôturé"),
-    "hors_bornes":  ("#7f8c8d", "Hors bornes"),
-    "impossible":   ("#95a5a6", "Hors ligne"),
-    "deja_inscrit": ("#1abc9c", "Déjà inscrit"),
-    "ineligible":   ("#34495e", "Non éligible"),
-    "autre":        ("#bdc3c7", "?"),
+    "ouvert":          ("#27ae60", "Ouvert"),
+    "bientot":         ("#2980b9", "Bientôt"),
+    "attente":         ("#e67e22", "Liste d'attente"),
+    "inscrit_attente": ("#d35400", "Inscrit (liste d'attente)"),
+    "cloture":         ("#c0392b", "Clôturé"),
+    "hors_bornes":     ("#7f8c8d", "Hors bornes"),
+    "impossible":      ("#95a5a6", "Hors ligne"),
+    "deja_inscrit":    ("#1abc9c", "Déjà inscrit"),
+    "ineligible":      ("#34495e", "Non éligible"),
+    "autre":           ("#bdc3c7", "?"),
 }
 
 
@@ -652,6 +653,7 @@ def generate_html(
           <option value="ouvert">✅ Ouvert</option>
           <option value="bientot">🔵 Bientôt</option>
           <option value="attente">🟠 Liste d'attente</option>
+          <option value="inscrit_attente">🟤 Inscrit (liste d'attente)</option>
           <option value="cloture">🔴 Clôturé</option>
           <option value="impossible">⬜ Hors ligne</option>
           <option value="hors_bornes">⬜ Hors bornes</option>
@@ -1080,7 +1082,7 @@ function getFilteredData() {{
 }}
 
 var _FMT_COLORS = {{'1':'#c0392b','2':'#e67e22','3':'#f39c12','4':'#27ae60','5':'#2980b9','6':'#8e44ad','7':'#7f8c8d'}};
-var _STATUT_CFG = {{'ouvert':['#27ae60','Ouvert'],'bientot':['#2980b9','Bientôt'],'attente':['#e67e22','Attente'],'cloture':['#c0392b','Clôturé'],'impossible':['#95a5a6','Hors ligne'],'hors_bornes':['#7f8c8d','Hors bornes'],'deja_inscrit':['#1abc9c','Déjà inscrit'],'ineligible':['#34495e','Non éligible'],'autre':['#bdc3c7','?']}};
+var _STATUT_CFG = {{'ouvert':['#27ae60','Ouvert'],'bientot':['#2980b9','Bientôt'],'attente':['#e67e22','Attente'],'inscrit_attente':['#d35400','Inscrit (attente)'],'cloture':['#c0392b','Clôturé'],'impossible':['#95a5a6','Hors ligne'],'hors_bornes':['#7f8c8d','Hors bornes'],'deja_inscrit':['#1abc9c','Déjà inscrit'],'ineligible':['#34495e','Non éligible'],'autre':['#bdc3c7','?']}};
 var _MONTH_NAMES = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 var _MONTH_SHORT = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
 var _DAY_NAMES   = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];

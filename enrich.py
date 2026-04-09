@@ -51,6 +51,9 @@ def _normalize_statut(text: str, is_closed: bool = False) -> str:
     if "débutent" in t or "debutent" in t or "à partir" in t or "a partir" in t or "ouvrent" in t:
         return "bientot"
     if "liste d'attente" in t or "liste d attente" in t or "attente" in t:
+        # Distinguish: user already inscribed and waiting vs general waiting list
+        if "inscrit" in t or "vous êtes" in t or "vous etes" in t:
+            return "inscrit_attente"
         return "attente"
     if "clôtur" in t or "clotur" in t or "fermé" in t or "ferme" in t or "close" in t:
         return "cloture"
@@ -100,6 +103,8 @@ def _extract_statut_inscription(soup: BeautifulSoup) -> dict:
     for block in soup.find_all(class_=re.compile(r"\bepreuve-step-0\b")):
         classes = block.get("class") or []
         is_closed = "title-closed" in classes
+        # Some TenUp versions add "title-attente" or similar CSS classes
+        is_attente_class = any("attente" in c.lower() or "waiting" in c.lower() for c in classes)
 
         nature_div = block.find(class_="epreuve-detail-nature")
         nature_code = nature_div.get_text(strip=True) if nature_div else ""
@@ -110,7 +115,20 @@ def _extract_statut_inscription(soup: BeautifulSoup) -> dict:
         info_div = block.find(class_="epreuve-detail-info")
         info_text = info_div.get_text(" ", strip=True) if info_div else ""
 
+        # Fallback 1: scan buttons inside this block for "attente" text
+        # (TenUp bug: sometimes the info div is empty but the button reveals the status)
+        if not info_text:
+            for btn in block.find_all(["button", "a", "span"]):
+                btn_text = btn.get_text(" ", strip=True).lower()
+                if "attente" in btn_text or "liste d" in btn_text or "complet" in btn_text:
+                    info_text = btn.get_text(" ", strip=True)
+                    break
+
         statut_code = _normalize_statut(info_text, is_closed=is_closed)
+
+        # CSS class override: if TenUp flagged this block with attente-related class
+        if is_attente_class and statut_code == "ouvert":
+            statut_code = "attente"
 
         entry = {
             "statut":  statut_code,
