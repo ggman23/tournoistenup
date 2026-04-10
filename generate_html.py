@@ -1020,6 +1020,46 @@ $(function() {{
     return true;
   }});
 
+// ── Export PDF : mise en forme personnalisée ─────────────────────────────────
+function pdfCustomize(doc) {{
+  // Colonnes exportées : Dates | Tournoi* | Catégorie | Épreuves | Surface | Ville | Distance
+  doc.content[0].table.widths = [38, '*', 50, 85, 24, 55, 40];
+  doc.defaultStyle = {{ fontSize: 8 }};
+  var FC = {{'1':'#c0392b','2':'#e67e22','3':'#f39c12','4':'#27ae60','5':'#2980b9','6':'#8e44ad','7':'#7f8c8d'}};
+  var SC = {{'TB':'#c0392b','TA':'#e67e22','R':'#2980b9','BP':'#7f8c8d','D':'#95a5a6','G':'#27ae60','M':'#8e44ad','?':'#bdc3c7'}};
+  doc.content[0].table.body.forEach(function(row, ri) {{
+    if (ri === 0) {{
+      row.forEach(function(c) {{ if (c && typeof c === 'object') {{ c.fillColor = '#343a40'; c.color = '#fff'; }} }});
+      return;
+    }}
+    // Colonne Épreuves (index 3) → colorise le code Fx sur chaque ligne
+    var epRaw = typeof row[3] === 'string' ? row[3] : ((row[3] || {{}}).text || '');
+    if (epRaw) {{
+      var epContent = [];
+      epRaw.split('\\n').forEach(function(line, li) {{
+        if (li > 0) epContent.push({{ text: '\\n' }});
+        var m = line.match(/^(.*?)\\s+(F[1-7])$/);
+        if (m) {{
+          epContent.push({{ text: m[1] + ' ' }});
+          epContent.push({{ text: m[2], color: FC[m[2][1]] || '#666', bold: true }});
+        }} else {{ epContent.push({{ text: line }}); }}
+      }});
+      row[3] = {{ text: epContent }};
+    }}
+    // Colonne Surface (index 4) → abréviations colorées
+    var srfRaw = typeof row[4] === 'string' ? row[4] : ((row[4] || {{}}).text || '');
+    if (srfRaw && srfRaw !== '—') {{
+      var srfContent = [];
+      srfRaw.split('/').forEach(function(a, si) {{
+        if (si > 0) srfContent.push({{ text: ' ' }});
+        var abbr = a.trim();
+        srfContent.push({{ text: abbr, color: SC[abbr] || '#666', bold: true }});
+      }});
+      row[4] = {{ text: srfContent }};
+    }}
+  }});
+}}
+
   dt = $('#t').DataTable({{
     pageLength: 25,
     lengthMenu: [[25, 50, 100, -1], [25, 50, 100, "Tout"]],
@@ -1041,10 +1081,9 @@ $(function() {{
       {{ extend:'pdfHtml5', text:'📑 PDF', className:'btn-sm btn-outline-danger',
          orientation:'portrait', pageSize:'A4',
          exportOptions:{{
-           columns:':visible',
+           columns:[0,1,2,4,5,6,7],
            format:{{
              body: function(data, row, column, node) {{
-               // Colonne Épreuves : abréviations + filtrage CSS-visible seulement
                if (column === 4) {{
                  var lines = [];
                  $(node).find('.ep-line').each(function() {{
@@ -1056,10 +1095,18 @@ $(function() {{
                  }});
                  return lines.join('\\n') || '—';
                }}
-               return $('<div>').html(data).text().replace(/\s+/g, ' ').trim();
+               if (column === 5) {{
+                 var SABBR = {{'terre battue':'TB','terre artificielle':'TA','résine':'R','béton poreux':'BP','dur':'D','gazon':'G','moquette':'M','autre':'?'}};
+                 var abbrs = $(node).find('.srf-badge').map(function() {{
+                   return SABBR[$(this).text().trim().toLowerCase()] || $(this).text().trim().substring(0,2).toUpperCase();
+                 }}).get();
+                 return abbrs.join('/') || '—';
+               }}
+               return $('<div>').html(data).text().replace(/\s+/g,' ').trim();
              }}
            }}
-         }}
+         }},
+         customize: pdfCustomize
       }},
     ],
     drawCallback: function() {{
