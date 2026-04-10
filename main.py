@@ -26,7 +26,7 @@ from scraper import TenupScraper
 from storage import update_storage, load_json
 from notify import notify
 from generate_html import generate_html, generate_from_file
-from enrich import enrich_all, enrich_statut_all
+from enrich import enrich_all, enrich_statut_all, fix_encoding_in_tournament
 from enrich_geo import enrich_geo_all, reset_geo
 
 def _search_city_fr(name: str) -> list[dict]:
@@ -147,6 +147,8 @@ def parse_args():
                    help="Reset all geo data (geo_lat/lng, road_km/min) before --enrich-geo-only")
     p.add_argument("--enrich-statut-only", action="store_true",
                    help="Refresh inscription status only (no scraping, no format re-fetch)")
+    p.add_argument("--fix-encoding", action="store_true",
+                   help="Fix corrupted UTF-8 strings in existing JSON data, then regenerate HTML")
     return p.parse_args()
 
 
@@ -176,7 +178,8 @@ def main():
             val = "/".join(parts)
         return val
 
-    do_scrape = not (args.html_only or args.enrich_only or args.enrich_geo_only or args.enrich_statut_only)
+    do_scrape = not (args.html_only or args.enrich_only or args.enrich_geo_only
+                     or args.enrich_statut_only or args.fix_encoding)
 
     # City
     if args.city:
@@ -224,6 +227,32 @@ def main():
     output_file  = config["notifications"]["output_file"]
     print_console = config["notifications"]["print_to_console"]
     logger.info("Fichiers ville : %s", slug)
+
+    # ── Fix-encoding mode: repair corrupted UTF-8 in existing JSON ──────────
+    if args.fix_encoding:
+        if not os.path.exists(data_file):
+            logger.error("No data file found at %s — run a full scrape first.", data_file)
+            sys.exit(1)
+        saved = load_json(data_file)
+        tournaments = saved.get("tournaments", [])
+        fixed_count = sum(1 for t in tournaments if fix_encoding_in_tournament(t))
+        logger.info("Fixed encoding in %d / %d tournament(s).", fixed_count, len(tournaments))
+        import json as _json
+        saved["tournaments"] = tournaments
+        os.makedirs(os.path.dirname(data_file) or ".", exist_ok=True)
+        with open(data_file, "w", encoding="utf-8") as f:
+            _json.dump(saved, f, ensure_ascii=False, indent=2)
+        history = load_json(history_file)
+        new_ids = set(history.get("last_new_ids", []))
+        only_natures = config["search"].get("epreuves") or None
+        generate_html(
+            tournaments, html_file, new_ids=new_ids,
+            fetched_at=saved.get("fetched_at", ""), only_natures=only_natures,
+            ref_lat=config["search"]["ville"].get("lat", 0.0),
+            ref_lng=config["search"]["ville"].get("lng", 0.0),
+            ref_city=config["search"]["ville"].get("label", ""),
+        )
+        sys.exit(0)
 
     # ── HTML-only mode: just regenerate the report ──────────────────────────
     if args.html_only:

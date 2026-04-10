@@ -14,6 +14,52 @@ from typing import Optional
 import requests
 from bs4 import BeautifulSoup
 
+
+def _fix_encoding(text: str, max_passes: int = 3) -> str:
+    """
+    Repair UTF-8 text that was wrongly decoded as Latin-1 (double/triple encoding).
+
+    Symptom: 'à' appears as 'Ã ' or 'ÃƒÆ'Ã†â€™...'
+    Cause: requests misdetected the charset → resp.text decoded with wrong encoding.
+    Fix: re-encode as latin-1, decode as utf-8 (reverse the mistake), repeat if needed.
+    """
+    for _ in range(max_passes):
+        try:
+            fixed = text.encode("latin-1").decode("utf-8")
+            if fixed == text:
+                break
+            text = fixed
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            break
+    return text
+
+
+def fix_encoding_in_tournament(t: dict) -> bool:
+    """
+    Fix corrupted UTF-8 strings in a tournament's enriched data in-place.
+    Returns True if any field was modified (useful for batch cleanup scripts).
+    """
+    enriched = t.get("enriched", {})
+    changed = False
+
+    for field in ("format_desc", "commentaire_club"):
+        val = enriched.get(field)
+        if val and isinstance(val, str):
+            fixed = _fix_encoding(val)
+            if fixed != val:
+                enriched[field] = fixed
+                changed = True
+
+    for fmt in enriched.get("formats_list", []):
+        val = fmt.get("desc")
+        if val and isinstance(val, str):
+            fixed = _fix_encoding(val)
+            if fixed != val:
+                fmt["desc"] = fixed
+                changed = True
+
+    return changed
+
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://tenup.fft.fr"
@@ -323,6 +369,10 @@ def enrich_tournament(
 
         break  # good response, exit retry loop
 
+    # Force UTF-8 decoding — requests often misdetects TenUp's charset,
+    # causing double-encoding corruption in French accented characters.
+    resp.encoding = "utf-8"
+
     # Detect login redirect
     if any(kw in resp.text[:2000].lower() for kw in ["connexion", "se connecter", "login"]):
         logger.warning("[%s] %s → redirected to login page, cookies may be expired", tid, name)
@@ -369,6 +419,7 @@ def enrich_all(
     delay_s: float = 1.5,
     max_enrich: int = 0,
     max_rounds: int = 3,
+    content_retries: int = 5,
     cookies_file: Optional[str] = None,
 ) -> list[dict]:
     """
@@ -376,8 +427,12 @@ def enrich_all(
 
     Round 1: all unenriched + those without format.
     Rounds 2-N: only those that had a network failure (fetch_failed flag).
+    Content retry phase: up to content_retries passes for tournaments where
+    the page was fetched OK but format or commentaire_club is still missing.
+
     max_enrich=0 means no limit (applied to round 1 only).
     max_rounds: how many retry passes for network failures (default 3).
+    content_retries: extra passes for content-missing tournaments (default 5).
     """
     def _needs_enrich(t):
         e = t.get("enriched", {})
@@ -390,6 +445,14 @@ def enrich_all(
     def _failed(t):
         return t.get("enriched", {}).get("fetch_failed", False)
 
+    def _needs_content_retry(t):
+        """True if fetched OK but format is still missing (incl. no_format_in_html)."""
+        e = t.get("enriched", {})
+        if not e:                return False
+        if e.get("fetch_failed"): return False   # network issue, not content
+        return "format" not in e                 # fetched but no format found
+
+    # ── Network retry rounds ──────────────────────────────────────────────────
     for round_num in range(1, max_rounds + 1):
         if round_num == 1:
             to_enrich = [t for t in tournaments if _needs_enrich(t)]
@@ -422,6 +485,45 @@ def enrich_all(
                            len(still_failed), round_num)
             time.sleep(10)
 
+    # ── Content retry phase ───────────────────────────────────────────────────
+    # Retry tournaments that were fetched OK but have no format extracted.
+    # This catches cases where the previous fetch had wrong encoding or a
+    # transient HTML rendering issue.
+    if content_retries > 0:
+        content_candidates = [t for t in tournaments if _needs_content_retry(t)]
+        if content_candidates:
+            logger.info(
+                "Content retry phase: %d tournament(s) missing format data "
+                "(will retry up to %d time(s))",
+                len(content_candidates), content_retries,
+            )
+            for retry_n in range(1, content_retries + 1):
+                if not content_candidates:
+                    break
+                logger.info(
+                    "Content retry %d/%d: %d tournament(s)",
+                    retry_n, content_retries, len(content_candidates),
+                )
+                for i, t in enumerate(content_candidates, 1):
+                    # Clear no_format_in_html so enrich_tournament retries parsing
+                    t.get("enriched", {}).pop("no_format_in_html", None)
+                    logger.info("[%d/%d] %s", i, len(content_candidates), t.get("libelle", "?"))
+                    enrich_tournament(t, session, delay_s=delay_s, cookies_file=cookies_file)
+                # Keep only those still missing after this pass
+                content_candidates = [t for t in content_candidates if _needs_content_retry(t)]
+                if content_candidates and retry_n < content_retries:
+                    logger.info(
+                        "%d still missing after content retry %d — next retry in 5s…",
+                        len(content_candidates), retry_n,
+                    )
+                    time.sleep(5)
+            if content_candidates:
+                names = [t.get("libelle", "?") for t in content_candidates]
+                logger.warning(
+                    "%d tournament(s) still have no format after %d content retries: %s",
+                    len(content_candidates), content_retries, names,
+                )
+
     # Ensure every tournament has at least the URL
     for t in tournaments:
         if "enriched" not in t:
@@ -429,8 +531,7 @@ def enrich_all(
 
     failed_total = sum(1 for t in tournaments if _failed(t))
     if failed_total:
-        logger.warning("%d tournament(s) still have no format after all rounds "
-                       "(likely JS-rendered — cannot be fixed by retrying).", failed_total)
+        logger.warning("%d tournament(s) still have fetch failures after all rounds.", failed_total)
 
     return tournaments
 
@@ -536,6 +637,8 @@ def enrich_statut_all(
             time.sleep(delay_s)
             continue
 
+        # Force UTF-8 — same fix as in enrich_tournament()
+        resp.encoding = "utf-8"
         soup = BeautifulSoup(resp.text, "lxml")
         statut_data = _extract_statut_inscription(soup)
         enriched = t.setdefault("enriched", {})
