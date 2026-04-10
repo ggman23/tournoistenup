@@ -1030,9 +1030,9 @@ function pdfCustomize(doc) {{
     if (doc.content[ci] && doc.content[ci].table) {{ tbl = doc.content[ci]; break; }}
   }}
   if (!tbl) return;
-  // Colonnes exportées : Dates | Tournoi(fixe 35c) | Épreuves | Surface | Ville* | Distance
-  // Épreuves : "SM 13/14 NC→30/1 10€ Bient F2" ≈ 30 chars → 150pt
-  tbl.table.widths = [50, 155, 150, 50, '*', 90];
+  // 6 colonnes : Dates | Tournoi(fixe 35c) | Épreuves(nested) | Surface | Ville* | Distance
+  // Épreuves = nested table 5 sous-colonnes : ep(38) | range(46) | tarif(17) | statut(22) | fmt(17)
+  tbl.table.widths = [50, 155, 170, 50, '*', 90];
   var FC = {{'1':'#c0392b','2':'#e67e22','3':'#f39c12','4':'#27ae60','5':'#2980b9','6':'#8e44ad','7':'#7f8c8d'}};
   var SC = {{'TB':'#c0392b','TA':'#e67e22','R':'#2980b9','BP':'#7f8c8d','D':'#95a5a6','G':'#27ae60','M':'#8e44ad','?':'#bdc3c7'}};
   var SSCOLOR = {{'Ouv':'#27ae60','Bient':'#2980b9','Att':'#e67e22','Att+':'#d35400',
@@ -1042,27 +1042,25 @@ function pdfCustomize(doc) {{
       row.forEach(function(c) {{ if (c && typeof c === 'object') {{ c.fillColor = '#343a40'; c.color = '#fff'; }} }});
       return;
     }}
-    // Épreuves (index 2) : colorise statut + format. Format de ligne : "SM 13/14 NC→30/1 10€ Ouv F2"
+    // Épreuves (index 2) : nested table pipe-séparé "SM 13/14|NC-30|10€|HL|F2"
     var epRaw = typeof row[2] === 'string' ? row[2] : ((row[2] || {{}}).text || '');
-    if (epRaw) {{
-      var epContent = [];
-      epRaw.split('\\n').forEach(function(line, li) {{
-        if (li > 0) epContent.push({{ text: '\\n' }});
-        var mF = line.match(/^(.*?)\\s+(F[1-7])$/);
-        var before = mF ? mF[1] : line;
-        var fCode  = mF ? mF[2] : null;
-        // Statut juste avant le code format
-        var mS = before.match(/^(.*?)\\s+(Ouv|Bient|Att\\+?|Clot|HB|HL|Inscr|Inelig|\\?)$/);
-        if (mS) {{
-          epContent.push({{ text: mS[1] + ' ' }});
-          epContent.push({{ text: mS[2], color: SSCOLOR[mS[2]] || '#999', bold: true }});
-          epContent.push({{ text: fCode ? ' ' : '' }});
-        }} else {{
-          epContent.push({{ text: before + (fCode ? ' ' : '') }});
-        }}
-        if (fCode) epContent.push({{ text: fCode, color: FC[fCode[1]] || '#666', bold: true }});
+    if (epRaw && epRaw.indexOf('|') !== -1) {{
+      var epBody = [];
+      epRaw.split('\\n').forEach(function(line) {{
+        var p    = line.split('|');
+        var ep   = p[0]||''; var rng = p[1]||''; var tar = p[2]||'';
+        var ss   = p[3]||''; var fTk = p[4]||'';
+        var fClr = (fTk && fTk.length > 1) ? (FC[fTk[1]]||'#333') : '#333';
+        var sClr = SSCOLOR[ss] || '#333';
+        epBody.push([
+          {{ text: ep,  fontSize:8, noWrap:true }},
+          {{ text: rng, fontSize:8, noWrap:true }},
+          {{ text: tar, fontSize:8, noWrap:true }},
+          {{ text: ss,  fontSize:8, color: ss  ? sClr : '#333', bold: !!ss,  noWrap:true }},
+          {{ text: fTk, fontSize:8, color: fTk ? fClr : '#333', bold: !!fTk, noWrap:true }}
+        ]);
       }});
-      row[2] = {{ text: epContent }};
+      row[2] = {{ table: {{ widths:[38,46,17,22,17], body:epBody }}, layout:'noBorders' }};
     }}
     // Surface (index 3) : abréviations colorées, pas de retour à la ligne
     var srfRaw = typeof row[3] === 'string' ? row[3] : ((row[3] || {{}}).text || '');
@@ -1121,8 +1119,8 @@ function pdfCustomize(doc) {{
                  var txt = $('<div>').html(data).text().replace(/\s+/g,' ').trim();
                  return txt.length > 35 ? txt.substring(0, 35) + '\u2026' : txt;
                }}
-               // Épreuves (col 4) : abrév + classement + tarif + statut + format
-               // BUG FIX : on lit les filtres actifs (et non le css display) car DataTables
+               // Épreuves (col 4) : pipe-séparé → "SM 13/14|NC-30|10€|HL|F2"
+               // BUG FIX : on lit les filtres actifs (pas le css display) car DataTables
                // rend toutes les lignes visibles lors de l'export, même les pages 2+
                if (column === 4) {{
                  var SSHORT = {{'ouvert':'Ouv','bientot':'Bient','attente':'Att',
@@ -1138,20 +1136,18 @@ function pdfCustomize(doc) {{
                    if (checkedFmts.length > 0 && fmt   && checkedFmts.indexOf(fmt)    === -1) return;
                    var nat   = $(this).find('.ep-nature').attr('data-abbr') || $(this).find('.ep-nature').text().trim();
                    var age   = $(this).find('.ep-age').attr('data-abbr')    || $(this).find('.ep-age').text().trim();
-                   var range = $(this).find('.ep-range').text().trim().replace(/\\s*\u2192\\s*/g,'→');
+                   var range = $(this).find('.ep-range').text().trim().replace(/\\s*\u2192\\s*/g, '-');
                    var tarif = $(this).find('.ep-tarif').text().trim();
                    var sc    = $(this).find('.statut-badge').attr('data-statut') || '';
                    var ss    = SSHORT[sc] || '';
                    if (nat) {{
-                     var line = nat + (age ? ' '+age : '');
-                     if (range && range !== '?→?') line += ' ' + range;
-                     if (tarif && tarif !== '0€')  line += ' ' + tarif;
-                     if (ss)                        line += ' ' + ss;
-                     if (fmt)                       line += ' F' + fmt;
-                     lines.push(line);
+                     var ep  = nat + (age ? ' '+age : '');
+                     var rng = (range && range !== '?-?') ? range : '';
+                     var tar = (tarif && tarif !== '0\u20ac')  ? tarif : '';
+                     lines.push([ep, rng, tar, ss, fmt ? 'F'+fmt : ''].join('|'));
                    }}
                  }});
-                 return lines.join('\\n') || '—';
+                 return lines.join('\\n') || '\u2014';
                }}
                // Surfaces (col 5) : abréviations colorées
                if (column === 5) {{
