@@ -1030,9 +1030,9 @@ function pdfCustomize(doc) {{
     if (doc.content[ci] && doc.content[ci].table) {{ tbl = doc.content[ci]; break; }}
   }}
   if (!tbl) return;
-  // Colonnes exportées : Dates | Tournoi* | Catégorie | Épreuves | Surface | Ville | Distance
-  // Paysage A4 (~760pt utiles) → on peut être plus généreux
-  tbl.table.widths = [46, '*', 52, 100, 26, 65, 50];
+  // Colonnes exportées : Dates | Tournoi* | Épreuves | Surface | Ville | Distance
+  // Paysage A4 (~760pt utiles). Distance max "xxx.x km / xxx min" ≈ 18 chars → 90pt
+  tbl.table.widths = [50, '*', 105, 50, 125, 90];
   var FC = {{'1':'#c0392b','2':'#e67e22','3':'#f39c12','4':'#27ae60','5':'#2980b9','6':'#8e44ad','7':'#7f8c8d'}};
   var SC = {{'TB':'#c0392b','TA':'#e67e22','R':'#2980b9','BP':'#7f8c8d','D':'#95a5a6','G':'#27ae60','M':'#8e44ad','?':'#bdc3c7'}};
   tbl.table.body.forEach(function(row, ri) {{
@@ -1040,8 +1040,8 @@ function pdfCustomize(doc) {{
       row.forEach(function(c) {{ if (c && typeof c === 'object') {{ c.fillColor = '#343a40'; c.color = '#fff'; }} }});
       return;
     }}
-    // Colonne Épreuves (index 3) → colorise le code Fx sur chaque ligne
-    var epRaw = typeof row[3] === 'string' ? row[3] : ((row[3] || {{}}).text || '');
+    // Colonne Épreuves (index 2 sans Catégorie) → colorise le code Fx sur chaque ligne
+    var epRaw = typeof row[2] === 'string' ? row[2] : ((row[2] || {{}}).text || '');
     if (epRaw) {{
       var epContent = [];
       epRaw.split('\\n').forEach(function(line, li) {{
@@ -1052,10 +1052,10 @@ function pdfCustomize(doc) {{
           epContent.push({{ text: m[2], color: FC[m[2][1]] || '#666', bold: true }});
         }} else {{ epContent.push({{ text: line }}); }}
       }});
-      row[3] = {{ text: epContent }};
+      row[2] = {{ text: epContent }};
     }}
-    // Colonne Surface (index 4) → abréviations colorées
-    var srfRaw = typeof row[4] === 'string' ? row[4] : ((row[4] || {{}}).text || '');
+    // Colonne Surface (index 3) → abréviations colorées, pas de retour à la ligne
+    var srfRaw = typeof row[3] === 'string' ? row[3] : ((row[3] || {{}}).text || '');
     if (srfRaw && srfRaw !== '\u2014') {{
       var srfContent = [];
       srfRaw.split('/').forEach(function(a, si) {{
@@ -1063,7 +1063,12 @@ function pdfCustomize(doc) {{
         var abbr = a.trim();
         srfContent.push({{ text: abbr, color: SC[abbr] || '#666', bold: true }});
       }});
-      row[4] = {{ text: srfContent }};
+      row[3] = {{ text: srfContent, noWrap: true }};
+    }}
+    // Colonne Distance (index 5) → pas de retour à la ligne
+    var distRaw = typeof row[5] === 'string' ? row[5] : ((row[5] || {{}}).text || '');
+    if (distRaw && distRaw !== '\u2014') {{
+      row[5] = {{ text: distRaw, noWrap: true }};
     }}
   }});
 }}
@@ -1089,7 +1094,7 @@ function pdfCustomize(doc) {{
       {{ extend:'pdfHtml5', text:'📑 PDF', className:'btn-sm btn-outline-danger',
          orientation:'landscape', pageSize:'A4',
          exportOptions:{{
-           columns:[0,1,2,4,5,6,7],
+           columns:[0,1,4,5,6,7],
            format:{{
              body: function(data, row, column, node) {{
                // Dates (col 0) : "27/04/2026 → 29/04/2026" → deux lignes, sans flèche
@@ -1101,14 +1106,25 @@ function pdfCustomize(doc) {{
                  }}
                  return parts[0].trim();
                }}
+               // Tournoi (col 1) : tronqué à 35 caractères
+               if (column === 1) {{
+                 var txt = $('<div>').html(data).text().replace(/\s+/g,' ').trim();
+                 return txt.length > 35 ? txt.substring(0, 35) + '\u2026' : txt;
+               }}
                // Épreuves (col 4) : abréviations + format colorisé
+               // BUG FIX : on lit les filtres actifs (et non le css display) car DataTables
+               // rend toutes les lignes visibles lors de l'export, même les pages 2+
                if (column === 4) {{
+                 var checkedEps  = $('.ep-chk:checked').map(function()  {{ return $(this).val(); }}).get();
+                 var checkedFmts = $('.fmt-chk:checked').map(function() {{ return $(this).val(); }}).get();
                  var lines = [];
                  $(node).find('.ep-line').each(function() {{
-                   if ($(this).css('display') === 'none') return;
+                   var epKey = $(this).attr('data-ep-key') || '';
+                   var fmt   = $(this).attr('data-fmt')    || '';
+                   if (checkedEps.length  > 0 && epKey && checkedEps.indexOf(epKey)   === -1) return;
+                   if (checkedFmts.length > 0 && fmt   && checkedFmts.indexOf(fmt)    === -1) return;
                    var nat = $(this).find('.ep-nature').attr('data-abbr') || $(this).find('.ep-nature').text().trim();
                    var age = $(this).find('.ep-age').attr('data-abbr')    || $(this).find('.ep-age').text().trim();
-                   var fmt = $(this).attr('data-fmt') || '';
                    if (nat) lines.push(nat + (age ? ' ' + age : '') + (fmt ? ' F' + fmt : ''));
                  }});
                  return lines.join('\\n') || '—';
