@@ -149,8 +149,9 @@ def _epreuves_html(epreuves, formats_list=None, statuts=None, only_natures=None)
             if s_entry:
                 statut_badge = _statut_badge_html(s_entry["statut"], s_entry["message"])
 
+        ep_fmt_num = fmt_entry.get("num", "") if fmt_entry else ""
         lines.append(
-            f'<div class="ep-line" data-ep-key="{html.escape(ep_key)}">'
+            f'<div class="ep-line" data-ep-key="{html.escape(ep_key)}" data-fmt="{html.escape(ep_fmt_num)}">'
             f'<span class="ep-nature">{html.escape(nature)}</span> '
             f'<span class="ep-age">{html.escape(age)}</span> '
             f'<span class="ep-range">{html.escape(bas)} → {html.escape(haut)}</span> '
@@ -1044,14 +1045,20 @@ function updateDeptBtn() {{
 }}
 
 function applyEpLineFilter() {{
-  var checked = $('.ep-chk:checked').map(function() {{ return $(this).val(); }}).get();
+  var checked     = $('.ep-chk:checked').map(function() {{ return $(this).val(); }}).get();
+  var checkedFmts = $('.fmt-chk:checked').map(function() {{ return $(this).val(); }}).get();
   $('#ep-line-filter-style').remove();
+  var css = '';
   if (checked.length > 0) {{
     var notSel = checked.map(function(k) {{ return ':not([data-ep-key="' + k + '"])'; }}).join('');
-    $('<style id="ep-line-filter-style">')
-      .text('.ep-line' + notSel + ' {{ display:none !important; }}')
-      .appendTo('head');
+    css += '.ep-line' + notSel + ' {{ display:none !important; }}';
   }}
+  if (checkedFmts.length > 0) {{
+    // Hide ep-lines that have a known format but it doesn't match any selected format
+    var fmtNotSel = checkedFmts.map(function(f) {{ return ':not([data-fmt="' + f + '"])'; }}).join('');
+    css += ' .ep-line:not([data-fmt=""])' + fmtNotSel + ' {{ display:none !important; }}';
+  }}
+  if (css) {{ $('<style id="ep-line-filter-style">').text(css).appendTo('head'); }}
 }}
 
 // ── Favorites (stored in localStorage) ───────────────────────────────────────
@@ -1095,6 +1102,7 @@ function resetFilters() {{
   $('#btn-surf').text('Toutes ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-fmt').text('Tous ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-statut').text('Tous statuts ▾').removeClass('btn-primary').addClass('btn-outline-primary');
+  applyEpLineFilter();
   if (dt) {{ dt.search('').draw(); }} else {{ applyFilters(); }}
 }}
 
@@ -1125,6 +1133,7 @@ function onSurfChange() {{
 
 function onFmtChange() {{
   updateMultiBtn('btn-fmt', '.fmt-chk', 'Tous');
+  applyEpLineFilter();
   applyFilters();
 }}
 
