@@ -286,8 +286,7 @@ def main():
         os.makedirs(os.path.dirname(data_file) or ".", exist_ok=True)
         with open(data_file, "w", encoding="utf-8") as f:
             _json.dump(saved, f, ensure_ascii=False, indent=2)
-        history      = load_json(history_file)
-        new_ids      = set(history.get("last_new_ids", []))
+        new_ids      = set()  # statut-only: no new tournament detection, don't show stale NEW badges
         only_natures = config["search"].get("epreuves") or None
         generate_html(tournaments, html_file, new_ids=new_ids,
                       fetched_at=saved.get("fetched_at", ""), only_natures=only_natures,

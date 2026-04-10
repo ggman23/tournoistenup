@@ -357,7 +357,7 @@ def generate_html(
             if fn == r["fmt"] and r["fmt_desc"]:
                 tip += f" — {r['fmt_desc']}"
             fmt_parts.append(
-                f'<span class="badge fmt-badge" style="background:{fc}" '
+                f'<span class="badge fmt-badge" data-fmt="{fn}" style="background:{fc}" '
                 f'title="{html.escape(tip)}" data-bs-toggle="tooltip">F{fn}</span>'
             )
         fmt_badge = " ".join(fmt_parts)
@@ -552,12 +552,24 @@ def generate_html(
     .gantt-today {{ position:absolute; top:0; bottom:0; width:2px;
                    background:#e74c3c; opacity:.55; pointer-events:none; z-index:5; }}
     /* ── Carte ────────────────────────────────────────────────────────────── */
+    #view-map-wrap {{ position:relative; }}
     #view-map {{ height:600px; border-radius:8px; overflow:hidden; }}
-    .map-popup-btn {{ display:inline-block; margin-top:6px; padding:3px 10px;
-                     background:#0d6efd; color:white; border-radius:4px;
-                     text-decoration:none; font-size:.8em; }}
-    .map-popup-btn:hover {{ background:#0b5ed7; color:white; }}
-    .leaflet-popup-content {{ min-width:200px; }}
+    #view-map-wrap.map-fs {{ position:fixed !important; top:0; left:0; right:0; bottom:0;
+                             z-index:9999; background:#fff; padding:0; }}
+    #view-map-wrap.map-fs #view-map {{ height:100vh !important; border-radius:0; }}
+    #map-fs-btn {{ position:absolute; top:10px; right:10px; z-index:10000;
+                  background:white; border:2px solid #aaa; border-radius:5px;
+                  padding:4px 10px; font-size:.82em; cursor:pointer;
+                  box-shadow:0 1px 4px rgba(0,0,0,.2); }}
+    #map-fs-btn:hover {{ background:#f0f0f0; }}
+    .map-popup-btn {{ display:block; margin-top:8px; padding:5px 12px;
+                     background:#0d6efd !important; color:#fff !important;
+                     border-radius:4px; text-decoration:none !important;
+                     font-size:.82em; font-weight:600; text-align:center; }}
+    .map-popup-btn:hover {{ background:#0b5ed7 !important; color:#fff !important; }}
+    .leaflet-popup-content {{ min-width:210px; }}
+    .map-ep-line {{ font-size:.78em; color:#495057; white-space:nowrap;
+                   overflow:hidden; text-overflow:ellipsis; }}
   </style>
 </head>
 <body>
@@ -800,7 +812,10 @@ def generate_html(
   <div id="view-gantt" style="display:none" class="bg-white rounded shadow-sm p-3" style="overflow-x:auto"></div>
 
   <!-- Vue Carte -->
-  <div id="view-map" style="display:none"></div>
+  <div id="view-map-wrap" style="display:none">
+    <button id="map-fs-btn" onclick="toggleMapFullscreen()">⛶ Plein écran</button>
+    <div id="view-map"></div>
+  </div>
 
   <!-- Table -->
   <div id="view-table" class="bg-white rounded shadow-sm p-3">
@@ -1081,9 +1096,10 @@ function applyEpLineFilter() {{
     css += '.ep-line' + notSel + ' {{ display:none !important; }}';
   }}
   if (checkedFmts.length > 0) {{
-    // Hide ep-lines that have a known format but it doesn't match any selected format
+    // Hide ep-lines and FORMAT column badges that don't match selected formats
     var fmtNotSel = checkedFmts.map(function(f) {{ return ':not([data-fmt="' + f + '"])'; }}).join('');
     css += ' .ep-line:not([data-fmt=""])' + fmtNotSel + ' {{ display:none !important; }}';
+    css += ' .fmt-badge' + fmtNotSel + ' {{ display:none !important; }}';
   }}
   if (css) {{ $('<style id="ep-line-filter-style">').text(css).appendTo('head'); }}
 }}
@@ -1175,7 +1191,7 @@ function showView(view) {{
   $('#view-table').toggle(view === 'table');
   $('#view-calendar').toggle(view === 'calendar');
   $('#view-gantt').toggle(view === 'gantt');
-  $('#view-map').toggle(view === 'map');
+  $('#view-map-wrap').toggle(view === 'map');
   $('.view-tab').removeClass('btn-primary').addClass('btn-outline-secondary');
   var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', map:'tab-map'}}[view] || 'tab-table';
   $('#' + tabId).removeClass('btn-outline-secondary').addClass('btn-primary');
@@ -1200,6 +1216,15 @@ function getFilteredData() {{
       fmtAll:  ($tr.attr('data-fmt') || '').split(',').filter(Boolean),
       ville:   $tr.find('td:eq(6)').contents().first().text().trim(),
       statuts: $tr.attr('data-statuts') || '[]',
+      epreuves: (function() {{
+        var lines = [];
+        $tr.find('.ep-line:visible').each(function() {{
+          var nat = $(this).find('.ep-nature').text().trim();
+          var age = $(this).find('.ep-age').text().trim();
+          if (nat) lines.push(nat + (age ? ' ' + age : ''));
+        }});
+        return lines;
+      }})(),
       lat:     parseFloat($tr.attr('data-lat')) || 0,
       lng:     parseFloat($tr.attr('data-lng')) || 0,
       distKm:  parseFloat($tr.attr('data-distance')) || 0,
@@ -1399,6 +1424,14 @@ function renderGantt() {{
 }}
 
 // ── Carte (Leaflet) ───────────────────────────────────────────────────────────
+function toggleMapFullscreen() {{
+  var $wrap = $('#view-map-wrap');
+  var isFs  = $wrap.hasClass('map-fs');
+  $wrap.toggleClass('map-fs', !isFs);
+  $('#map-fs-btn').text(isFs ? '⛶ Plein écran' : '✕ Quitter');
+  setTimeout(function() {{ if (_mapObj) _mapObj.invalidateSize(); }}, 100);
+}}
+
 function buildMapPopup(t) {{
   var statuts = [];
   try {{ statuts = JSON.parse(t.statuts); }} catch(e) {{}}
@@ -1417,13 +1450,19 @@ function buildMapPopup(t) {{
   }}
   var dates = t.debut;
   if (t.fin && t.fin !== t.debut) dates += ' → ' + t.fin;
-  return '<div style="min-width:210px;max-width:280px">' +
-    '<div style="font-weight:700;margin-bottom:3px;font-size:.9em">' + t.nom + '</div>' +
-    '<div style="font-size:.82em;color:#6c757d;margin-bottom:4px">' + dates + '</div>' +
+  var epHtml = t.epreuves && t.epreuves.length
+    ? '<div style="margin-top:4px;border-top:1px solid #eee;padding-top:3px">' +
+      t.epreuves.map(function(e) {{ return '<div class="map-ep-line">• ' + e + '</div>'; }}).join('') +
+      '</div>'
+    : '';
+  return '<div style="min-width:220px;max-width:300px">' +
+    '<div style="font-weight:700;margin-bottom:2px;font-size:.9em">' + t.nom + '</div>' +
+    '<div style="font-size:.8em;color:#6c757d;margin-bottom:3px">' + (t.ville || '') + ' — ' + dates + '</div>' +
     (fmtBadges ? '<div style="margin-bottom:3px">' + fmtBadges + '</div>' : '') +
     (statutBadges ? '<div style="margin-bottom:3px">' + statutBadges + '</div>' : '') +
     dist +
-    '<div style="margin-top:6px"><a href="' + t.url + '" target="_blank" class="map-popup-btn">Ouvrir TenUp ↗</a></div>' +
+    epHtml +
+    '<a href="' + t.url + '" target="_blank" class="map-popup-btn">🔗 Ouvrir TenUp</a>' +
     '</div>';
 }}
 
@@ -1436,9 +1475,10 @@ function renderMap() {{
     var initLat = (_REF_LAT !== 0) ? _REF_LAT : (data.length ? data[0].lat : 48.866);
     var initLng = (_REF_LNG !== 0) ? _REF_LNG : (data.length ? data[0].lng : 2.333);
     _mapObj = L.map('view-map').setView([initLat, initLng], 9);
-    L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-      attribution: '© <a href="https://www.openstreetmap.org">OpenStreetMap</a> contributors',
-      maxZoom: 18
+    L.tileLayer('https://{{s}}.basemaps.cartocdn.com/rastertiles/voyager/{{z}}/{{x}}/{{y}}{{r}}.png', {{
+      attribution: '© <a href="https://www.openstreetmap.org">OpenStreetMap</a> contributors, © <a href="https://carto.com">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 19
     }}).addTo(_mapObj);
     _mapMarkers = L.layerGroup().addTo(_mapObj);
   }}
@@ -1454,11 +1494,7 @@ function renderMap() {{
       .addTo(_mapMarkers);
   }}
 
-  if (data.length === 0) {{
-    // No tournaments with coordinates
-    $('#view-map').attr('data-no-coords', '1');
-    return;
-  }}
+  if (data.length === 0) return;
 
   // Tournament markers
   var bounds = [];
