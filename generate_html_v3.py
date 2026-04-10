@@ -595,6 +595,8 @@ def generate_html(
     }}
     #filter-bar .form-check-label {{ color: rgba(255,255,255,.75) !important; font-size:.82em !important; }}
     #filter-bar .form-check-label.fw-semibold {{ color: rgba(255,255,255,.55) !important; }}
+    #filter-bar label[for="chk-hide-vert"]   {{ color: #4ade80 !important; }}
+    #filter-bar label[for="chk-hide-orange"] {{ color: #fb923c !important; }}
     /* filter-count */
     #filter-count {{ color: rgba(255,255,255,.45) !important; }}
     /* dept-chip dans le dropdown (fond blanc normal car popup) */
