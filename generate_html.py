@@ -117,6 +117,11 @@ def _epreuves_html(epreuves, formats_list=None, statuts=None, only_natures=None)
         haut   = ep.get("classementHaut", {}).get("libelle", "?").strip()
         tarif  = ep.get("tarifJeune", 0)
         age_id   = ep.get("categorieAge", {}).get("id", 0)
+        # Abbreviations for print
+        _NAT_ABBR = {"Simple Messieurs": "SM", "Simple Dames": "SD",
+                     "Double Messieurs": "DM", "Double Dames": "DD", "Double Mixte": "DX"}
+        abbr_nat = _NAT_ABBR.get(nature, nature)
+        abbr_age = age.replace(" ans", "").replace(" Ans", "").strip()
         ep_key   = f"{nat_code}_{age_id}" if nat_code and age_id else ""
 
         fmt_entry = None
@@ -152,8 +157,8 @@ def _epreuves_html(epreuves, formats_list=None, statuts=None, only_natures=None)
         ep_fmt_num = fmt_entry.get("num", "") if fmt_entry else ""
         lines.append(
             f'<div class="ep-line" data-ep-key="{html.escape(ep_key)}" data-fmt="{html.escape(ep_fmt_num)}">'
-            f'<span class="ep-nature">{html.escape(nature)}</span> '
-            f'<span class="ep-age">{html.escape(age)}</span> '
+            f'<span class="ep-nature" data-abbr="{html.escape(abbr_nat)}">{html.escape(nature)}</span> '
+            f'<span class="ep-age" data-abbr="{html.escape(abbr_age)}">{html.escape(age)}</span> '
             f'<span class="ep-range">{html.escape(bas)} → {html.escape(haut)}</span> '
             f'<span class="ep-tarif">{tarif}€</span>'
             f'{fmt_badge}{statut_badge}'
@@ -576,13 +581,23 @@ def generate_html(
                        box-shadow:0 0 0 2px #0d6efd, 0 2px 8px rgba(0,0,0,.5);
                        display:flex; align-items:center; justify-content:center;
                        color:white; font-size:15px; line-height:1; font-weight:bold; }}
-    /* Impression compacte */
+    /* Impression compacte avec abréviations (SM, SD…) */
     @media print {{
       .ep-range, .ep-tarif {{ display:none !important; }}
       .statut-badge, .fmt-ep-badge, .ep-comment {{ display:none !important; }}
-      .ep-line {{ font-size:7pt !important; margin-bottom:0 !important; line-height:1.2 !important; }}
+      .ep-line {{ margin-bottom:0 !important; line-height:1.3 !important; }}
       table.dataTable td {{ padding:2px 4px !important; }}
-      .ep-nature {{ font-weight:normal !important; }}
+      /* Remplace le texte long par l'abréviation */
+      .ep-nature {{ font-size:0 !important; color:transparent !important; }}
+      .ep-nature::after {{ content:attr(data-abbr); font-size:7pt; color:#495057; font-weight:600; }}
+      .ep-age {{ font-size:0 !important; color:transparent !important; }}
+      .ep-age::after {{ content:" " attr(data-abbr); font-size:7pt; color:#6c757d; }}
+      /* Masquer les colonnes moins utiles en impression */
+      #t th:nth-child(9), #t td:nth-child(9),
+      #t th:nth-child(10), #t td:nth-child(10),
+      #t th:nth-child(12), #t td:nth-child(12),
+      #t th:nth-child(13), #t td:nth-child(13),
+      #t th:nth-child(14), #t td:nth-child(14) {{ display:none !important; }}
     }}
   </style>
 </head>
@@ -864,8 +879,6 @@ def generate_html(
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/dataTables.buttons.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.bootstrap5.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.html5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.print.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1005,9 +1018,10 @@ $(function() {{
          exportOptions:{{ columns:':visible' }} }},
       {{ extend:'csvHtml5',   text:'📄 CSV',   className:'btn-sm btn-outline-secondary',
          exportOptions:{{ columns:':visible' }} }},
-      {{ extend:'print',      text:'🖨 Print',  className:'btn-sm btn-outline-secondary' }},
-      {{ extend:'pdfHtml5',  text:'📑 PDF',   className:'btn-sm btn-outline-danger',
-         exportOptions:{{ columns:':visible', stripHtml:true }}, orientation:'landscape', pageSize:'A4' }},
+      {{ text:'🖨 Print', className:'btn-sm btn-outline-secondary',
+         action: function() {{ window.print(); }} }},
+      {{ text:'📑 PDF',  className:'btn-sm btn-outline-danger',
+         action: function() {{ window.print(); }} }},
     ],
     drawCallback: function() {{
       restoreFavs();
@@ -1255,8 +1269,8 @@ function getFilteredData() {{
       fin:     $tr.attr('data-date-fin')   || '',
       fmt:     ($tr.attr('data-fmt') || '').split(',')[0] || '',
       fmtAll:  ($tr.attr('data-fmt') || '').split(',').filter(Boolean),
-      ville:   $tr.find('td:eq(6)').contents().first().text().trim(),
-      surface: $tr.find('td:eq(5)').text().trim().replace(/\s+/g, ' '),
+      ville:       $tr.find('td:eq(6)').contents().first().text().trim(),
+      surfaceHtml: $tr.find('td:eq(5)').html() || '',
       statuts: $tr.attr('data-statuts') || '[]',
       epreuves: (function() {{
         var lines = [];
@@ -1511,15 +1525,15 @@ function buildMapPopup(t) {{
       }}).join('') +
       '</div>'
     : '';
-  var surfHtml = t.surface
-    ? '<div style="font-size:.8em;color:#495057;margin-top:2px">🎾 ' + t.surface + '</div>'
+  var surfHtml = t.surfaceHtml
+    ? '<div style="margin-top:3px;font-size:.82em">' + t.surfaceHtml + '</div>'
     : '';
   // Bouton favori
   var favs = {{}};
   try {{ favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}'); }} catch(ex) {{}}
   var isFav = !!favs[t.id];
   var favBtn = '<button class="map-fav-btn" data-id="' + t.id + '" onclick="toggleFavMap(this)" '
-    + 'style="float:right;background:none;border:none;cursor:pointer;font-size:1.2em;padding:0 0 0 6px;line-height:1;color:' + (isFav ? '#f39c12' : '#bbb') + '">'
+    + 'style="float:right;background:none;border:none;cursor:pointer;font-size:1.7em;padding:0 0 0 6px;line-height:1;color:' + (isFav ? '#f39c12' : '#bbb') + '">'
     + (isFav ? '\u2605' : '\u2606') + '</button>';
   return '<div style="min-width:220px;max-width:300px">' +
     '<div style="font-weight:700;margin-bottom:2px;font-size:.9em">' + favBtn + t.nom + '</div>' +
@@ -1550,16 +1564,15 @@ function renderMap() {{
 
   _mapMarkers.clearLayers();
 
-  // Reference city marker (★ CSS-based, reliable cross-browser)
+  // Reference city marker (SVG, auto-contenu, pas de CSS externe)
   if (_REF_LAT && _REF_LNG) {{
-    var refIcon = L.divIcon({{
-      className: 'map-ref-marker',
-      html: '★',
-      iconSize: [28, 28],
-      iconAnchor: [14, 14]
-    }});
+    var refSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">'
+      + '<circle cx="18" cy="18" r="15" fill="#0d6efd" stroke="#fff" stroke-width="3"/>'
+      + '<text x="18" y="24" text-anchor="middle" fill="#fff" font-size="18" font-family="Arial,sans-serif">\u2605</text>'
+      + '</svg>';
+    var refIcon = L.divIcon({{ className: '', html: refSvg, iconSize: [36, 36], iconAnchor: [18, 18] }});
     L.marker([_REF_LAT, _REF_LNG], {{ icon: refIcon, zIndexOffset: 1000 }})
-      .bindPopup('<b>★ ' + (_REF_CITY || 'Ville de référence') + '</b><br><small style="color:#6c757d">Ville de référence</small>')
+      .bindPopup('<b>\u2605 ' + (_REF_CITY || 'Ville de référence') + '</b><br><small style="color:#6c757d">Ville de référence</small>')
       .addTo(_mapMarkers);
   }}
 
@@ -1567,8 +1580,16 @@ function renderMap() {{
 
   // Tournament markers
   var bounds = [];
+  var activeFmts = $('.fmt-chk:checked').map(function() {{ return $(this).val(); }}).get();
   data.forEach(function(t) {{
-    var color = _FMT_COLORS[t.fmt] || '#6c757d';
+    // Use the first format that matches the active filter (not necessarily the primary format)
+    var displayFmt = t.fmt;
+    if (activeFmts.length > 0) {{
+      for (var fi = 0; fi < t.fmtAll.length; fi++) {{
+        if (activeFmts.indexOf(t.fmtAll[fi]) !== -1) {{ displayFmt = t.fmtAll[fi]; break; }}
+      }}
+    }}
+    var color = _FMT_COLORS[displayFmt] || '#6c757d';
     var marker = L.circleMarker([t.lat, t.lng], {{
       radius: 8,
       color: '#fff',
