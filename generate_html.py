@@ -1030,9 +1030,9 @@ function pdfCustomize(doc) {{
     if (doc.content[ci] && doc.content[ci].table) {{ tbl = doc.content[ci]; break; }}
   }}
   if (!tbl) return;
-  // Colonnes exportées : Dates | Tournoi* | Épreuves | Surface | Ville | Distance
-  // Paysage A4 (~760pt utiles). Distance max "xxx.x km / xxx min" ≈ 18 chars → 90pt
-  tbl.table.widths = [50, '*', 105, 50, 125, 90];
+  // Colonnes exportées : Dates | Tournoi(fixe) | Épreuves | Surface | Ville* | Distance
+  // Tournoi tronqué à 35 chars → 155pt. Ville en * pour ne jamais wrapper.
+  tbl.table.widths = [50, 155, 105, 50, '*', 90];
   var FC = {{'1':'#c0392b','2':'#e67e22','3':'#f39c12','4':'#27ae60','5':'#2980b9','6':'#8e44ad','7':'#7f8c8d'}};
   var SC = {{'TB':'#c0392b','TA':'#e67e22','R':'#2980b9','BP':'#7f8c8d','D':'#95a5a6','G':'#27ae60','M':'#8e44ad','?':'#bdc3c7'}};
   tbl.table.body.forEach(function(row, ri) {{
