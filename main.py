@@ -264,6 +264,9 @@ def main():
         generate_html(
             tournaments, html_file, new_ids=new_ids,
             fetched_at=saved.get("fetched_at", ""),
+            ref_lat=config["search"]["ville"].get("lat", 0.0),
+            ref_lng=config["search"]["ville"].get("lng", 0.0),
+            ref_city=config["search"]["ville"].get("label", ""),
         )
         sys.exit(0)
 
@@ -287,7 +290,10 @@ def main():
         new_ids      = set(history.get("last_new_ids", []))
         only_natures = config["search"].get("epreuves") or None
         generate_html(tournaments, html_file, new_ids=new_ids,
-                      fetched_at=saved.get("fetched_at", ""), only_natures=only_natures)
+                      fetched_at=saved.get("fetched_at", ""), only_natures=only_natures,
+                      ref_lat=config["search"]["ville"].get("lat", 0.0),
+                      ref_lng=config["search"]["ville"].get("lng", 0.0),
+                      ref_city=config["search"]["ville"].get("label", ""))
         sys.exit(0)
 
     # ── Enrich-geo-only mode: geocode + road distances without re-scraping ───
@@ -312,7 +318,9 @@ def main():
         new_ids   = set(history.get("last_new_ids", []))
         only_natures = config["search"].get("epreuves") or None
         generate_html(tournaments, html_file, new_ids=new_ids,
-                      fetched_at=saved.get("fetched_at", ""), only_natures=only_natures)
+                      fetched_at=saved.get("fetched_at", ""), only_natures=only_natures,
+                      ref_lat=ref_lat, ref_lng=ref_lng,
+                      ref_city=config["search"]["ville"].get("label", ""))
         sys.exit(0)
 
     # ── Reset history ────────────────────────────────────────────────────────
@@ -415,14 +423,29 @@ def main():
     # e.g. ["SM"] — hides DD/DM/DX lines even if the tournament offers them
     only_natures = config["search"].get("epreuves") or None
 
+    # Reference city for map view
+    ref_lat  = config["search"]["ville"].get("lat", 0.0)
+    ref_lng  = config["search"]["ville"].get("lng", 0.0)
+    ref_city = config["search"]["ville"].get("label", "")
+    # Save ref coords in JSON so generate_from_file / --html-only can use them
+    saved_data["ref_lat"]  = ref_lat
+    saved_data["ref_lng"]  = ref_lng
+    saved_data["ref_city"] = ref_city
+    import json as _json2
+    with open(data_file, "w", encoding="utf-8") as _f:
+        _json2.dump(saved_data, _f, ensure_ascii=False, indent=2)
+
+    _html_kwargs = dict(
+        new_ids=new_ids, fetched_at=fetched_at, only_natures=only_natures,
+        ref_lat=ref_lat, ref_lng=ref_lng, ref_city=ref_city,
+    )
+
     # 1) Full report (fixed name → toujours le dernier)
-    generate_html(tournaments, html_file, new_ids=new_ids, fetched_at=fetched_at,
-                  only_natures=only_natures)
+    generate_html(tournaments, html_file, **_html_kwargs)
 
     # 2) Full report horodaté
     all_stamped  = os.path.join(html_dir, f"tournois_{stamp}.html")
-    generate_html(tournaments, all_stamped, new_ids=new_ids, fetched_at=fetched_at,
-                  only_natures=only_natures)
+    generate_html(tournaments, all_stamped, **_html_kwargs)
     logger.info("Rapport complet horodaté : %s", all_stamped)
 
     # 3) Rapport "nouveaux seulement" horodaté (seulement si nouveaux)
@@ -431,9 +454,8 @@ def main():
         all_new_ids = {t.get("originalId") or t.get("id", "") for t in new_tournaments}
         generate_html(
             new_tournaments, new_stamped,
-            new_ids=all_new_ids, fetched_at=fetched_at,
             title="Nouveaux Tournois TenUp",
-            only_natures=only_natures,
+            **_html_kwargs | dict(new_ids=all_new_ids),
         )
         logger.info("Rapport nouveaux horodaté  : %s (%d tournois)", new_stamped, len(new_tournaments))
 

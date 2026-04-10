@@ -285,6 +285,8 @@ def _tournament_to_row(t, only_natures=None):
         "ref_city":     t.get("_ref_city", ""),
         "road_km":      enriched.get("road_km"),
         "road_min":     enriched.get("road_min"),
+        "geo_lat":      enriched.get("geo_lat"),
+        "geo_lng":      enriched.get("geo_lng"),
         "surfaces":     _surfaces(t.get("naturesTerrains", [])),
         "epreuves":     ep_html,
         "epreuves_keys": _epreuves_data(t.get("epreuves", [])),
@@ -330,6 +332,9 @@ def generate_html(
     title: str = "Tournois TenUp",
     fetched_at: str = "",
     only_natures: list = None,
+    ref_lat: float = 0.0,
+    ref_lng: float = 0.0,
+    ref_city: str = "",
 ):
     new_ids = new_ids or set()
     for t in tournaments:
@@ -394,7 +399,9 @@ def generate_html(
             data-date-fin="{r['date_fin_iso']}"
             data-dept="{html.escape(r['dept'])}"
             data-road-km="{r['road_km'] if r['road_km'] is not None else ''}"
-            data-road-min="{r['road_min'] if r['road_min'] is not None else ''}">
+            data-road-min="{r['road_min'] if r['road_min'] is not None else ''}"
+            data-lat="{r['geo_lat'] if r['geo_lat'] is not None else ''}"
+            data-lng="{r['geo_lng'] if r['geo_lng'] is not None else ''}">
           <td data-sort="{html.escape(r['date_debut_sort'])}">{html.escape(r['dates'])}</td>
           <td>{nom_link}</td>
           <td>{html.escape(r['cat'])}</td>
@@ -477,6 +484,7 @@ def generate_html(
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.datatables.net/2.0.5/css/dataTables.bootstrap5.min.css">
   <link rel="stylesheet" href="https://cdn.datatables.net/buttons/3.0.2/css/buttons.bootstrap5.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
     body {{ font-size: 0.875rem; background:#f4f6f9; }}
     h1   {{ font-size: 1.35rem; }}
@@ -543,6 +551,13 @@ def generate_html(
     .gantt-bar:hover {{ opacity:1; box-shadow:0 2px 5px rgba(0,0,0,.2); }}
     .gantt-today {{ position:absolute; top:0; bottom:0; width:2px;
                    background:#e74c3c; opacity:.55; pointer-events:none; z-index:5; }}
+    /* ── Carte ────────────────────────────────────────────────────────────── */
+    #view-map {{ height:600px; border-radius:8px; overflow:hidden; }}
+    .map-popup-btn {{ display:inline-block; margin-top:6px; padding:3px 10px;
+                     background:#0d6efd; color:white; border-radius:4px;
+                     text-decoration:none; font-size:.8em; }}
+    .map-popup-btn:hover {{ background:#0b5ed7; color:white; }}
+    .leaflet-popup-content {{ min-width:200px; }}
   </style>
 </head>
 <body>
@@ -773,6 +788,8 @@ def generate_html(
             onclick="showView('calendar')">📅 Calendrier</button>
     <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-gantt"
             onclick="showView('gantt')">📊 Gantt</button>
+    <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-map"
+            onclick="showView('map')">🗺️ Carte</button>
     <small class="text-muted ms-2" id="view-info"></small>
   </div>
 
@@ -781,6 +798,9 @@ def generate_html(
 
   <!-- Vue Gantt -->
   <div id="view-gantt" style="display:none" class="bg-white rounded shadow-sm p-3" style="overflow-x:auto"></div>
+
+  <!-- Vue Carte -->
+  <div id="view-map" style="display:none"></div>
 
   <!-- Table -->
   <div id="view-table" class="bg-white rounded shadow-sm p-3">
@@ -817,9 +837,15 @@ def generate_html(
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.html5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.print.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 var dt;
 var currentView = 'table';
+var _REF_LAT = {ref_lat or 0};
+var _REF_LNG = {ref_lng or 0};
+var _REF_CITY = {json.dumps(ref_city or "")};
+var _mapObj = null;
+var _mapMarkers = null;
 var calYear, calMonth;
 
 $(function() {{
@@ -958,6 +984,7 @@ $(function() {{
       $('#view-info').text(n + ' tournois dans la vue');
       if (currentView === 'calendar') renderCalendar();
       if (currentView === 'gantt')    renderGantt();
+      if (currentView === 'map')      renderMap();
     }}
   }});
 
@@ -1142,17 +1169,19 @@ function onStatutChange() {{
   applyFilters();
 }}
 
-// ── Gestion des vues (Tableau / Calendrier / Gantt) ──────────────────────────
+// ── Gestion des vues (Tableau / Calendrier / Gantt / Carte) ─────────────────
 function showView(view) {{
   currentView = view;
   $('#view-table').toggle(view === 'table');
   $('#view-calendar').toggle(view === 'calendar');
   $('#view-gantt').toggle(view === 'gantt');
+  $('#view-map').toggle(view === 'map');
   $('.view-tab').removeClass('btn-primary').addClass('btn-outline-secondary');
-  var tabId = view === 'table' ? 'tab-table' : view === 'calendar' ? 'tab-cal' : 'tab-gantt';
+  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', map:'tab-map'}}[view] || 'tab-table';
   $('#' + tabId).removeClass('btn-outline-secondary').addClass('btn-primary');
   if (view === 'calendar') {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
   if (view === 'gantt')    renderGantt();
+  if (view === 'map')      renderMap();
 }}
 
 // ── Extraction des données filtrées depuis DataTables ────────────────────────
@@ -1162,14 +1191,20 @@ function getFilteredData() {{
     var $tr = $(node);
     var $link = $tr.find('a.tournament-link').first();
     result.push({{
-      id:    $tr.attr('data-id') || '',
-      nom:   $link.text().trim(),
-      url:   $link.attr('href') || '',
-      debut: $tr.attr('data-date-debut') || '',
-      fin:   $tr.attr('data-date-fin')   || '',
-      fmt:   ($tr.attr('data-fmt') || '').split(',')[0] || '',
-      ville: $tr.find('td:eq(6)').contents().first().text().trim(),
+      id:      $tr.attr('data-id') || '',
+      nom:     $link.text().trim(),
+      url:     $link.attr('href') || '',
+      debut:   $tr.attr('data-date-debut') || '',
+      fin:     $tr.attr('data-date-fin')   || '',
+      fmt:     ($tr.attr('data-fmt') || '').split(',')[0] || '',
+      fmtAll:  ($tr.attr('data-fmt') || '').split(',').filter(Boolean),
+      ville:   $tr.find('td:eq(6)').contents().first().text().trim(),
       statuts: $tr.attr('data-statuts') || '[]',
+      lat:     parseFloat($tr.attr('data-lat')) || 0,
+      lng:     parseFloat($tr.attr('data-lng')) || 0,
+      distKm:  parseFloat($tr.attr('data-distance')) || 0,
+      roadKm:  $tr.attr('data-road-km') ? parseFloat($tr.attr('data-road-km')) : null,
+      roadMin: $tr.attr('data-road-min') ? parseFloat($tr.attr('data-road-min')) : null,
     }});
   }});
   return result;
@@ -1362,6 +1397,95 @@ function renderGantt() {{
   html += '</div>';
   $('#view-gantt').html(html);
 }}
+
+// ── Carte (Leaflet) ───────────────────────────────────────────────────────────
+function buildMapPopup(t) {{
+  var statuts = [];
+  try {{ statuts = JSON.parse(t.statuts); }} catch(e) {{}}
+  var statutBadges = statuts.map(function(s) {{
+    var cfg = _STATUT_CFG[s] || ['#bdc3c7','?'];
+    return '<span style="background:' + cfg[0] + ';color:white;border-radius:3px;padding:1px 6px;font-size:.75em;margin-right:3px">' + cfg[1] + '</span>';
+  }}).join('');
+  var fmtBadges = t.fmtAll.map(function(f) {{
+    return '<span style="background:' + (_FMT_COLORS[f]||'#666') + ';color:white;border-radius:3px;padding:1px 6px;font-size:.75em;margin-right:3px">F' + f + '</span>';
+  }}).join('');
+  var dist = '';
+  if (t.roadKm !== null) {{
+    dist = '<div style="font-size:.82em;color:#495057;margin-top:3px">🚗 ' + t.roadKm + ' km · ' + Math.round(t.roadMin) + ' min</div>';
+  }} else if (t.distKm) {{
+    dist = '<div style="font-size:.82em;color:#495057;margin-top:3px">📍 ' + t.distKm.toFixed(1) + ' km</div>';
+  }}
+  var dates = t.debut;
+  if (t.fin && t.fin !== t.debut) dates += ' → ' + t.fin;
+  return '<div style="min-width:210px;max-width:280px">' +
+    '<div style="font-weight:700;margin-bottom:3px;font-size:.9em">' + t.nom + '</div>' +
+    '<div style="font-size:.82em;color:#6c757d;margin-bottom:4px">' + dates + '</div>' +
+    (fmtBadges ? '<div style="margin-bottom:3px">' + fmtBadges + '</div>' : '') +
+    (statutBadges ? '<div style="margin-bottom:3px">' + statutBadges + '</div>' : '') +
+    dist +
+    '<div style="margin-top:6px"><a href="' + t.url + '" target="_blank" class="map-popup-btn">Ouvrir TenUp ↗</a></div>' +
+    '</div>';
+}}
+
+function renderMap() {{
+  // Collect tournaments that have coordinates
+  var data = getFilteredData().filter(function(t) {{ return t.lat && t.lng; }});
+
+  // Initialize map once
+  if (!_mapObj) {{
+    var initLat = (_REF_LAT !== 0) ? _REF_LAT : (data.length ? data[0].lat : 48.866);
+    var initLng = (_REF_LNG !== 0) ? _REF_LNG : (data.length ? data[0].lng : 2.333);
+    _mapObj = L.map('view-map').setView([initLat, initLng], 9);
+    L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
+      attribution: '© <a href="https://www.openstreetmap.org">OpenStreetMap</a> contributors',
+      maxZoom: 18
+    }}).addTo(_mapObj);
+    _mapMarkers = L.layerGroup().addTo(_mapObj);
+  }}
+
+  _mapMarkers.clearLayers();
+
+  // Reference city marker
+  if (_REF_LAT && _REF_LNG) {{
+    L.circleMarker([_REF_LAT, _REF_LNG], {{
+      radius: 10, color: '#0d6efd', fillColor: '#0d6efd',
+      fillOpacity: 0.9, weight: 3
+    }}).bindPopup('<b>📍 ' + (_REF_CITY || 'Ville de référence') + '</b><br><small class="text-muted">Ville de référence</small>')
+      .addTo(_mapMarkers);
+  }}
+
+  if (data.length === 0) {{
+    // No tournaments with coordinates
+    $('#view-map').attr('data-no-coords', '1');
+    return;
+  }}
+
+  // Tournament markers
+  var bounds = [];
+  data.forEach(function(t) {{
+    var color = _FMT_COLORS[t.fmt] || '#6c757d';
+    var marker = L.circleMarker([t.lat, t.lng], {{
+      radius: 8,
+      color: '#fff',
+      fillColor: color,
+      fillOpacity: 0.85,
+      weight: 1.5
+    }});
+    marker.bindPopup(buildMapPopup(t), {{ maxWidth: 300 }});
+    marker.on('mouseover', function() {{ this.openPopup(); }});
+    marker.addTo(_mapMarkers);
+    bounds.push([t.lat, t.lng]);
+  }});
+
+  // Fit map to all markers (include ref city)
+  if (_REF_LAT && _REF_LNG) bounds.push([_REF_LAT, _REF_LNG]);
+  if (bounds.length > 0) {{
+    _mapObj.fitBounds(bounds, {{ padding: [30, 30], maxZoom: 12 }});
+  }}
+
+  // Recalculate size (needed when div was hidden)
+  setTimeout(function() {{ _mapObj.invalidateSize(); }}, 50);
+}}
 </script>
 </body>
 </html>"""
@@ -1381,4 +1505,7 @@ def generate_from_file(data_file, output_path, new_ids=None, only_natures=None):
         new_ids=new_ids,
         fetched_at=data.get("fetched_at", ""),
         only_natures=only_natures,
+        ref_lat=data.get("ref_lat", 0.0),
+        ref_lng=data.get("ref_lng", 0.0),
+        ref_city=data.get("ref_city", ""),
     )
