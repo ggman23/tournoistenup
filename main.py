@@ -244,8 +244,7 @@ def main():
         os.makedirs(os.path.dirname(data_file) or ".", exist_ok=True)
         with open(data_file, "w", encoding="utf-8") as f:
             _json.dump(saved, f, ensure_ascii=False, indent=2)
-        history = load_json(history_file)
-        new_ids = set(history.get("last_new_ids", []))
+        new_ids = set()  # fix-encoding: no new tournament detection
         only_natures = config["search"].get("epreuves") or None
         generate_html(
             tournaments, html_file, new_ids=new_ids,
@@ -306,9 +305,7 @@ def main():
         if not os.path.exists(data_file):
             logger.error("No data file found at %s — run without --html-only first.", data_file)
             sys.exit(1)
-        history = load_json(history_file)
-        new_ids = set(history.get("last_new_ids", []))
-        generate_from_file(data_file, html_file, new_ids=new_ids)
+        generate_from_file(data_file, html_file, new_ids=set())
         sys.exit(0)
 
     # ── Enrich-only mode: re-enrich + regenerate without re-scraping ─────────
@@ -335,8 +332,7 @@ def main():
         os.makedirs(os.path.dirname(data_file) or ".", exist_ok=True)
         with open(data_file, "w", encoding="utf-8") as f:
             _json.dump(saved, f, ensure_ascii=False, indent=2)
-        history = load_json(history_file)
-        new_ids = set(history.get("last_new_ids", []))
+        new_ids = set()  # enrich-only: no new tournament detection
         generate_html(
             tournaments, html_file, new_ids=new_ids,
             fetched_at=saved.get("fetched_at", ""),
@@ -389,8 +385,7 @@ def main():
         os.makedirs(os.path.dirname(data_file) or ".", exist_ok=True)
         with open(data_file, "w", encoding="utf-8") as f:
             _json.dump(saved, f, ensure_ascii=False, indent=2)
-        history   = load_json(history_file)
-        new_ids   = set(history.get("last_new_ids", []))
+        new_ids = set()  # enrich-geo-only: no new tournament detection
         only_natures = config["search"].get("epreuves") or None
         generate_html(tournaments, html_file, new_ids=new_ids,
                       fetched_at=saved.get("fetched_at", ""), only_natures=only_natures,

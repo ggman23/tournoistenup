@@ -303,6 +303,7 @@ def _tournament_to_row(t, only_natures=None):
         "email":        t.get("courrielEngagement", ""),
         "ouverture":    t.get("dateOuvertureInscriptionEnLigne", ""),
         "is_new":       t.get("_is_new", False),
+        "first_seen":   t.get("_first_seen", ""),
     }
 
 
@@ -421,6 +422,7 @@ def generate_html(
           <td><small>{email_link}</small></td>
           <td><small>{html.escape(r['ouverture'])}</small></td>
           <td class="text-center"><button class="fav-btn" data-id="{tid_esc}" onclick="toggleFav(this)">&#9734;</button></td>
+          <td style="display:none">{html.escape(r.get('first_seen', ''))}</td>
         </tr>""")
 
     tbody        = "\n".join(tbody_lines)
@@ -839,6 +841,8 @@ def generate_html(
             onclick="showView('vacs')">🏖️ Vacs</button>
     <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-map"
             onclick="showView('map')">🗺️ Carte</button>
+    <button class="btn btn-sm btn-outline-warning view-tab" id="tab-derniers"
+            onclick="showView('derniers')">🆕 Derniers</button>
     <small class="text-muted ms-2" id="view-info"></small>
   </div>
 
@@ -889,6 +893,7 @@ def generate_html(
           <th>Email</th>
           <th>Ouv. inscr.</th>
           <th>⭐</th>
+          <th style="display:none">_first_seen</th>
         </tr>
       </thead>
       <tbody>{tbody}</tbody>
@@ -1106,7 +1111,8 @@ function pdfCustomize(doc) {{
     columnDefs: [
       {{ targets: [2,3,5,8,9], searchable: false }},
       {{ targets: [3,7], type: 'num' }},
-      {{ targets: [-1], orderable: false, searchable: false }},
+      {{ targets: [13], orderable: false, searchable: false }},
+      {{ targets: [14], visible: false, searchable: false }},
     ],
     dom: '<"row"<"col-sm-6"B><"col-sm-6"l>>rtip',
     buttons: [
@@ -1409,19 +1415,27 @@ function onStatutChange() {{
 
 // ── Gestion des vues (Tableau / Calendrier / Gantt / Vacs / Carte) ──────────
 function showView(view) {{
-  currentView = view;
-  $('#view-table').toggle(view === 'table');
-  $('#view-calendar').toggle(view === 'calendar');
-  $('#view-gantt').toggle(view === 'gantt');
-  $('#view-vacs').toggle(view === 'vacs');
-  $('#view-map-wrap').toggle(view === 'map');
-  $('.view-tab').removeClass('btn-primary').addClass('btn-outline-secondary');
-  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map'}}[view] || 'tab-table';
-  $('#' + tabId).removeClass('btn-outline-secondary').addClass('btn-primary');
-  if (view === 'calendar') {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
-  if (view === 'gantt')    renderGantt();
-  if (view === 'vacs')     renderVacs();
-  if (view === 'map')      renderMap();
+  // 'derniers' is a special sort on the table view
+  var isDerniers = (view === 'derniers');
+  var tableView = isDerniers ? 'table' : view;
+  currentView = tableView;
+  $('#view-table').toggle(tableView === 'table');
+  $('#view-calendar').toggle(tableView === 'calendar');
+  $('#view-gantt').toggle(tableView === 'gantt');
+  $('#view-vacs').toggle(tableView === 'vacs');
+  $('#view-map-wrap').toggle(tableView === 'map');
+  $('.view-tab').removeClass('btn-primary btn-warning').addClass('btn-outline-secondary');
+  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map'}}[tableView] || 'tab-table';
+  if (isDerniers) {{
+    $('#tab-derniers').removeClass('btn-outline-secondary btn-outline-warning').addClass('btn-warning');
+    dt.order([14, 'desc']).draw();
+  }} else {{
+    $('#' + tabId).removeClass('btn-outline-secondary').addClass('btn-primary');
+  }}
+  if (tableView === 'calendar') {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
+  if (tableView === 'gantt')    renderGantt();
+  if (tableView === 'vacs')     renderVacs();
+  if (tableView === 'map')      renderMap();
 }}
 
 // ── Extraction des données filtrées depuis DataTables ────────────────────────

@@ -54,8 +54,28 @@ def update_storage(
     history = load_json(history_file)
     known_ids: set[str] = set(history.get("known_ids", []))
 
-    # Find new ones
-    new_tournaments = find_new_tournaments(tournaments, known_ids)
+    # Load previous _first_seen values so they survive re-scrapes
+    prev_data = load_json(data_file) if os.path.exists(data_file) else {}
+    first_seen_cache: dict[str, str] = {}
+    for t in prev_data.get("tournaments", []):
+        tid = _tournament_id(t)
+        if tid and t.get("_first_seen"):
+            first_seen_cache[tid] = t["_first_seen"]
+
+    now = datetime.utcnow().isoformat() + "Z"
+
+    # Find new ones and stamp _first_seen
+    new_tournaments = []
+    for t in tournaments:
+        tid = _tournament_id(t)
+        if not tid:
+            continue
+        if tid not in known_ids:
+            new_tournaments.append(t)
+            t["_first_seen"] = now
+        elif tid in first_seen_cache:
+            t["_first_seen"] = first_seen_cache[tid]
+        # else: old tournament without _first_seen → sort to bottom in Derniers view
 
     # Build current ID set
     current_ids = {_tournament_id(t) for t in tournaments if _tournament_id(t)}
