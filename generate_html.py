@@ -1218,10 +1218,16 @@ function getFilteredData() {{
       statuts: $tr.attr('data-statuts') || '[]',
       epreuves: (function() {{
         var lines = [];
-        $tr.find('.ep-line:visible').each(function() {{
+        var checkedEps  = $('.ep-chk:checked').map(function() {{ return $(this).val(); }}).get();
+        var checkedFmts = $('.fmt-chk:checked').map(function() {{ return $(this).val(); }}).get();
+        $tr.find('.ep-line').each(function() {{
+          var epKey = $(this).attr('data-ep-key') || '';
+          var fmt   = $(this).attr('data-fmt')    || '';
+          if (checkedEps.length  > 0 && epKey && checkedEps.indexOf(epKey)   === -1) return;
+          if (checkedFmts.length > 0 && fmt   && checkedFmts.indexOf(fmt)    === -1) return;
           var nat = $(this).find('.ep-nature').text().trim();
           var age = $(this).find('.ep-age').text().trim();
-          if (nat) lines.push(nat + (age ? ' ' + age : ''));
+          if (nat) lines.push(nat + (age ? ' ' + age : '') + (fmt ? ' F' + fmt : ''));
         }});
         return lines;
       }})(),
@@ -1485,12 +1491,16 @@ function renderMap() {{
 
   _mapMarkers.clearLayers();
 
-  // Reference city marker
+  // Reference city marker (star icon)
   if (_REF_LAT && _REF_LNG) {{
-    L.circleMarker([_REF_LAT, _REF_LNG], {{
-      radius: 10, color: '#0d6efd', fillColor: '#0d6efd',
-      fillOpacity: 0.9, weight: 3
-    }}).bindPopup('<b>📍 ' + (_REF_CITY || 'Ville de référence') + '</b><br><small class="text-muted">Ville de référence</small>')
+    var starIcon = L.divIcon({{
+      className: '',
+      html: '<div style="font-size:26px;line-height:1;filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #333)">⭐</div>',
+      iconSize: [30, 30],
+      iconAnchor: [15, 15]
+    }});
+    L.marker([_REF_LAT, _REF_LNG], {{ icon: starIcon, zIndexOffset: 1000 }})
+      .bindPopup('<b>⭐ ' + (_REF_CITY || 'Ville de référence') + '</b><br><small style="color:#6c757d">Ville de référence</small>')
       .addTo(_mapMarkers);
   }}
 
