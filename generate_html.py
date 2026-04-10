@@ -44,7 +44,7 @@ def _statut_badge_html(code: str, message: str = "") -> str:
     color, label = STATUT_CONFIG.get(code, ("#bdc3c7", code))
     tip = html.escape(message) if message else html.escape(label)
     return (
-        f' <span class="badge statut-badge" style="background:{color}" '
+        f' <span class="badge statut-badge" data-statut="{html.escape(code)}" style="background:{color}" '
         f'title="{tip}" data-bs-toggle="tooltip">{html.escape(label)}</span>'
     )
 
@@ -570,6 +570,20 @@ def generate_html(
     .leaflet-popup-content {{ min-width:210px; }}
     .map-ep-line {{ font-size:.78em; color:#495057; white-space:nowrap;
                    overflow:hidden; text-overflow:ellipsis; }}
+    /* Marqueur ville de référence */
+    .map-ref-marker {{ width:28px !important; height:28px !important;
+                       background:#0d6efd; border:3px solid white; border-radius:50%;
+                       box-shadow:0 0 0 2px #0d6efd, 0 2px 8px rgba(0,0,0,.5);
+                       display:flex; align-items:center; justify-content:center;
+                       color:white; font-size:15px; line-height:1; font-weight:bold; }}
+    /* Impression compacte */
+    @media print {{
+      .ep-range, .ep-tarif {{ display:none !important; }}
+      .statut-badge, .fmt-ep-badge, .ep-comment {{ display:none !important; }}
+      .ep-line {{ font-size:7pt !important; margin-bottom:0 !important; line-height:1.2 !important; }}
+      table.dataTable td {{ padding:2px 4px !important; }}
+      .ep-nature {{ font-weight:normal !important; }}
+    }}
   </style>
 </head>
 <body>
@@ -850,6 +864,8 @@ def generate_html(
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/dataTables.buttons.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.bootstrap5.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.html5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.print.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -990,6 +1006,8 @@ $(function() {{
       {{ extend:'csvHtml5',   text:'📄 CSV',   className:'btn-sm btn-outline-secondary',
          exportOptions:{{ columns:':visible' }} }},
       {{ extend:'print',      text:'🖨 Print',  className:'btn-sm btn-outline-secondary' }},
+      {{ extend:'pdfHtml5',  text:'📑 PDF',   className:'btn-sm btn-outline-danger',
+         exportOptions:{{ columns:':visible', stripHtml:true }}, orientation:'landscape', pageSize:'A4' }},
     ],
     drawCallback: function() {{
       restoreFavs();
@@ -1121,6 +1139,29 @@ function toggleFav(btn) {{
   if ($('#chk-fav').prop('checked')) dt.draw();
 }}
 
+function toggleFavMap(btn) {{
+  var id = btn.getAttribute('data-id');
+  var favs = {{}};
+  try {{ favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}'); }} catch(e) {{}}
+  if (favs[id]) {{
+    delete favs[id];
+    btn.textContent = '\u2606';
+    btn.style.color = '#bbb';
+  }} else {{
+    favs[id] = true;
+    btn.textContent = '\u2605';
+    btn.style.color = '#f39c12';
+  }}
+  localStorage.setItem('tenup_favs', JSON.stringify(favs));
+  // Sync bouton dans le tableau
+  var $row = $('.fav-btn[data-id="' + id + '"]');
+  if ($row.length) {{
+    if (favs[id]) {{ $row.text('\u2605').addClass('fav-active'); }}
+    else          {{ $row.text('\u2606').removeClass('fav-active'); }}
+  }}
+  if ($('#chk-fav').prop('checked')) dt.draw();
+}}
+
 function restoreFavs() {{
   var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}');
   $('.fav-btn').each(function() {{
@@ -1215,19 +1256,21 @@ function getFilteredData() {{
       fmt:     ($tr.attr('data-fmt') || '').split(',')[0] || '',
       fmtAll:  ($tr.attr('data-fmt') || '').split(',').filter(Boolean),
       ville:   $tr.find('td:eq(6)').contents().first().text().trim(),
+      surface: $tr.find('td:eq(5)').text().trim().replace(/\s+/g, ' '),
       statuts: $tr.attr('data-statuts') || '[]',
       epreuves: (function() {{
         var lines = [];
         var checkedEps  = $('.ep-chk:checked').map(function() {{ return $(this).val(); }}).get();
         var checkedFmts = $('.fmt-chk:checked').map(function() {{ return $(this).val(); }}).get();
         $tr.find('.ep-line').each(function() {{
-          var epKey = $(this).attr('data-ep-key') || '';
-          var fmt   = $(this).attr('data-fmt')    || '';
+          var epKey  = $(this).attr('data-ep-key') || '';
+          var fmt    = $(this).attr('data-fmt')    || '';
           if (checkedEps.length  > 0 && epKey && checkedEps.indexOf(epKey)   === -1) return;
           if (checkedFmts.length > 0 && fmt   && checkedFmts.indexOf(fmt)    === -1) return;
-          var nat = $(this).find('.ep-nature').text().trim();
-          var age = $(this).find('.ep-age').text().trim();
-          if (nat) lines.push(nat + (age ? ' ' + age : '') + (fmt ? ' F' + fmt : ''));
+          var nat    = $(this).find('.ep-nature').text().trim();
+          var age    = $(this).find('.ep-age').text().trim();
+          var statut = $(this).find('.statut-badge').attr('data-statut') || '';
+          if (nat) lines.push({{ text: nat + (age ? ' ' + age : ''), fmt: fmt, statut: statut }});
         }});
         return lines;
       }})(),
@@ -1439,9 +1482,12 @@ function toggleMapFullscreen() {{
 }}
 
 function buildMapPopup(t) {{
-  var statuts = [];
-  try {{ statuts = JSON.parse(t.statuts); }} catch(e) {{}}
-  var statutBadges = statuts.map(function(s) {{
+  // Statuts : uniquement ceux des épreuves filtrées (pas toutes les épreuves du tournoi)
+  var statutCodes = [];
+  t.epreuves.forEach(function(e) {{
+    if (e.statut && statutCodes.indexOf(e.statut) === -1) statutCodes.push(e.statut);
+  }});
+  var statutBadges = statutCodes.map(function(s) {{
     var cfg = _STATUT_CFG[s] || ['#bdc3c7','?'];
     return '<span style="background:' + cfg[0] + ';color:white;border-radius:3px;padding:1px 6px;font-size:.75em;margin-right:3px">' + cfg[1] + '</span>';
   }}).join('');
@@ -1458,16 +1504,29 @@ function buildMapPopup(t) {{
   if (t.fin && t.fin !== t.debut) dates += ' → ' + t.fin;
   var epHtml = t.epreuves && t.epreuves.length
     ? '<div style="margin-top:4px;border-top:1px solid #eee;padding-top:3px">' +
-      t.epreuves.map(function(e) {{ return '<div class="map-ep-line">• ' + e + '</div>'; }}).join('') +
+      t.epreuves.map(function(e) {{
+        var color = e.fmt ? (_FMT_COLORS[e.fmt] || '#666') : '';
+        var fmtTag = color ? ' <span style="background:' + color + ';color:#fff;border-radius:3px;padding:0 4px;font-size:.7em;vertical-align:middle">F' + e.fmt + '</span>' : '';
+        return '<div class="map-ep-line">• ' + e.text + fmtTag + '</div>';
+      }}).join('') +
       '</div>'
     : '';
+  var surfHtml = t.surface
+    ? '<div style="font-size:.8em;color:#495057;margin-top:2px">🎾 ' + t.surface + '</div>'
+    : '';
+  // Bouton favori
+  var favs = {{}};
+  try {{ favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}'); }} catch(ex) {{}}
+  var isFav = !!favs[t.id];
+  var favBtn = '<button class="map-fav-btn" data-id="' + t.id + '" onclick="toggleFavMap(this)" '
+    + 'style="float:right;background:none;border:none;cursor:pointer;font-size:1.2em;padding:0 0 0 6px;line-height:1;color:' + (isFav ? '#f39c12' : '#bbb') + '">'
+    + (isFav ? '\u2605' : '\u2606') + '</button>';
   return '<div style="min-width:220px;max-width:300px">' +
-    '<div style="font-weight:700;margin-bottom:2px;font-size:.9em">' + t.nom + '</div>' +
+    '<div style="font-weight:700;margin-bottom:2px;font-size:.9em">' + favBtn + t.nom + '</div>' +
     '<div style="font-size:.8em;color:#6c757d;margin-bottom:3px">' + (t.ville || '') + ' — ' + dates + '</div>' +
     (fmtBadges ? '<div style="margin-bottom:3px">' + fmtBadges + '</div>' : '') +
     (statutBadges ? '<div style="margin-bottom:3px">' + statutBadges + '</div>' : '') +
-    dist +
-    epHtml +
+    surfHtml + dist + epHtml +
     '<a href="' + t.url + '" target="_blank" class="map-popup-btn">🔗 Ouvrir TenUp</a>' +
     '</div>';
 }}
@@ -1491,16 +1550,16 @@ function renderMap() {{
 
   _mapMarkers.clearLayers();
 
-  // Reference city marker (star icon)
+  // Reference city marker (★ CSS-based, reliable cross-browser)
   if (_REF_LAT && _REF_LNG) {{
-    var starIcon = L.divIcon({{
-      className: '',
-      html: '<div style="font-size:26px;line-height:1;filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #333)">⭐</div>',
-      iconSize: [30, 30],
-      iconAnchor: [15, 15]
+    var refIcon = L.divIcon({{
+      className: 'map-ref-marker',
+      html: '★',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
     }});
-    L.marker([_REF_LAT, _REF_LNG], {{ icon: starIcon, zIndexOffset: 1000 }})
-      .bindPopup('<b>⭐ ' + (_REF_CITY || 'Ville de référence') + '</b><br><small style="color:#6c757d">Ville de référence</small>')
+    L.marker([_REF_LAT, _REF_LNG], {{ icon: refIcon, zIndexOffset: 1000 }})
+      .bindPopup('<b>★ ' + (_REF_CITY || 'Ville de référence') + '</b><br><small style="color:#6c757d">Ville de référence</small>')
       .addTo(_mapMarkers);
   }}
 
