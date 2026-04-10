@@ -835,6 +835,8 @@ def generate_html(
             onclick="showView('calendar')">📅 Calendrier</button>
     <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-gantt"
             onclick="showView('gantt')">📊 Gantt</button>
+    <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-vacs"
+            onclick="showView('vacs')">🏖️ Vacs</button>
     <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-map"
             onclick="showView('map')">🗺️ Carte</button>
     <small class="text-muted ms-2" id="view-info"></small>
@@ -845,6 +847,13 @@ def generate_html(
 
   <!-- Vue Gantt -->
   <div id="view-gantt" style="display:none" class="bg-white rounded shadow-sm p-3" style="overflow-x:auto"></div>
+
+  <!-- Vue Vacances -->
+  <div id="view-vacs" style="display:none" class="bg-white rounded shadow-sm p-3">
+    <div id="vacs-container" class="text-center text-muted py-4">
+      <span class="spinner-border spinner-border-sm me-2"></span>Chargement des vacances Zone C…
+    </div>
+  </div>
 
   <!-- Vue Carte -->
   <div id="view-map-wrap" style="display:none">
@@ -1398,18 +1407,20 @@ function onStatutChange() {{
   applyFilters();
 }}
 
-// ── Gestion des vues (Tableau / Calendrier / Gantt / Carte) ─────────────────
+// ── Gestion des vues (Tableau / Calendrier / Gantt / Vacs / Carte) ──────────
 function showView(view) {{
   currentView = view;
   $('#view-table').toggle(view === 'table');
   $('#view-calendar').toggle(view === 'calendar');
   $('#view-gantt').toggle(view === 'gantt');
+  $('#view-vacs').toggle(view === 'vacs');
   $('#view-map-wrap').toggle(view === 'map');
   $('.view-tab').removeClass('btn-primary').addClass('btn-outline-secondary');
-  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', map:'tab-map'}}[view] || 'tab-table';
+  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map'}}[view] || 'tab-table';
   $('#' + tabId).removeClass('btn-outline-secondary').addClass('btn-primary');
   if (view === 'calendar') {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
   if (view === 'gantt')    renderGantt();
+  if (view === 'vacs')     renderVacs();
   if (view === 'map')      renderMap();
 }}
 
@@ -1642,6 +1653,96 @@ function renderGantt() {{
   }});
   html += '</div>';
   $('#view-gantt').html(html);
+}}
+
+// ── Vacances Zone C + Jours fériés ───────────────────────────────────────────
+var _vacsLoaded = false;
+function renderVacs() {{
+  if (_vacsLoaded) return;
+  var today     = new Date();
+  var todayStr  = today.toISOString().slice(0,10);
+  var year      = today.getFullYear();
+  var vacsUrl   = 'https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/'
+    + 'fr-en-calendrier-scolaire/records?where='
+    + encodeURIComponent('zones like "Zone C" and end_date > "' + todayStr + '"')
+    + '&limit=40&order_by=start_date&timezone=Europe%2FParis';
+  Promise.all([
+    fetch(vacsUrl).then(function(r) {{ return r.json(); }}),
+    fetch('https://calendrier.api.gouv.fr/jours-feries/metropole/' + year + '.json').then(function(r) {{ return r.json(); }}),
+    fetch('https://calendrier.api.gouv.fr/jours-feries/metropole/' + (year+1) + '.json').then(function(r) {{ return r.json(); }})
+  ]).then(function(res) {{
+    var vacList = res[0].results || [];
+    var feries  = Object.assign({{}}, res[1], res[2]);
+    _vacsLoaded = true;
+    // Build day sets
+    var vacDays   = {{}};  // "YYYY-MM-DD" → label
+    var ferieDays = {{}};  // "YYYY-MM-DD" → label
+    vacList.forEach(function(v) {{
+      var label = v.description || v.libelle || 'Vacances';
+      var d = new Date(v.start_date); var end = new Date(v.end_date);
+      while (d <= end) {{
+        vacDays[d.toISOString().slice(0,10)] = label;
+        d.setDate(d.getDate()+1);
+      }}
+    }});
+    Object.keys(feries).forEach(function(k) {{ ferieDays[k] = feries[k]; }});
+    // Render 13 months from today
+    var MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+    var html = '<div style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">';
+    html += '<span style="display:inline-block;width:14px;height:14px;background:#c8e6c9;border:1px solid #a5d6a7;border-radius:2px;vertical-align:middle"></span> Vacances scolaires Zone C&nbsp;&nbsp;';
+    html += '<span style="display:inline-block;width:14px;height:14px;background:#ffcdd2;border:1px solid #ef9a9a;border-radius:2px;vertical-align:middle"></span> Jour férié&nbsp;&nbsp;';
+    html += '<span style="display:inline-block;width:14px;height:14px;background:#bbdefb;border:1px solid #90caf9;border-radius:2px;vertical-align:middle"></span> Vacances + Férié';
+    html += '</div>';
+    // Upcoming vacations list
+    html += '<div style="margin-bottom:12px;font-size:.85em">';
+    html += '<strong>Prochaines vacances Zone C :</strong> ';
+    var shown = 0;
+    vacList.forEach(function(v) {{
+      if (shown >= 8) return;
+      var label = v.description || 'Vacances';
+      var s = new Date(v.start_date); var e = new Date(v.end_date);
+      var fmt = function(d) {{ return d.toLocaleDateString('fr-FR',{{day:'2-digit',month:'2-digit',year:'numeric'}}); }};
+      html += '<span style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:2px 7px;margin:2px;display:inline-block">'
+        + label + ' : ' + fmt(s) + ' → ' + fmt(e) + '</span>';
+      shown++;
+    }});
+    html += '</div>';
+    // Calendar grid (13 months)
+    html += '<div style="display:flex;flex-wrap:wrap;gap:12px">';
+    var cur = new Date(today.getFullYear(), today.getMonth(), 1);
+    for (var mi = 0; mi < 13; mi++) {{
+      var y = cur.getFullYear(); var m = cur.getMonth();
+      var firstDow = (new Date(y, m, 1).getDay()+6)%7; // Mon=0
+      var daysInM  = new Date(y, m+1, 0).getDate();
+      html += '<div style="border:1px solid #dee2e6;border-radius:6px;overflow:hidden;min-width:196px;flex:0 0 auto">';
+      html += '<div style="background:#343a40;color:#fff;text-align:center;padding:5px 10px;font-weight:600;font-size:.9em">' + MOIS[m] + ' ' + y + '</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(7,28px);background:#f8f9fa">';
+      ['Lu','Ma','Me','Je','Ve','Sa','Di'].forEach(function(dn) {{
+        html += '<div style="text-align:center;padding:3px 0;font-size:.7em;font-weight:600;color:#6c757d">' + dn + '</div>';
+      }});
+      html += '</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(7,28px)">';
+      for (var di = 0; di < firstDow; di++) html += '<div></div>';
+      for (var d = 1; d <= daysInM; d++) {{
+        var ds   = y + '-' + String(m+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+        var isV  = !!vacDays[ds]; var isF = !!ferieDays[ds];
+        var isT  = (today.getFullYear()===y && today.getMonth()===m && today.getDate()===d);
+        var dow  = (new Date(y,m,d).getDay()+6)%7; // 5=Sa, 6=Di
+        var bg   = (isV && isF) ? '#bbdefb' : isV ? '#c8e6c9' : isF ? '#ffcdd2' : (dow >= 5 ? '#fafafa' : '#fff');
+        var tc   = (dow >= 5 && !isV && !isF) ? '#aaa' : '#333';
+        var tip  = (vacDays[ds]||'') + (isV&&isF?' + ':'') + (ferieDays[ds]||'');
+        var bdr  = isT ? 'outline:2px solid #0d6efd;outline-offset:-2px;' : '';
+        html += '<div title="' + tip.replace(/"/g,'&quot;') + '" style="text-align:center;line-height:24px;font-size:.78em;background:' + bg + ';color:' + tc + ';' + bdr + '">' + d + '</div>';
+      }}
+      html += '</div></div>';
+      cur.setMonth(cur.getMonth()+1);
+    }}
+    html += '</div>';
+    document.getElementById('vacs-container').innerHTML = html;
+  }}).catch(function(e) {{
+    document.getElementById('vacs-container').innerHTML =
+      '<div class="alert alert-warning">Impossible de charger les vacances : ' + e.message + '</div>';
+  }});
 }}
 
 // ── Carte (Leaflet) ───────────────────────────────────────────────────────────
