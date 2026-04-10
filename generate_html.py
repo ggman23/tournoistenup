@@ -1030,31 +1030,41 @@ function pdfCustomize(doc) {{
     if (doc.content[ci] && doc.content[ci].table) {{ tbl = doc.content[ci]; break; }}
   }}
   if (!tbl) return;
-  // Colonnes exportées : Dates | Tournoi(fixe) | Épreuves | Surface | Ville* | Distance
-  // Tournoi tronqué à 35 chars → 155pt. Ville en * pour ne jamais wrapper.
-  tbl.table.widths = [50, 155, 105, 50, '*', 90];
+  // Colonnes exportées : Dates | Tournoi(fixe 35c) | Épreuves | Surface | Ville* | Distance
+  // Épreuves : "SM 13/14 NC→30/1 10€ Bient F2" ≈ 30 chars → 150pt
+  tbl.table.widths = [50, 155, 150, 50, '*', 90];
   var FC = {{'1':'#c0392b','2':'#e67e22','3':'#f39c12','4':'#27ae60','5':'#2980b9','6':'#8e44ad','7':'#7f8c8d'}};
   var SC = {{'TB':'#c0392b','TA':'#e67e22','R':'#2980b9','BP':'#7f8c8d','D':'#95a5a6','G':'#27ae60','M':'#8e44ad','?':'#bdc3c7'}};
+  var SSCOLOR = {{'Ouv':'#27ae60','Bient':'#2980b9','Att':'#e67e22','Att+':'#d35400',
+    'Clot':'#c0392b','HB':'#7f8c8d','HL':'#95a5a6','Inscr':'#1abc9c','Inelig':'#e74c3c','?':'#bdc3c7'}};
   tbl.table.body.forEach(function(row, ri) {{
     if (ri === 0) {{
       row.forEach(function(c) {{ if (c && typeof c === 'object') {{ c.fillColor = '#343a40'; c.color = '#fff'; }} }});
       return;
     }}
-    // Colonne Épreuves (index 2 sans Catégorie) → colorise le code Fx sur chaque ligne
+    // Épreuves (index 2) : colorise statut + format. Format de ligne : "SM 13/14 NC→30/1 10€ Ouv F2"
     var epRaw = typeof row[2] === 'string' ? row[2] : ((row[2] || {{}}).text || '');
     if (epRaw) {{
       var epContent = [];
       epRaw.split('\\n').forEach(function(line, li) {{
         if (li > 0) epContent.push({{ text: '\\n' }});
-        var m = line.match(/^(.*?)\\s+(F[1-7])$/);
-        if (m) {{
-          epContent.push({{ text: m[1] + ' ' }});
-          epContent.push({{ text: m[2], color: FC[m[2][1]] || '#666', bold: true }});
-        }} else {{ epContent.push({{ text: line }}); }}
+        var mF = line.match(/^(.*?)\\s+(F[1-7])$/);
+        var before = mF ? mF[1] : line;
+        var fCode  = mF ? mF[2] : null;
+        // Statut juste avant le code format
+        var mS = before.match(/^(.*?)\\s+(Ouv|Bient|Att\\+?|Clot|HB|HL|Inscr|Inelig|\\?)$/);
+        if (mS) {{
+          epContent.push({{ text: mS[1] + ' ' }});
+          epContent.push({{ text: mS[2], color: SSCOLOR[mS[2]] || '#999', bold: true }});
+          epContent.push({{ text: fCode ? ' ' : '' }});
+        }} else {{
+          epContent.push({{ text: before + (fCode ? ' ' : '') }});
+        }}
+        if (fCode) epContent.push({{ text: fCode, color: FC[fCode[1]] || '#666', bold: true }});
       }});
       row[2] = {{ text: epContent }};
     }}
-    // Colonne Surface (index 3) → abréviations colorées, pas de retour à la ligne
+    // Surface (index 3) : abréviations colorées, pas de retour à la ligne
     var srfRaw = typeof row[3] === 'string' ? row[3] : ((row[3] || {{}}).text || '');
     if (srfRaw && srfRaw !== '\u2014') {{
       var srfContent = [];
@@ -1065,7 +1075,7 @@ function pdfCustomize(doc) {{
       }});
       row[3] = {{ text: srfContent, noWrap: true }};
     }}
-    // Colonne Distance (index 5) → pas de retour à la ligne
+    // Distance (index 5) : pas de retour à la ligne
     var distRaw = typeof row[5] === 'string' ? row[5] : ((row[5] || {{}}).text || '');
     if (distRaw && distRaw !== '\u2014') {{
       row[5] = {{ text: distRaw, noWrap: true }};
@@ -1111,10 +1121,13 @@ function pdfCustomize(doc) {{
                  var txt = $('<div>').html(data).text().replace(/\s+/g,' ').trim();
                  return txt.length > 35 ? txt.substring(0, 35) + '\u2026' : txt;
                }}
-               // Épreuves (col 4) : abréviations + format colorisé
+               // Épreuves (col 4) : abrév + classement + tarif + statut + format
                // BUG FIX : on lit les filtres actifs (et non le css display) car DataTables
                // rend toutes les lignes visibles lors de l'export, même les pages 2+
                if (column === 4) {{
+                 var SSHORT = {{'ouvert':'Ouv','bientot':'Bient','attente':'Att',
+                   'inscrit_attente':'Att+','cloture':'Clot','hors_bornes':'HB',
+                   'impossible':'HL','deja_inscrit':'Inscr','ineligible':'Inelig','autre':'?'}};
                  var checkedEps  = $('.ep-chk:checked').map(function()  {{ return $(this).val(); }}).get();
                  var checkedFmts = $('.fmt-chk:checked').map(function() {{ return $(this).val(); }}).get();
                  var lines = [];
@@ -1123,9 +1136,20 @@ function pdfCustomize(doc) {{
                    var fmt   = $(this).attr('data-fmt')    || '';
                    if (checkedEps.length  > 0 && epKey && checkedEps.indexOf(epKey)   === -1) return;
                    if (checkedFmts.length > 0 && fmt   && checkedFmts.indexOf(fmt)    === -1) return;
-                   var nat = $(this).find('.ep-nature').attr('data-abbr') || $(this).find('.ep-nature').text().trim();
-                   var age = $(this).find('.ep-age').attr('data-abbr')    || $(this).find('.ep-age').text().trim();
-                   if (nat) lines.push(nat + (age ? ' ' + age : '') + (fmt ? ' F' + fmt : ''));
+                   var nat   = $(this).find('.ep-nature').attr('data-abbr') || $(this).find('.ep-nature').text().trim();
+                   var age   = $(this).find('.ep-age').attr('data-abbr')    || $(this).find('.ep-age').text().trim();
+                   var range = $(this).find('.ep-range').text().trim().replace(/\\s*\u2192\\s*/g,'→');
+                   var tarif = $(this).find('.ep-tarif').text().trim();
+                   var sc    = $(this).find('.statut-badge').attr('data-statut') || '';
+                   var ss    = SSHORT[sc] || '';
+                   if (nat) {{
+                     var line = nat + (age ? ' '+age : '');
+                     if (range && range !== '?→?') line += ' ' + range;
+                     if (tarif && tarif !== '0€')  line += ' ' + tarif;
+                     if (ss)                        line += ' ' + ss;
+                     if (fmt)                       line += ' F' + fmt;
+                     lines.push(line);
+                   }}
                  }});
                  return lines.join('\\n') || '—';
                }}
