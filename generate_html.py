@@ -1060,7 +1060,15 @@ function pdfCustomize(doc) {{
           {{ text: fTk, fontSize:8, color: fTk ? fClr : '#333', bold: !!fTk, noWrap:true }}
         ]);
       }});
-      row[2] = {{ table: {{ widths:[38,46,17,22,17], body:epBody }}, layout:'noBorders' }};
+      row[2] = {{ table: {{ widths:[38,46,17,22,17], body:epBody }}, layout: {{
+        hLineWidth: function() {{ return 0; }},
+        vLineWidth: function(i, node) {{ return (i > 0 && i < node.table.widths.length) ? 0.5 : 0; }},
+        vLineColor: function() {{ return '#adb5bd'; }},
+        paddingLeft:  function(i) {{ return i === 0 ? 0 : 3; }},
+        paddingRight: function(i, node) {{ return i === node.table.widths.length-1 ? 0 : 3; }},
+        paddingTop:    function() {{ return 1; }},
+        paddingBottom: function() {{ return 1; }}
+      }} }};
     }}
     // Surface (index 3) : abréviations colorées, pas de retour à la ligne
     var srfRaw = typeof row[3] === 'string' ? row[3] : ((row[3] || {{}}).text || '');
@@ -1107,8 +1115,8 @@ function pdfCustomize(doc) {{
              body: function(data, row, column, node) {{
                // Dates (col 0) : "27/04/2026 → 29/04/2026" → deux lignes, sans flèche
                if (column === 0) {{
-                 var txt = $('<div>').html(data).text().replace(/\s+/g,' ').trim();
-                 var parts = txt.split(/\s*[→>]\s*/);
+                 var txt = $('<div>').html(data).text().replace(/\\s+/g,' ').trim();
+                 var parts = txt.split(/\\s*[→>]\\s*/);
                  if (parts.length >= 2 && parts[0].trim() !== parts[1].trim()) {{
                    return parts[0].trim() + '\\n' + parts[1].trim();
                  }}
@@ -1116,7 +1124,7 @@ function pdfCustomize(doc) {{
                }}
                // Tournoi (col 1) : tronqué à 35 caractères
                if (column === 1) {{
-                 var txt = $('<div>').html(data).text().replace(/\s+/g,' ').trim();
+                 var txt = $('<div>').html(data).text().replace(/\\s+/g,' ').trim();
                  return txt.length > 35 ? txt.substring(0, 35) + '\u2026' : txt;
                }}
                // Épreuves (col 4) : pipe-séparé → "SM 13/14|NC-30|10€|HL|F2"
@@ -1166,7 +1174,7 @@ function pdfCustomize(doc) {{
                  var dKm = $tr.attr('data-distance');
                  return dKm ? dKm + ' km' : '—';
                }}
-               return $('<div>').html(data).text().replace(/\s+/g,' ').trim();
+               return $('<div>').html(data).text().replace(/\\s+/g,' ').trim();
              }}
            }}
          }},
