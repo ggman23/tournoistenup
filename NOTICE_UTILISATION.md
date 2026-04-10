@@ -195,14 +195,14 @@ Utile après une correction de bug dans le géocodage.
 |---|---|
 | 🔍 Rechercher | Cherche dans nom, juge, ville, club |
 | Ligue | Sélectionne une ligue → coche automatiquement ses départements |
-| Comités | Sélection multiple de départements (77, 93, 95… simultanément) |
-| Épreuve | Filtre par type + catégorie d'âge (SM 13/14 ans, etc.) |
+| Comités | Panneau multi-sélection de départements (77, 93, 95… simultanément) |
+| Épreuve | Panneau multi-sélection — ex : SM 11/12 ET SM 13/14 en même temps |
 | Vol d'oiseau max (km) | Distance à vol d'oiseau depuis la ville de référence |
 | 🚗 Trajet max (km) | Distance réelle par la route |
 | 🕐 Trajet max (min) | Temps de trajet estimé en voiture |
-| Format | F1 à F7 (coefficient de points) |
-| Statut inscription | Ouvert / Bientôt / Clôturé / Liste d'attente / etc. |
-| Surface | Terre battue, Résine, Béton poreux… |
+| Surface | Panneau multi-sélection — ex : Terre battue ET Résine |
+| Format | Panneau multi-sélection F1-F7 + "sans format" — ex : F2 ET F3 |
+| Statut inscription | Panneau multi-sélection — ex : Ouvert ET Bientôt simultanément |
 | Masquer terminés | Cochée par défaut — cache les tournois dont la date de fin est passée |
 | Nouveaux | Affiche uniquement les tournois apparus au dernier run |
 | TMC | Tournois "Match Compétition" internes |
@@ -211,6 +211,25 @@ Utile après une correction de bug dans le géocodage.
 | Mots à exclure | Ex : `hiver open` → cache tout tournoi contenant ces mots |
 | Dates | Plage de dates de début/fin |
 | ⭐ Favoris | Sauvegardés dans le navigateur (localStorage) |
+
+**Comportement des panneaux multi-sélection :**
+- Cliquer sur le bouton (`Toutes les épreuves ▾`) ouvre le panneau de chips
+- Cocher plusieurs chips → sélection **OU** (ex: SM 11/12 OU SM 13/14)
+- Le bouton passe en bleu et indique le nombre de sélections ("2 sél. ▾")
+- Cliquer en dehors du panneau le ferme
+- Quand le filtre Format est actif, les lignes d'épreuve ne correspondant pas au format
+  sélectionné sont masquées dans la colonne Épreuves (ex : filtre F2 → lignes F4, F7 cachées)
+
+**Statuts d'inscription :**
+| Statut | Signification |
+|---|---|
+| Ouvert | Inscriptions en cours |
+| Bientôt | Date d'ouverture future affichée |
+| Liste d'attente | Tournoi plein — inscription possible en liste d'attente |
+| Inscrit (liste d'attente) | Le joueur est déjà inscrit mais en attente de place |
+| Clôturé | Inscriptions fermées |
+| Déjà inscrit | Le joueur est confirmé inscrit |
+| Non éligible | Catégorie d'âge ou classement hors bornes |
 
 ---
 
@@ -224,7 +243,7 @@ Le rapport propose 3 vues accessibles via les onglets en haut du tableau :
 | 📅 Calendrier | Vue mensuelle — nombre de tournois par jour, clic pour voir la liste |
 | 📊 Gantt | Diagramme de Gantt — barres de durée des tournois sur un axe temporel |
 
-Les vues Calendrier et Gantt respectent les filtres actifs (mêmes tournois que le tableau).
+Toutes les vues respectent les filtres actifs (mêmes tournois que le tableau).
 Navigation mois par mois dans le calendrier. Clic sur une barre Gantt ouvre TenUp.
 
 ---

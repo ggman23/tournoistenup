@@ -129,8 +129,19 @@ La structure HTML : `div.epreuve-step-0` (1 par épreuve), avec `div.epreuve-det
 le message (vide = ouvert). La présence de la classe CSS `title-closed` sur ce bloc indique
 que l'inscription est bloquée, même sans message explicite.
 
-**Statuts normalisés :** `ouvert`, `bientot`, `attente`, `cloture`, `hors_bornes`,
-`impossible`, `deja_inscrit`, `ineligible`, `autre`
+**Statuts normalisés :** `ouvert`, `bientot`, `attente`, `inscrit_attente`, `cloture`,
+`hors_bornes`, `impossible`, `deja_inscrit`, `ineligible`, `autre`
+
+**Distinction `attente` vs `inscrit_attente` :**
+- `attente` : le tournoi accepte de nouvelles inscriptions mais uniquement sur liste d'attente
+  (cas général — affiché si le message contient "attente" sans mention personnelle)
+- `inscrit_attente` : le joueur est **déjà inscrit** et se retrouve en liste d'attente
+  (détecté si le message contient aussi "inscrit" / "vous êtes" / "vous etes")
+
+**Note bug TenUp :** depuis avril 2026, TenUp a un bug qui empêche l'affichage du message
+"liste d'attente" sur certaines pages de détail (le div `epreuve-detail-info` est vide même
+quand le tournoi est plein). Contournement partiel : scan des boutons et classes CSS
+`attente`/`waiting` dans le bloc épreuve. Ce bug est côté TenUp.
 
 **Commande dédiée `--enrich-statut-only` :**
 Re-fetcher les statuts sans re-fetcher les formats. Ignore automatiquement les tournois
@@ -175,6 +186,46 @@ $.fn.dataTable.ext.search.push(function(settings, _data, index) {
 **Pourquoi stocker les données en `data-*` sur le `<tr>` :** Les colonnes HTML contiennent
 du HTML mis en forme (badges, liens) — le filtrer par `.text()` est fragile. Les `data-*`
 contiennent les valeurs brutes (distance en km, code département, format numérique…).
+
+#### Filtres multi-sélection par panneaux de chips
+
+Quatre filtres utilisent des panneaux de chips à sélection multiple (comme les comités) :
+**Épreuve**, **Surface**, **Format**, **Statut**. Les anciens `<select>` ont été remplacés.
+
+Mécanisme :
+- Chaque chip est un `<label>` contenant un `<input type="checkbox">` (classes `.ep-chk`,
+  `.surf-chk`, `.fmt-chk`, `.statut-chk`)
+- Le bouton déclencheur affiche "N sél. ▾" et passe en bleu quand des items sont sélectionnés
+- `toggleMultiPanel()` gère l'ouverture/fermeture ; un listener `click` sur `$(document)`
+  ferme le panneau ouvert si le clic est en dehors
+- `onEpChange()` / `onSurfChange()` / `onFmtChange()` / `onStatutChange()` appellent
+  `updateMultiBtn()` + `applyFilters()` (et `applyEpLineFilter()` pour ep/fmt)
+
+```javascript
+// Logique du filtre format dans DataTables search
+var checkedFmts = $('.fmt-chk:checked').map(function() { return $(this).val(); }).get();
+if (checkedFmts.length > 0 || inclNoFmt) {
+    var fmts = ($tr.attr('data-fmt') || '').split(',').filter(Boolean);
+    var hasMatch = checkedFmts.some(function(f) { return fmts.indexOf(f) !== -1; });
+    if (!hasMatch && !(inclNoFmt && !hasFmt)) return false;
+}
+```
+
+#### Filtrage des lignes d'épreuve par format
+
+Chaque `.ep-line` reçoit un attribut `data-fmt` avec le numéro de format de cette épreuve
+spécifique (ex : `data-fmt="2"` pour SM 11/12 F2, `data-fmt="4"` pour SM 13/14 F4 dans
+le même tournoi). Quand le filtre format est actif, `applyEpLineFilter()` injecte une règle
+CSS pour masquer les lignes dont le format ne correspond pas :
+
+```javascript
+// Masque les ep-lines avec format connu mais non sélectionné
+var fmtNotSel = checkedFmts.map(function(f) { return ':not([data-fmt="' + f + '"])'; }).join('');
+css += '.ep-line:not([data-fmt=""])' + fmtNotSel + ' { display:none !important; }';
+```
+
+Ainsi, un tournoi avec SM 11/12 (F2) et SM 13/14 (F4) filtrée sur F2 : le tournoi reste
+visible (sa ligne `<tr>` a `data-fmt="2,4"`), mais seule la ligne SM 11/12 est affichée.
 
 #### Filtre ligue → départements
 
@@ -434,3 +485,7 @@ Le scraper récupère tous les tournois dans le rayon demandé. Seules les ligne
 correspondant aux codes dans cette liste sont affichées dans le rapport HTML.
 Valeurs possibles : `SM` (Simple Messieurs), `SD` (Simple Dames), `DM` (Double Messieurs),
 `DD` (Double Dames), `DX` (Double Mixte).
+
+---
+
+*Document créé le 09/04/2026 — mis à jour le 10/04/2026.*

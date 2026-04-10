@@ -33,43 +33,43 @@
 | Favoris | Sauvegardés en localStorage dans le navigateur |
 | Masquer Vert/Orange | Filtre tournois débutants par mot-clé dans le nom |
 | Statut d'inscription | Badge par épreuve (Ouvert/Bientôt/Clôturé/etc.), filtre, fraîcheur 24h, commentaire club |
+| Distintion inscrit/attente | Distingue "déjà inscrit en attente" vs "inscription → liste d'attente générale" |
+| Filtres multi-sélection | Épreuve, Surface, Format, Statut passés en panneaux de chips (sélection multiple OR) |
+| Filtrage lignes épreuves | Quand filtre Format actif, masque les lignes d'épreuves de format non sélectionné |
+| Vues Calendrier + Gantt | Onglets Calendrier mensuel et Gantt respectant les filtres actifs |
 
 ---
 
 ## Sélectionné — à implémenter 🔵
 
-### 1. Statut d'inscription (PRIORITÉ 1) — ✅ Implémenté le 09/04/2026
+### 1. Vue Carte (PRIORITÉ 1)
 
-**Objectif :** Récupérer et afficher le statut actuel des inscriptions de chaque tournoi.
+**Objectif :** Quatrième onglet "🗺️ Carte" à côté de Calendrier et Gantt, affichant les
+tournois filtrés sur une carte interactive centrée sur la ville de référence (ex : Vaires-sur-Marne).
 
-**Ce que TenUp affiche sur les pages de détail :**
-- "Inscriptions ouvertes"
-- "Inscriptions closes"
-- "Liste d'attente"
-- "Inscriptions ouvertes à partir du JJ/MM/AAAA"
-- Parfois un commentaire libre du club
+**Comportement attendu :**
+- Carte interactive (Leaflet.js, tuiles OpenStreetMap — gratuit, sans clé API)
+- Un marqueur par tournoi, coloré selon le format (F1 = rouge, F2 = orange…) ou le statut
+- La carte respecte les filtres actifs (mêmes tournois que les autres vues)
+- **Survol** d'un marqueur → bulle de prévisualisation : nom, dates, format, distance, statut
+- **Clic sur la bulle** (ou sur le marqueur) → ouvre TenUp dans un nouvel onglet
+- Re-rendu automatique quand les filtres changent (via `drawCallback` comme Calendrier/Gantt)
+- La ville de référence est marquée d'un point distinct (étoile ou cercle plein)
 
-**Complexité anticipée :** Élevée — comme pour les formats F1-F7, cette information est
-probablement dans une div spécifique qui peut être rendue côté serveur ou côté JS selon
-les tournois. Certaines pages ont une structure différente. Risque de variabilité.
+**Données disponibles :**
+- `geo_lat` / `geo_lng` stockés dans `enriched` (calculés par `enrich_geo.py`)
+- Déjà exposés dans les attributs `data-*` du `<tr>` (`data-lat`, `data-lng` à ajouter)
+- Les tournois sans coordonnées (non encore géocodés) sont ignorés silencieusement
 
 **Architecture proposée :**
-- Ajout dans `enrich.py` : récupérer le statut lors de l'enrichissement existant
-  (même requête HTTP, même session avec cookies → pas de coût supplémentaire)
-- Stocker dans `enriched` :
-  ```json
-  "statut_inscription": "Liste d'attente",
-  "statut_fetched_at": "2026-04-09T13:00:00"
-  ```
-- Affichage HTML : badge coloré dans une nouvelle colonne ou dans la colonne Épreuves
-- Indicateur de fraîcheur : ⚠️ si `statut_fetched_at` > 24h
-- Filtre : "Inscriptions ouvertes" / "Liste d'attente" / "Closes"
-- Flag `statut_fetch_failed` si la page ne contient pas l'info (comme `no_format_in_html`)
+- Leaflet.js chargé depuis CDN (une balise `<script>` et `<link>` supplémentaires)
+- Pas de backend : les coordonnées sont encodées dans les `data-*` du tableau HTML
+- `renderMap()` analogue à `renderCalendar()` / `renderGantt()` — lit `getFilteredData()`
+- Popup Leaflet avec le mini-résumé du tournoi et un bouton "Ouvrir TenUp"
+- Ajout de `data-lat` / `data-lng` sur les `<tr>` dans `generate_html.py`
 
-**À investiguer avant de coder :**
-- Inspecter 5-6 pages de tournois aux statuts différents pour identifier les sélecteurs CSS
-- Vérifier si le statut est dans le HTML statique ou dans du JS
-- Identifier si la structure varie selon le type de tournoi (TMC vs standard)
+**Complexité :** Faible à moyenne — Leaflet est simple, les données sont déjà là.
+Seul point délicat : gestion des marqueurs (recréer à chaque re-rendu sans fuite mémoire).
 
 ---
 
@@ -90,53 +90,6 @@ sont détectés dans la zone surveillée.
   }
   ```
 - Optionnel : résumé quotidien même sans nouveaux tournois ("Scan terminé, 0 nouveaux")
-
-**Prérequis utilisateur :**
-1. Créer un bot Telegram via @BotFather → obtenir `bot_token`
-2. Obtenir son `chat_id` (envoyer un message au bot, récupérer l'ID via l'API)
-3. Renseigner dans `config.json`
-
----
-
-### 2. Calendrier visuel + Gantt (PRIORITÉ 2) — ✅ Implémenté le 09/04/2026
-
-**Objectif :** Deux vues complémentaires au tableau, respectant les filtres actifs.
-
-**Vue Calendrier :**
-- Grille mensuelle (Lun-Dim), navigation mois par mois
-- Chaque case affiche le nombre de tournois débutant ce jour + chips colorées (format)
-- Clic sur une case → panneau de détail avec liens TenUp, badges format + statut
-- Démarre automatiquement sur le premier mois avec des tournois
-
-**Vue Gantt :**
-- Axe temporel sur toute la plage des tournois filtrés
-- Une barre par tournoi (dateDebut → dateFin), colorée par format
-- Étiquettes des mois sur l'axe X, ville dans la barre si assez large
-- Clic sur une barre → ouvre TenUp
-- Scrollable verticalement (max 500px) pour les listes longues
-
-**Architecture :** 100% JS/CSS dans `generate_html.py`, onglets Tableau / Calendrier / Gantt.
-Les données sont lues depuis les attributs `data-*` des `<tr>` DataTables déjà présents.
-Re-rendu automatique quand les filtres changent (via `drawCallback`).
-
----
-
-### 3. Notifications Telegram (PRIORITÉ 3)
-
-**Objectif :** Recevoir un message Telegram automatiquement quand de nouveaux tournois
-sont détectés dans la zone surveillée.
-
-**Architecture proposée :**
-- `notify_telegram.py` : ~30 lignes, appelle l'API Telegram Bot
-- Déclenché à la fin de `main.py` si `new_tournaments` non vide
-- Message formaté : nom, dates, ville, distance, format, lien TenUp
-- Configuration dans `config.json` :
-  ```json
-  "telegram": {
-    "bot_token": "XXXX:YYYY",
-    "chat_id": "123456789"
-  }
-  ```
 
 **Prérequis utilisateur :**
 1. Créer un bot Telegram via @BotFather → obtenir `bot_token`
@@ -184,4 +137,4 @@ la consultation. L'architecture serait identique à `cookie_server.py` :
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour au fil des développements.*
+*Document créé le 09/04/2026 — mis à jour le 10/04/2026.*
