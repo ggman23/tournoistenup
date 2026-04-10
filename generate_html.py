@@ -1031,7 +1031,8 @@ function pdfCustomize(doc) {{
   }}
   if (!tbl) return;
   // Colonnes exportées : Dates | Tournoi* | Catégorie | Épreuves | Surface | Ville | Distance
-  tbl.table.widths = [38, '*', 50, 85, 24, 55, 40];
+  // Paysage A4 (~760pt utiles) → on peut être plus généreux
+  tbl.table.widths = [46, '*', 52, 100, 26, 65, 50];
   var FC = {{'1':'#c0392b','2':'#e67e22','3':'#f39c12','4':'#27ae60','5':'#2980b9','6':'#8e44ad','7':'#7f8c8d'}};
   var SC = {{'TB':'#c0392b','TA':'#e67e22','R':'#2980b9','BP':'#7f8c8d','D':'#95a5a6','G':'#27ae60','M':'#8e44ad','?':'#bdc3c7'}};
   tbl.table.body.forEach(function(row, ri) {{
@@ -1086,11 +1087,21 @@ function pdfCustomize(doc) {{
       {{ text:'🖨 Print', className:'btn-sm btn-outline-secondary',
          action: function() {{ window.print(); }} }},
       {{ extend:'pdfHtml5', text:'📑 PDF', className:'btn-sm btn-outline-danger',
-         orientation:'portrait', pageSize:'A4',
+         orientation:'landscape', pageSize:'A4',
          exportOptions:{{
            columns:[0,1,2,4,5,6,7],
            format:{{
              body: function(data, row, column, node) {{
+               // Dates (col 0) : "27/04/2026 → 29/04/2026" → deux lignes, sans flèche
+               if (column === 0) {{
+                 var txt = $('<div>').html(data).text().replace(/\s+/g,' ').trim();
+                 var parts = txt.split(/\s*[→>]\s*/);
+                 if (parts.length >= 2 && parts[0].trim() !== parts[1].trim()) {{
+                   return parts[0].trim() + '\\n' + parts[1].trim();
+                 }}
+                 return parts[0].trim();
+               }}
+               // Épreuves (col 4) : abréviations + format colorisé
                if (column === 4) {{
                  var lines = [];
                  $(node).find('.ep-line').each(function() {{
@@ -1102,12 +1113,22 @@ function pdfCustomize(doc) {{
                  }});
                  return lines.join('\\n') || '—';
                }}
+               // Surfaces (col 5) : abréviations colorées
                if (column === 5) {{
                  var SABBR = {{'terre battue':'TB','terre artificielle':'TA','résine':'R','béton poreux':'BP','dur':'D','gazon':'G','moquette':'M','autre':'?'}};
                  var abbrs = $(node).find('.srf-badge').map(function() {{
                    return SABBR[$(this).text().trim().toLowerCase()] || $(this).text().trim().substring(0,2).toUpperCase();
                  }}).get();
                  return abbrs.join('/') || '—';
+               }}
+               // Distance (col 7) : "27.1 km / 36 min" (route) ou "24.5 km" (vol d'oiseau)
+               if (column === 7) {{
+                 var $tr = $(node).closest('tr');
+                 var rKm  = $tr.attr('data-road-km');
+                 var rMin = $tr.attr('data-road-min');
+                 if (rKm && rMin) return rKm + ' km / ' + rMin + ' min';
+                 var dKm = $tr.attr('data-distance');
+                 return dKm ? dKm + ' km' : '—';
                }}
                return $('<div>').html(data).text().replace(/\s+/g,' ').trim();
              }}

@@ -149,6 +149,8 @@ def parse_args():
                    help="Refresh inscription status only (no scraping, no format re-fetch)")
     p.add_argument("--fix-encoding", action="store_true",
                    help="Fix corrupted UTF-8 strings in existing JSON data, then regenerate HTML")
+    p.add_argument("--refresh", action="store_true",
+                   help="Tout-en-un : fix-encoding + enrich-only (retries) + enrich-statut-only")
     return p.parse_args()
 
 
@@ -179,7 +181,7 @@ def main():
         return val
 
     do_scrape = not (args.html_only or args.enrich_only or args.enrich_geo_only
-                     or args.enrich_statut_only or args.fix_encoding)
+                     or args.enrich_statut_only or args.fix_encoding or args.refresh)
 
     # City
     if args.city:
@@ -245,6 +247,51 @@ def main():
         history = load_json(history_file)
         new_ids = set(history.get("last_new_ids", []))
         only_natures = config["search"].get("epreuves") or None
+        generate_html(
+            tournaments, html_file, new_ids=new_ids,
+            fetched_at=saved.get("fetched_at", ""), only_natures=only_natures,
+            ref_lat=config["search"]["ville"].get("lat", 0.0),
+            ref_lng=config["search"]["ville"].get("lng", 0.0),
+            ref_city=config["search"]["ville"].get("label", ""),
+        )
+        sys.exit(0)
+
+    # ── Refresh mode : fix-encoding + enrich (retries) + statuts en une passe ─
+    if args.refresh:
+        if not os.path.exists(data_file):
+            logger.error("No data file found at %s — run a full scrape first.", data_file)
+            sys.exit(1)
+        import json as _json, datetime as _dt
+        saved       = load_json(data_file)
+        tournaments = saved.get("tournaments", [])
+        cookies_file = args.cookies or os.environ.get("TENUP_COOKIES_FILE")
+        only_natures = config["search"].get("epreuves") or None
+
+        # 1) Fix encodage des textes corrompus
+        fixed_count = sum(1 for t in tournaments if fix_encoding_in_tournament(t))
+        logger.info("[refresh] Encodage corrigé : %d / %d tournois", fixed_count, len(tournaments))
+
+        # 2) Ré-enrichissement (formats manquants + retries de contenu)
+        enrich_scraper = TenupScraper(config, cookies_file=cookies_file)
+        enrich_all(
+            tournaments, enrich_scraper.session,
+            delay_s=1.5, max_enrich=args.enrich_max,
+            cookies_file=cookies_file,
+        )
+
+        # 3) Rafraîchissement des statuts d'inscription + commentaires
+        enrich_statut_all(tournaments, enrich_scraper.session,
+                          delay_s=1.5, cookies_file=cookies_file)
+
+        # Sauvegarde
+        saved["tournaments"] = tournaments
+        saved["fetched_at"]  = saved.get("fetched_at", _dt.datetime.utcnow().isoformat())
+        os.makedirs(os.path.dirname(data_file) or ".", exist_ok=True)
+        with open(data_file, "w", encoding="utf-8") as f:
+            _json.dump(saved, f, ensure_ascii=False, indent=2)
+
+        history = load_json(history_file)
+        new_ids = set()   # pas de détection de nouveaux tournois en mode refresh
         generate_html(
             tournaments, html_file, new_ids=new_ids,
             fetched_at=saved.get("fetched_at", ""), only_natures=only_natures,
