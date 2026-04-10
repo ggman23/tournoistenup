@@ -1022,12 +1022,19 @@ $(function() {{
 
 // ── Export PDF : mise en forme personnalisée ─────────────────────────────────
 function pdfCustomize(doc) {{
+  // IMPORTANT : on fusionne (et non remplace) defaultStyle pour préserver la police pdfmake
+  doc.defaultStyle = Object.assign(doc.defaultStyle || {{}}, {{ fontSize: 8 }});
+  // Recherche robuste de la table (peut être doc.content[0] ou [1] selon DataTables)
+  var tbl = null;
+  for (var ci = 0; ci < doc.content.length; ci++) {{
+    if (doc.content[ci] && doc.content[ci].table) {{ tbl = doc.content[ci]; break; }}
+  }}
+  if (!tbl) return;
   // Colonnes exportées : Dates | Tournoi* | Catégorie | Épreuves | Surface | Ville | Distance
-  doc.content[0].table.widths = [38, '*', 50, 85, 24, 55, 40];
-  doc.defaultStyle = {{ fontSize: 8 }};
+  tbl.table.widths = [38, '*', 50, 85, 24, 55, 40];
   var FC = {{'1':'#c0392b','2':'#e67e22','3':'#f39c12','4':'#27ae60','5':'#2980b9','6':'#8e44ad','7':'#7f8c8d'}};
   var SC = {{'TB':'#c0392b','TA':'#e67e22','R':'#2980b9','BP':'#7f8c8d','D':'#95a5a6','G':'#27ae60','M':'#8e44ad','?':'#bdc3c7'}};
-  doc.content[0].table.body.forEach(function(row, ri) {{
+  tbl.table.body.forEach(function(row, ri) {{
     if (ri === 0) {{
       row.forEach(function(c) {{ if (c && typeof c === 'object') {{ c.fillColor = '#343a40'; c.color = '#fff'; }} }});
       return;
@@ -1048,7 +1055,7 @@ function pdfCustomize(doc) {{
     }}
     // Colonne Surface (index 4) → abréviations colorées
     var srfRaw = typeof row[4] === 'string' ? row[4] : ((row[4] || {{}}).text || '');
-    if (srfRaw && srfRaw !== '—') {{
+    if (srfRaw && srfRaw !== '\u2014') {{
       var srfContent = [];
       srfRaw.split('/').forEach(function(a, si) {{
         if (si > 0) srfContent.push({{ text: ' ' }});
