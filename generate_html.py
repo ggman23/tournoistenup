@@ -419,6 +419,54 @@ def generate_html(
     for key, lbl in epreuve_options:
         ep_options_html += f'<option value="{html.escape(key)}">{html.escape(lbl)}</option>\n'
 
+    # Chips épreuves
+    import re as _re
+    ep_chips_html = ""
+    for key, lbl in epreuve_options:
+        short = lbl
+        for full, abbr in [("Simple Messieurs","SM"),("Simple Dames","SD"),("Double Messieurs","DM"),("Double Dames","DD"),("Double Mixte","DX")]:
+            if full in lbl:
+                rest = lbl.replace(full,"").strip()
+                rest = _re.sub(r'\bans\b','',rest).strip()
+                short = f"{abbr} {rest}"
+                break
+        ep_chips_html += (
+            f'<label class="dept-chip">'
+            f'<input type="checkbox" class="ep-chk" value="{html.escape(key)}" onchange="onEpChange()"> '
+            f'{html.escape(short)}</label>'
+        )
+
+    # Chips surface
+    surf_chips_html = "".join(
+        f'<label class="dept-chip">'
+        f'<input type="checkbox" class="surf-chk" value="{label.lower()}" onchange="onSurfChange()"> '
+        f'{label}</label>'
+        for _code, (label, _color) in SURFACE_COLORS.items()
+    )
+
+    # Chips format F1-F7
+    fmt_chips_html = "".join(
+        f'<label class="dept-chip">'
+        f'<input type="checkbox" class="fmt-chk" value="{i}" onchange="onFmtChange()"> '
+        f'<span style="background:{FORMAT_COLORS[str(i)]};color:white;border-radius:2px;padding:0 3px;font-size:.8em;margin-right:2px">F{i}</span>'
+        f'</label>'
+        for i in range(1, 8)
+    )
+    fmt_chips_html += (
+        '<label class="dept-chip" style="margin-left:6px">'
+        '<input type="checkbox" id="chk-no-fmt" onchange="onFmtChange()"> + sans format</label>'
+    )
+
+    # Chips statut
+    statut_chips_html = "".join(
+        f'<label class="dept-chip">'
+        f'<input type="checkbox" class="statut-chk" value="{code}" onchange="onStatutChange()"> '
+        f'<span style="background:{color};color:white;border-radius:2px;padding:0 3px;font-size:.8em;margin-right:2px">●</span>'
+        f'{html.escape(label)}</label>'
+        for code, (color, label) in STATUT_CONFIG.items()
+        if code != "autre"
+    )
+
     html_content = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -462,6 +510,7 @@ def generate_html(
                  background:#f8f9fa; white-space:nowrap; }}
     .dept-chip:has(input:checked) {{ background:#0d6efd; color:white; border-color:#0d6efd; }}
     .dept-chip input {{ display:none; }}
+    .multi-panel {{ position:absolute; z-index:200; background:white; border:1px solid #dee2e6; border-radius:6px; padding:8px 10px; box-shadow:0 3px 10px rgba(0,0,0,.12); min-width:220px; max-width:420px; max-height:280px; overflow-y:auto; }}
     /* ── Vue onglets ──────────────────────────────────────────────────────── */
     .view-tab {{ transition:all .15s; }}
     /* ── Calendrier ──────────────────────────────────────────────────────── */
@@ -589,12 +638,14 @@ def generate_html(
 
     <div class="row g-2 align-items-end">
 
-      <div class="col-auto">
-        <label class="form-label mb-1 fw-semibold small">Épreuve</label>
-        <select class="form-select form-select-sm" id="filter-epreuve"
-                style="min-width:220px" onchange="applyFilters()">
-          {ep_options_html}
-        </select>
+      <div class="col-auto" style="position:relative">
+        <label class="form-label mb-1 fw-semibold small">Épreuve</label><br>
+        <button class="btn btn-sm btn-outline-primary" id="btn-ep"
+                onclick="toggleMultiPanel('panel-ep','btn-ep')">
+          Toutes les épreuves ▾</button>
+        <div id="panel-ep" class="multi-panel" style="display:none">
+          {ep_chips_html}
+        </div>
       </div>
 
       <div class="col-auto">
@@ -615,51 +666,34 @@ def generate_html(
                placeholder="ex: 45" style="width:110px" oninput="applyFilters()">
       </div>
 
-      <div class="col-auto">
-        <label class="form-label mb-1 fw-semibold small">Surface</label>
-        <select class="form-select form-select-sm" id="filter-surface"
-                style="min-width:150px" onchange="applyFilters()">
-          <option value="">Toutes</option>
-          <option>Résine</option>
-          <option>Terre battue</option>
-          <option>Terre artificielle</option>
-          <option>Béton poreux</option>
-          <option>Gazon</option>
-          <option>Moquette</option>
-        </select>
-      </div>
-
-      <div class="col-auto">
-        <label class="form-label mb-1 fw-semibold small">Format</label>
-        <select class="form-select form-select-sm" id="filter-format"
-                style="width:110px" onchange="applyFilters()">
-          <option value="">Tous</option>
-          <option value="1">F1</option><option value="2">F2</option>
-          <option value="3">F3</option><option value="4">F4</option>
-          <option value="5">F5</option><option value="6">F6</option>
-          <option value="7">F7</option>
-        </select>
-        <div class="form-check mt-1">
-          <input class="form-check-input" type="checkbox" id="chk-no-fmt" onchange="applyFilters()">
-          <label class="form-check-label small" for="chk-no-fmt">+ sans format</label>
+      <div class="col-auto" style="position:relative">
+        <label class="form-label mb-1 fw-semibold small">Surface</label><br>
+        <button class="btn btn-sm btn-outline-primary" id="btn-surf"
+                onclick="toggleMultiPanel('panel-surf','btn-surf')">
+          Toutes ▾</button>
+        <div id="panel-surf" class="multi-panel" style="display:none">
+          {surf_chips_html}
         </div>
       </div>
 
-      <div class="col-auto">
-        <label class="form-label mb-1 fw-semibold small">Statut inscription</label>
-        <select class="form-select form-select-sm" id="filter-statut"
-                style="min-width:175px" onchange="applyFilters()">
-          <option value="">Tous statuts</option>
-          <option value="ouvert">✅ Ouvert</option>
-          <option value="bientot">🔵 Bientôt</option>
-          <option value="attente">🟠 Liste d'attente</option>
-          <option value="inscrit_attente">🟤 Inscrit (liste d'attente)</option>
-          <option value="cloture">🔴 Clôturé</option>
-          <option value="impossible">⬜ Hors ligne</option>
-          <option value="hors_bornes">⬜ Hors bornes</option>
-          <option value="deja_inscrit">🟢 Déjà inscrit</option>
-          <option value="ineligible">⬛ Non éligible</option>
-        </select>
+      <div class="col-auto" style="position:relative">
+        <label class="form-label mb-1 fw-semibold small">Format</label><br>
+        <button class="btn btn-sm btn-outline-primary" id="btn-fmt"
+                onclick="toggleMultiPanel('panel-fmt','btn-fmt')">
+          Tous ▾</button>
+        <div id="panel-fmt" class="multi-panel" style="display:none">
+          {fmt_chips_html}
+        </div>
+      </div>
+
+      <div class="col-auto" style="position:relative">
+        <label class="form-label mb-1 fw-semibold small">Statut inscription</label><br>
+        <button class="btn btn-sm btn-outline-primary" id="btn-statut"
+                onclick="toggleMultiPanel('panel-statut','btn-statut')">
+          Tous statuts ▾</button>
+        <div id="panel-statut" class="multi-panel" style="display:none">
+          {statut_chips_html}
+        </div>
       </div>
 
       <div class="col-auto">
@@ -798,10 +832,8 @@ $(function() {{
     if (!node) return true;
     var $tr = $(node);
 
-    var epKey    = $('#filter-epreuve').val();
+    var checkedEpreuves = $('.ep-chk:checked').map(function() {{ return $(this).val(); }}).get();
     var maxDist  = parseFloat($('#filter-distance').val()) || null;
-    var surface  = $('#filter-surface').val().toLowerCase();
-    var fmt      = $('#filter-format').val();
     var onlyNew  = $('#chk-new').prop('checked');
     var onlyTmc  = $('#chk-tmc').prop('checked');
     var onlyInsc = $('#chk-insc').prop('checked');
@@ -814,9 +846,9 @@ $(function() {{
       if (checkedDepts.indexOf(dept) === -1) return false;
     }}
 
-    if (epKey) {{
+    if (checkedEpreuves.length > 0) {{
       var keys = JSON.parse($tr.attr('data-ep-keys') || '[]');
-      if (keys.indexOf(epKey) === -1) return false;
+      if (!checkedEpreuves.some(function(e) {{ return keys.indexOf(e) !== -1; }})) return false;
     }}
     if (maxDist !== null && (parseFloat($tr.attr('data-distance')) || 0) > maxDist) return false;
 
@@ -831,12 +863,18 @@ $(function() {{
       if (!roadMin || parseFloat(roadMin) > maxRoadMin) return false;
     }}
 
-    if (surface && $tr.find('td:nth-child(6)').text().toLowerCase().indexOf(surface) === -1) return false;
-    if (fmt) {{
-      var fmts      = ($tr.attr('data-fmt') || '').split(',');
+    var checkedSurfs = $('.surf-chk:checked').map(function() {{ return $(this).val(); }}).get();
+    if (checkedSurfs.length > 0) {{
+      var cellSurf = $tr.find('td:nth-child(6)').text().toLowerCase();
+      if (!checkedSurfs.some(function(s) {{ return cellSurf.indexOf(s) !== -1; }})) return false;
+    }}
+    var checkedFmts = $('.fmt-chk:checked').map(function() {{ return $(this).val(); }}).get();
+    var inclNoFmt = $('#chk-no-fmt').prop('checked');
+    if (checkedFmts.length > 0 || inclNoFmt) {{
+      var fmts      = ($tr.attr('data-fmt') || '').split(',').filter(Boolean);
       var hasFmt    = $tr.attr('data-has-format') === 'true';
-      var inclNoFmt = $('#chk-no-fmt').prop('checked');
-      if (fmts.indexOf(fmt) === -1 && !(inclNoFmt && !hasFmt)) return false;
+      var hasMatch  = checkedFmts.some(function(f) {{ return fmts.indexOf(f) !== -1; }});
+      if (!hasMatch && !(inclNoFmt && !hasFmt)) return false;
     }}
     // ── Masquer tournois terminés (date de fin dépassée) ─────────────────────
     if ($('#chk-hide-past').prop('checked')) {{
@@ -850,10 +888,10 @@ $(function() {{
       }}
     }}
 
-    var filterStatut = $('#filter-statut').val();
-    if (filterStatut) {{
+    var checkedStatuts = $('.statut-chk:checked').map(function() {{ return $(this).val(); }}).get();
+    if (checkedStatuts.length > 0) {{
       var statuts = JSON.parse($tr.attr('data-statuts') || '[]');
-      if (statuts.indexOf(filterStatut) === -1) return false;
+      if (!checkedStatuts.some(function(s) {{ return statuts.indexOf(s) !== -1; }})) return false;
     }}
 
     if (onlyNew  && $tr.attr('data-new') !== 'true')  return false;
@@ -919,6 +957,13 @@ $(function() {{
       $('#view-info').text(n + ' tournois dans la vue');
       if (currentView === 'calendar') renderCalendar();
       if (currentView === 'gantt')    renderGantt();
+    }}
+  }});
+
+  // Close multi-panels when clicking outside
+  $(document).on('click.multiPanel', function(e) {{
+    if (!$(e.target).closest('.multi-panel, [id^="btn-ep"], [id^="btn-surf"], [id^="btn-fmt"], [id^="btn-statut"]').length) {{
+      $('.multi-panel').hide();
     }}
   }});
 }});
@@ -999,11 +1044,12 @@ function updateDeptBtn() {{
 }}
 
 function applyEpLineFilter() {{
-  var epKey = $('#filter-epreuve').val();
+  var checked = $('.ep-chk:checked').map(function() {{ return $(this).val(); }}).get();
   $('#ep-line-filter-style').remove();
-  if (epKey) {{
+  if (checked.length > 0) {{
+    var notSel = checked.map(function(k) {{ return ':not([data-ep-key="' + k + '"])'; }}).join('');
     $('<style id="ep-line-filter-style">')
-      .text('.ep-line:not([data-ep-key="' + epKey + '"]) {{ display:none !important; }}')
+      .text('.ep-line' + notSel + ' {{ display:none !important; }}')
       .appendTo('head');
   }}
 }}
@@ -1035,17 +1081,56 @@ function restoreFavs() {{
 }}
 
 function resetFilters() {{
-  $('#filter-epreuve, #filter-surface, #filter-format, #filter-statut').val('');
   $('#filter-distance, #filter-road-km, #filter-road-min, #filter-exclude').val('');
   $('#filter-date-start, #filter-date-end').val('');
   $('#filter-ligue').val('');
   $('.dept-chk').prop('checked', false);
   updateDeptBtn();
-  $('#chk-new, #chk-tmc, #chk-insc, #chk-fav, #chk-no-fmt').prop('checked', false);
+  $('#chk-new, #chk-tmc, #chk-insc, #chk-fav').prop('checked', false);
   $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
   $('#chk-hide-past').prop('checked', true);  // remet masquer-terminés coché par défaut
   $('#filter-search').val('');
+  $('.ep-chk, .surf-chk, .fmt-chk, .statut-chk, #chk-no-fmt').prop('checked', false);
+  $('#btn-ep').text('Toutes les épreuves ▾').removeClass('btn-primary').addClass('btn-outline-primary');
+  $('#btn-surf').text('Toutes ▾').removeClass('btn-primary').addClass('btn-outline-primary');
+  $('#btn-fmt').text('Tous ▾').removeClass('btn-primary').addClass('btn-outline-primary');
+  $('#btn-statut').text('Tous statuts ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   if (dt) {{ dt.search('').draw(); }} else {{ applyFilters(); }}
+}}
+
+// ── Multi-select panels ───────────────────────────────────────────────────────
+function toggleMultiPanel(panelId, btnId) {{
+  var isOpen = $('#' + panelId).is(':visible');
+  $('.multi-panel').hide();
+  if (!isOpen) $('#' + panelId).show();
+}}
+
+function updateMultiBtn(btnId, cls, allLabel) {{
+  var n = $(cls + ':checked').length;
+  var btn = $('#' + btnId);
+  btn.text(n === 0 ? allLabel + ' ▾' : n + ' sél. ▾');
+  btn.toggleClass('btn-primary', n > 0).toggleClass('btn-outline-primary', n === 0);
+}}
+
+function onEpChange() {{
+  updateMultiBtn('btn-ep', '.ep-chk', 'Toutes les épreuves');
+  applyEpLineFilter();
+  applyFilters();
+}}
+
+function onSurfChange() {{
+  updateMultiBtn('btn-surf', '.surf-chk', 'Toutes');
+  applyFilters();
+}}
+
+function onFmtChange() {{
+  updateMultiBtn('btn-fmt', '.fmt-chk', 'Tous');
+  applyFilters();
+}}
+
+function onStatutChange() {{
+  updateMultiBtn('btn-statut', '.statut-chk', 'Tous statuts');
+  applyFilters();
 }}
 
 // ── Gestion des vues (Tableau / Calendrier / Gantt) ──────────────────────────
