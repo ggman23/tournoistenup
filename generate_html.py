@@ -449,13 +449,19 @@ def generate_html(
             f'{html.escape(short)}</label>'
         )
 
-    # Chips surface
-    surf_chips_html = "".join(
-        f'<label class="dept-chip">'
-        f'<input type="checkbox" class="surf-chk" value="{label.lower()}" onchange="onSurfChange()"> '
-        f'{label}</label>'
-        for _code, (label, _color) in SURFACE_COLORS.items()
-    )
+    # Chips surface (déduplication par label pour éviter "Dur" en double)
+    _seen_surf: set[str] = set()
+    surf_chips_parts = []
+    for _code, (label, _color) in SURFACE_COLORS.items():
+        key = label.lower()
+        if key not in _seen_surf:
+            _seen_surf.add(key)
+            surf_chips_parts.append(
+                f'<label class="dept-chip">'
+                f'<input type="checkbox" class="surf-chk" value="{key}" onchange="onSurfChange()"> '
+                f'{label}</label>'
+            )
+    surf_chips_html = "".join(surf_chips_parts)
 
     # Chips format F1-F7
     fmt_chips_html = "".join(
@@ -842,6 +848,15 @@ def generate_html(
 
   <!-- Vue Carte -->
   <div id="view-map-wrap" style="display:none">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <label class="fw-semibold small" style="color:#495057;margin:0">📍 Ville de référence ★ :</label>
+      <input type="text" id="map-ref-input" placeholder="ex: Vaires-sur-Marne"
+             style="border:1px solid #ced4da;border-radius:4px;padding:3px 8px;font-size:.85em;width:200px"
+             value="{ref_city}"
+             onkeydown="if(event.key==='Enter')geocodeRefCity()">
+      <button onclick="geocodeRefCity()" class="btn btn-sm btn-outline-primary">Localiser ★</button>
+      <small class="text-muted" id="map-ref-status"></small>
+    </div>
     <button id="map-fs-btn" onclick="toggleMapFullscreen()">⛶ Plein écran</button>
     <div id="view-map"></div>
   </div>
@@ -879,6 +894,8 @@ def generate_html(
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/dataTables.buttons.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.bootstrap5.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.html5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.print.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -919,6 +936,7 @@ $(function() {{
 
     if (checkedEpreuves.length > 0) {{
       var keys = JSON.parse($tr.attr('data-ep-keys') || '[]');
+      if (keys.length === 0) return false; // Épreuves non enrichies → on masque quand filtre actif
       if (!checkedEpreuves.some(function(e) {{ return keys.indexOf(e) !== -1; }})) return false;
     }}
     if (maxDist !== null && (parseFloat($tr.attr('data-distance')) || 0) > maxDist) return false;
@@ -1020,8 +1038,29 @@ $(function() {{
          exportOptions:{{ columns:':visible' }} }},
       {{ text:'🖨 Print', className:'btn-sm btn-outline-secondary',
          action: function() {{ window.print(); }} }},
-      {{ text:'📑 PDF',  className:'btn-sm btn-outline-danger',
-         action: function() {{ window.print(); }} }},
+      {{ extend:'pdfHtml5', text:'📑 PDF', className:'btn-sm btn-outline-danger',
+         orientation:'portrait', pageSize:'A4',
+         exportOptions:{{
+           columns:':visible',
+           format:{{
+             body: function(data, row, column, node) {{
+               // Colonne Épreuves : abréviations + filtrage CSS-visible seulement
+               if (column === 4) {{
+                 var lines = [];
+                 $(node).find('.ep-line').each(function() {{
+                   if ($(this).css('display') === 'none') return;
+                   var nat = $(this).find('.ep-nature').attr('data-abbr') || $(this).find('.ep-nature').text().trim();
+                   var age = $(this).find('.ep-age').attr('data-abbr')    || $(this).find('.ep-age').text().trim();
+                   var fmt = $(this).attr('data-fmt') || '';
+                   if (nat) lines.push(nat + (age ? ' ' + age : '') + (fmt ? ' F' + fmt : ''));
+                 }});
+                 return lines.join('\\n') || '—';
+               }}
+               return $('<div>').html(data).text().replace(/\s+/g, ' ').trim();
+             }}
+           }}
+         }}
+      }},
     ],
     drawCallback: function() {{
       restoreFavs();
@@ -1487,6 +1526,28 @@ function renderGantt() {{
 }}
 
 // ── Carte (Leaflet) ───────────────────────────────────────────────────────────
+function geocodeRefCity(nameOverride) {{
+  var q = nameOverride || $('#map-ref-input').val().trim();
+  if (!q) return;
+  $('#map-ref-status').text('Recherche…');
+  fetch('https://api-adresse.data.gouv.fr/search/?q=' + encodeURIComponent(q) + '&type=municipality&limit=1')
+    .then(function(r) {{ return r.json(); }})
+    .then(function(data) {{
+      if (data.features && data.features.length > 0) {{
+        var f = data.features[0];
+        _REF_LNG  = f.geometry.coordinates[0];
+        _REF_LAT  = f.geometry.coordinates[1];
+        _REF_CITY = f.properties.label;
+        $('#map-ref-input').val(_REF_CITY);
+        $('#map-ref-status').text('✓ ' + _REF_CITY);
+        renderMap();
+      }} else {{
+        $('#map-ref-status').text('⚠️ Ville non trouvée');
+      }}
+    }})
+    .catch(function() {{ $('#map-ref-status').text('⚠️ Erreur réseau'); }});
+}}
+
 function toggleMapFullscreen() {{
   var $wrap = $('#view-map-wrap');
   var isFs  = $wrap.hasClass('map-fs');
@@ -1554,6 +1615,8 @@ function renderMap() {{
     var initLat = (_REF_LAT !== 0) ? _REF_LAT : (data.length ? data[0].lat : 48.866);
     var initLng = (_REF_LNG !== 0) ? _REF_LNG : (data.length ? data[0].lng : 2.333);
     _mapObj = L.map('view-map').setView([initLat, initLng], 9);
+    // Auto-géocode la ville de référence si les coords sont absentes mais le nom est connu
+    if (!_REF_LAT && !_REF_LNG && _REF_CITY) {{ geocodeRefCity(_REF_CITY); }}
     L.tileLayer('https://{{s}}.basemaps.cartocdn.com/rastertiles/voyager/{{z}}/{{x}}/{{y}}{{r}}.png', {{
       attribution: '© <a href="https://www.openstreetmap.org">OpenStreetMap</a> contributors, © <a href="https://carto.com">CARTO</a>',
       subdomains: 'abcd',
