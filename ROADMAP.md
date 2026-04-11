@@ -10,7 +10,7 @@
 |---|---|
 | ✅ | Implémenté |
 | 🔵 | Sélectionné — à implémenter |
-| 💬 | Discuté — décision en attente |
+| 💬 | En attente de décision |
 | ⬜ | Proposé — pas encore retenu |
 
 ---
@@ -76,6 +76,18 @@ sont détectés dans la zone surveillée.
 
 ---
 
+## En attente de décision 💬
+
+| # | Fonctionnalité | Description |
+|---|---|---|
+| 1 | Alertes changement de statut (Telegram) | Notifier quand un statut change entre deux runs : Bientôt→Ouvert, Ouvert→Liste d'attente, Attente→Ouvert (place libérée). Plus utile que la simple détection de nouveaux tournois. |
+| 2 | Annotations personnelles | Note libre par tournoi sauvegardée en localStorage ("Covoiturage avec Martin", "À éviter"). Visible dans le tableau et exportable en PDF. |
+| 3 | Vue "Inscriptions qui ouvrent bientôt" | Filtre dédié : tournois dont la date d'ouverture des inscriptions est dans les N prochains jours. La colonne "Ouv. inscr." existe mais n'est pas filtrable. |
+| 4 | Partage de favoris | Exporter/importer sa liste de favoris (fichier JSON) pour coordonner avec un partenaire de double. |
+| 5 | Filtre classement requis | Si TenUp expose les bornes de classement par épreuve, filtrer par "tournois accessibles à mon classement". À vérifier si l'info est disponible. |
+
+---
+
 ## Proposé — pas encore retenu ⬜
 
 | # | Fonctionnalité | Pourquoi pas encore |
@@ -118,4 +130,4 @@ sont détectés dans la zone surveillée.
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 11/04/2026 (colonne Ajouté le + fix badges NEW en html-only).*
+*Document créé le 09/04/2026 — mis à jour le 11/04/2026 (nouvelles propositions en attente de décision).*
