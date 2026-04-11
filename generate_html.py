@@ -930,6 +930,8 @@ var _REF_CITY = {json.dumps(ref_city or "")};
 var _mapObj = null;
 var _mapMarkers = null;
 var _isoLayers = null;
+var _isoCache = {{}};
+var _isoLoadingKey = null;
 var calYear, calMonth;
 
 $(function() {{
@@ -1869,38 +1871,83 @@ function buildMapPopup(t) {{
 
 function _refreshIsochrones() {{
   if (!_mapObj || !_isoLayers || !_REF_LAT || !_REF_LNG) return;
-  _isoLayers.clearLayers();
-  var mPerMin = 70 * 1000 / 60; // 70 km/h en m/min
   var customVal = parseInt($('#iso-custom-input').val(), 10);
+  var minutes, colorMap = {{}};
   if (!isNaN(customVal) && customVal > 0) {{
-    // Cercle personnalisé (remplace les deux par défaut)
     $('#iso-legend-30,#iso-legend-60').hide();
-    var km = Math.round(customVal * 70 / 60);
-    L.circle([_REF_LAT, _REF_LNG], {{
-      radius: customVal * mPerMin,
-      color: '#795548', fillColor: '#795548', fillOpacity: 0.06,
-      weight: 2, dashArray: '7 5'
-    }}).bindTooltip(customVal + '\u00a0min (\u223570\u00a0km/h \u2248 ' + km + '\u00a0km)', {{sticky: true}})
-      .addTo(_isoLayers);
+    minutes = [customVal];
+    colorMap[customVal] = '#795548';
   }} else {{
-    // Deux cercles par défaut : 30 min (cyan) + 60 min (magenta)
     $('#iso-legend-30,#iso-legend-60').show();
-    L.circle([_REF_LAT, _REF_LNG], {{
-      radius: 30 * mPerMin,
-      color: '#00bcd4', fillColor: '#00bcd4', fillOpacity: 0.05,
-      weight: 2, dashArray: '7 5'
-    }}).bindTooltip('30\u00a0min (\u223570\u00a0km/h \u2248 35\u00a0km)', {{sticky: true}})
-      .addTo(_isoLayers);
-    L.circle([_REF_LAT, _REF_LNG], {{
-      radius: 60 * mPerMin,
-      color: '#e91e63', fillColor: '#e91e63', fillOpacity: 0.04,
-      weight: 2, dashArray: '7 5'
-    }}).bindTooltip('60\u00a0min (\u223570\u00a0km/h \u2248 70\u00a0km)', {{sticky: true}})
-      .addTo(_isoLayers);
+    minutes = [60, 30]; // 60 dessiné en premier (en dessous)
+    colorMap[60] = '#e91e63';
+    colorMap[30] = '#00bcd4';
   }}
+  var cacheKey = _REF_LAT.toFixed(4) + ',' + _REF_LNG.toFixed(4) + ',' + minutes.join(',');
+  if (_isoCache[cacheKey]) {{ _drawIsoGeoJSON(_isoCache[cacheKey], colorMap); return; }}
+  if (_isoLoadingKey === cacheKey) return; // requête déjà en cours
+  _isoLoadingKey = cacheKey;
+  $('#map-ref-status').text('\u23f3 Isochrones\u2026');
+  fetch('https://valhalla1.openstreetmap.de/isochrone', {{
+    method: 'POST',
+    headers: {{'Content-Type': 'application/json'}},
+    body: JSON.stringify({{
+      locations: [{{lon: _REF_LNG, lat: _REF_LAT}}],
+      costing: 'auto',
+      contours: minutes.map(function(m) {{ return {{time: m}}; }}),
+      polygons: true
+    }})
+  }})
+  .then(function(r) {{ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }})
+  .then(function(geojson) {{
+    _isoLoadingKey = null;
+    _isoCache[cacheKey] = geojson;
+    $('#map-ref-status').text('');
+    if (_isoLayers) _drawIsoGeoJSON(geojson, colorMap);
+  }})
+  .catch(function(e) {{
+    _isoLoadingKey = null;
+    console.warn('Valhalla isochrone API:', e);
+    $('#map-ref-status').text('\u26a0 Isochrones indisponibles \u2014 cercles approx.');
+    setTimeout(function() {{ $('#map-ref-status').text(''); }}, 5000);
+    _drawFallbackCircles(minutes, colorMap);
+  }});
 }}
 
-function updateIsochrone() {{ _refreshIsochrones(); }}
+function _drawIsoGeoJSON(geojson, colorMap) {{
+  _isoLayers.clearLayers();
+  var features = (geojson.features || []).slice();
+  // Dessiner du plus grand au plus petit (le plus grand en dessous)
+  features.sort(function(a, b) {{ return (b.properties.contour || 0) - (a.properties.contour || 0); }});
+  features.forEach(function(feature) {{
+    var mins = feature.properties.contour || 0;
+    var color = colorMap[mins] || '#795548';
+    L.geoJSON(feature, {{
+      style: {{ color: color, fillColor: color, fillOpacity: 0.1, weight: 2.5 }}
+    }}).bindTooltip(mins + '\u00a0min en voiture', {{sticky: true}})
+      .addTo(_isoLayers);
+  }});
+}}
+
+function _drawFallbackCircles(minutes, colorMap) {{
+  _isoLayers.clearLayers();
+  var mPerMin = 70 * 1000 / 60;
+  minutes.slice().sort(function(a, b) {{ return b - a; }}).forEach(function(mins) {{
+    var color = colorMap[mins] || '#795548';
+    var km = Math.round(mins * 70 / 60);
+    L.circle([_REF_LAT, _REF_LNG], {{
+      radius: mins * mPerMin,
+      color: color, fillColor: color, fillOpacity: 0.05,
+      weight: 2, dashArray: '7 5'
+    }}).bindTooltip(mins + '\u00a0min (\u2248\u00a0' + km + '\u00a0km)', {{sticky: true}})
+      .addTo(_isoLayers);
+  }});
+}}
+
+function updateIsochrone() {{
+  _isoLoadingKey = null; // annule la déduplication pour la nouvelle valeur
+  _refreshIsochrones();
+}}
 
 function renderMap() {{
   // Collect tournaments that have coordinates
