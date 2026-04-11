@@ -22,58 +22,37 @@
 | Scraping TenUp | Récupération des tournois par ville + rayon via AJAX Drupal |
 | Enrichissement formats | Récupération du format F1-F7 sur chaque page de détail |
 | Batch France entière | `run_batch.py` sur 8 villes, rapport combiné dédupliqué |
-| Rapport HTML interactif | Bootstrap + DataTables, tri, pagination, export Excel/CSV |
-| Filtre épreuves | Affiche uniquement SM (configurable dans config.json) |
+| Rapport HTML interactif | Bootstrap + DataTables, tri, pagination, export Excel/CSV/PDF |
+| Filtre épreuves | Multi-sélection par panneau de chips (SM, SD, DM, DD, DX) |
 | Filtre ligue / comités | 13 ligues métropolitaines, sélection multi-départements |
 | Barre de recherche | Recherche plein texte dans nom, juge, ville, club |
 | Distances routières | Géocodage batch (api-adresse.data.gouv.fr) + OSRM table |
 | Filtres trajet | Trajet max (km) et trajet max (min) dans le rapport HTML |
 | Cookie auto-refresh | TamperMonkey + cookie_server.py, polling mtime 15s |
-| Détection nouveaux | Badge NEW, historique par ville, rapport horodaté |
+| Détection nouveaux | Badge NEW uniquement au scraping — plus de badges parasites en mode enrich/html-only |
+| Vue Derniers | Tri par date d'ajout décroissante (`_first_seen` stamped au scraping) |
 | Favoris | Sauvegardés en localStorage dans le navigateur |
 | Masquer Vert/Orange | Filtre tournois débutants par mot-clé dans le nom |
-| Statut d'inscription | Badge par épreuve (Ouvert/Bientôt/Clôturé/etc.), filtre, fraîcheur 24h, commentaire club |
-| Distintion inscrit/attente | Distingue "déjà inscrit en attente" vs "inscription → liste d'attente générale" |
-| Filtres multi-sélection | Épreuve, Surface, Format, Statut passés en panneaux de chips (sélection multiple OR) |
-| Filtrage lignes épreuves | Quand filtre Format actif, masque les lignes d'épreuves de format non sélectionné |
-| Vues Calendrier + Gantt | Onglets Calendrier mensuel et Gantt respectant les filtres actifs |
+| Statut d'inscription | Badge par épreuve (Ouvert/Bientôt/Clôturé/etc.), filtre multi-sélection, commentaire club |
+| Distinction inscrit/attente | "Déjà inscrit en attente" vs "liste d'attente générale" |
+| Filtres multi-sélection | Épreuve, Surface, Format, Statut en panneaux de chips (sélection multiple OR) |
+| Filtrage lignes épreuves | Filtre Format masque les lignes d'épreuves non correspondantes |
+| Vue Calendrier | Onglet calendrier mensuel respectant les filtres actifs |
+| Vue Gantt | Diagramme de Gantt respectant les filtres actifs |
+| Vue Carte | Onglet carte interactive Leaflet, marqueurs colorés par format, ville de référence ★ |
+| Vue Vacs | Calendrier vacances scolaires Zone C + jours fériés sur 13 mois (APIs gouvernementales) |
+| Export PDF enrichi | PDF paysage avec colonne épreuves en nested table (classement, tarif, statut, format) |
+| --generator v1/v2/v3 | Choix du thème visuel du rapport HTML via flag en ligne de commande |
+| UI v3 dark panel | Panel de filtres thème sombre (dark navy) avec tous les contrôles v1 conservés |
+| --refresh | Tout-en-un : fix-encoding + enrich + statuts en une seule commande |
+| --enrich-statut-only | Rafraîchit uniquement les statuts d'inscription, ignore les tournois terminés |
+| Fix encodage UTF-8 | Correction des textes corrompus (double-encodage latin-1/UTF-8) avec retry x5 |
 
 ---
 
 ## Sélectionné — à implémenter 🔵
 
-### 1. Vue Carte (PRIORITÉ 1)
-
-**Objectif :** Quatrième onglet "🗺️ Carte" à côté de Calendrier et Gantt, affichant les
-tournois filtrés sur une carte interactive centrée sur la ville de référence (ex : Vaires-sur-Marne).
-
-**Comportement attendu :**
-- Carte interactive (Leaflet.js, tuiles OpenStreetMap — gratuit, sans clé API)
-- Un marqueur par tournoi, coloré selon le format (F1 = rouge, F2 = orange…) ou le statut
-- La carte respecte les filtres actifs (mêmes tournois que les autres vues)
-- **Survol** d'un marqueur → bulle de prévisualisation : nom, dates, format, distance, statut
-- **Clic sur la bulle** (ou sur le marqueur) → ouvre TenUp dans un nouvel onglet
-- Re-rendu automatique quand les filtres changent (via `drawCallback` comme Calendrier/Gantt)
-- La ville de référence est marquée d'un point distinct (étoile ou cercle plein)
-
-**Données disponibles :**
-- `geo_lat` / `geo_lng` stockés dans `enriched` (calculés par `enrich_geo.py`)
-- Déjà exposés dans les attributs `data-*` du `<tr>` (`data-lat`, `data-lng` à ajouter)
-- Les tournois sans coordonnées (non encore géocodés) sont ignorés silencieusement
-
-**Architecture proposée :**
-- Leaflet.js chargé depuis CDN (une balise `<script>` et `<link>` supplémentaires)
-- Pas de backend : les coordonnées sont encodées dans les `data-*` du tableau HTML
-- `renderMap()` analogue à `renderCalendar()` / `renderGantt()` — lit `getFilteredData()`
-- Popup Leaflet avec le mini-résumé du tournoi et un bouton "Ouvrir TenUp"
-- Ajout de `data-lat` / `data-lng` sur les `<tr>` dans `generate_html.py`
-
-**Complexité :** Faible à moyenne — Leaflet est simple, les données sont déjà là.
-Seul point délicat : gestion des marqueurs (recréer à chaque re-rendu sans fuite mémoire).
-
----
-
-### 2. Notifications Telegram (PRIORITÉ 2)
+### 1. Notifications Telegram (PRIORITÉ 1)
 
 **Objectif :** Recevoir un message Telegram automatiquement quand de nouveaux tournois
 sont détectés dans la zone surveillée.
@@ -89,7 +68,6 @@ sont détectés dans la zone surveillée.
     "chat_id": "123456789"
   }
   ```
-- Optionnel : résumé quotidien même sans nouveaux tournois ("Scan terminé, 0 nouveaux")
 
 **Prérequis utilisateur :**
 1. Créer un bot Telegram via @BotFather → obtenir `bot_token`
@@ -102,15 +80,15 @@ sont détectés dans la zone surveillée.
 
 | # | Fonctionnalité | Pourquoi pas encore |
 |---|---|---|
-| 4 | Détection conflits de dates avec favoris | Utile mais calendrier maintenant dispo |
-| 5 | Export agenda ICS (favoris → Google Calendar) | Simple à faire, faible priorité |
-| 6 | Dotation financière des tournois | Info peu disponible sur TenUp |
-| 7 | Historique des éditions passées | Complexe, base de données nécessaire |
-| 8 | Windows Task Scheduler / cron | À faire quand Telegram sera en place |
-| 9 | Mise sur NAS | Quand l'accès au NAS sera disponible |
-| 10 | Déduplication avant enrichissement | Gain de temps ~80% sur le batch — optimisation technique |
-| 11 | Normalisation noms de clubs | Heuristique difficile à fiabiliser |
-| 12 | Bouton "Actualiser statut" temps réel | Peu utile : clic sur le lien TenUp est plus simple |
+| 1 | Export agenda ICS (favoris → Google Calendar) | Simple à faire, faible priorité |
+| 2 | Dotation financière des tournois | Info peu disponible sur TenUp |
+| 3 | Historique des éditions passées | Complexe, base de données nécessaire |
+| 4 | Windows Task Scheduler / cron | À faire quand Telegram sera en place |
+| 5 | Mise sur NAS | Quand l'accès au NAS sera disponible |
+| 6 | Déduplication avant enrichissement | Gain de temps ~80% sur le batch — optimisation technique |
+| 7 | Normalisation noms de clubs | Heuristique difficile à fiabiliser |
+| 8 | Bouton "Actualiser statut" temps réel | Peu utile : clic sur le lien TenUp est plus simple |
+| 9 | Détection conflits de dates avec favoris | Calendrier et vue Gantt couvrent ce besoin |
 
 ---
 
@@ -119,22 +97,18 @@ sont détectés dans la zone surveillée.
 ### Ce qu'on sait sur les pages de détail TenUp
 
 - Les pages de détail nécessitent le **cookie queue-it** pour retourner le HTML complet
-  (sans cookie, les divs de format et probablement de statut sont absentes)
+  (sans cookie, les divs de format et de statut sont absentes)
 - Certaines pages sont rendues **côté JS** (flag `no_format_in_html`) → impossible à parser
-  sans navigateur headless (Playwright/Selenium)
+  sans navigateur headless
 - La structure HTML varie selon le type de tournoi (TMC vs homologué vs championnat)
-- L'enrichissement utilise la même session avec cookies → réutiliser cette requête pour
-  extraire le statut ne coûte rien de plus
 
-### Serveur de statut temps réel (volet 2 du statut)
+### Badges NEW — comportement correct depuis v3
 
-Si on veut un bouton "Actualiser" dans le HTML, il faut un serveur local qui tourne pendant
-la consultation. L'architecture serait identique à `cookie_server.py` :
-- `status_server.py` sur `localhost:5058`
-- Le HTML appelle `GET /status?id=206919` → le serveur fetch la page TenUp → retourne le statut
-- Nécessite les cookies valides côté serveur → intégration avec `cookies.json`
-- **Non prioritaire** : le volet 1 (statut horodaté) suffit pour l'usage actuel
+- Les badges NEW n'apparaissent **que lors d'un scraping** qui détecte un vrai nouveau tournoi
+- En mode `--html-only`, `--enrich-only`, `--enrich-statut-only`, `--enrich-geo-only`,
+  `--fix-encoding`, `--refresh` → `new_ids = set()` → aucun badge parasite
+- `_first_seen` est stamped sur chaque nouveau tournoi au moment du scraping et préservé lors des re-scrapes
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 10/04/2026.*
+*Document créé le 09/04/2026 — mis à jour le 11/04/2026.*

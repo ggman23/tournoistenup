@@ -28,7 +28,9 @@ cities_france.json
    ├── enrich.py       → pages de détail tournoi                         │
    ├── storage.py      → JSON par ville + historique                     │
    ├── notify.py       → affichage console + JSON nouveaux               │
-   └── generate_html.py → rapport HTML par ville                         │
+   ├── generate_html.py    → rapport HTML par ville (v1 — style original)
+   ├── generate_html_v2.py → rapport HTML v2 (filtres avancés repliés)
+   └── generate_html_v3.py → rapport HTML v3 (dark panel — recommandé)                         │
                                                                           │
        └──────── merge_and_generate() ──► tournaments_france_entiere.html ┘
 
@@ -323,12 +325,18 @@ Python sur Windows utilise `cp1252` par défaut pour `open()`. Les noms de ville
 
 **Correction :** `open(path, encoding="utf-8")` dans toutes les fonctions de lecture/écriture.
 
-#### Détection des nouveaux tournois
+#### Détection des nouveaux tournois et `_first_seen`
 
 Le fichier `history_<ville>.json` contient `known_ids` : tous les IDs de tournois jamais vus.
-À chaque run, on compare les IDs actuels à `known_ids` → les absents sont "nouveaux".
-Les IDs des nouveaux sont aussi sauvés dans `last_new_ids` pour que `--html-only` puisse
-afficher le badge NEW sans re-scraper.
+À chaque scraping, on compare les IDs actuels à `known_ids` → les absents sont "nouveaux".
+
+Chaque nouveau tournoi reçoit un timestamp `_first_seen` (ISO UTC) au moment du scraping.
+Ce timestamp est préservé lors des re-scrapes via un cache chargé depuis le JSON précédent.
+Il sert à la vue "🆕 Derniers" qui trie du plus récent au plus ancien.
+
+**Règle des badges NEW :** `new_ids` vaut `set()` (vide) dans tous les modes non-scrape
+(`--html-only`, `--enrich-only`, `--enrich-statut-only`, `--enrich-geo-only`, `--fix-encoding`,
+`--refresh`) pour ne jamais afficher de badges NEW parasites.
 
 ---
 
@@ -488,4 +496,32 @@ Valeurs possibles : `SM` (Simple Messieurs), `SD` (Simple Dames), `DM` (Double M
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 10/04/2026.*
+---
+
+### Générateurs HTML v1 / v2 / v3
+
+Le flag `--generator v1|v2|v3` de `main.py` sélectionne dynamiquement le module de génération :
+
+```python
+if args.generator == "v3":
+    from generate_html_v3 import generate_html, generate_from_file
+```
+
+Les trois fichiers sont indépendants (copies avec CSS modifié). Tous les IDs, attributs `data-*`
+et fonctions JS sont identiques — seul le CSS du bloc filtre diffère.
+
+| Version | Particularité |
+|---|---|
+| v1 | Style Bootstrap original, 3 lignes de filtres toujours visibles |
+| v2 | Filtres avancés repliés derrière "Filtres avancés ▸", toggle-pills pour les checkboxes |
+| v3 | Panel filtre en dark navy (#1a2540), inputs semi-transparents, checkboxes adaptées |
+
+Le générateur v3 est recommandé. Pour changer définitivement de défaut, modifier la ligne :
+```python
+p.add_argument("--generator", default="v1", ...)
+```
+→ remplacer `"v1"` par `"v3"`.
+
+---
+
+*Document créé le 09/04/2026 — mis à jour le 11/04/2026.*
