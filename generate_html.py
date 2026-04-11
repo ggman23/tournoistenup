@@ -1112,7 +1112,22 @@ function pdfCustomize(doc) {{
       {{ targets: [2,3,5,8,9], searchable: false }},
       {{ targets: [3,7], type: 'num' }},
       {{ targets: [13], orderable: false, searchable: false }},
-      {{ targets: [14], visible: false, searchable: false }},
+      {{ targets: [14], visible: false, searchable: false,
+         render: function(data, type, row) {{
+           if (type === 'display' && data) {{
+             try {{
+               var d = new Date(data);
+               var day = String(d.getDate()).padStart(2,'0');
+               var mon = String(d.getMonth()+1).padStart(2,'0');
+               var h   = String(d.getHours()).padStart(2,'0');
+               var m   = String(d.getMinutes()).padStart(2,'0');
+               return '<span style="font-size:.78em;white-space:nowrap;line-height:1.5">'
+                    + day+'/'+mon+'<br><span style="color:#6c757d">'+h+':'+m+'</span></span>';
+             }} catch(e) {{ return data || '—'; }}
+           }}
+           return data;
+         }}
+      }},
     ],
     dom: '<"row"<"col-sm-6"B><"col-sm-6"l>>rtip',
     buttons: [
@@ -1428,8 +1443,11 @@ function showView(view) {{
   var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map'}}[tableView] || 'tab-table';
   if (isDerniers) {{
     $('#tab-derniers').removeClass('btn-outline-secondary btn-outline-warning').addClass('btn-warning');
+    dt.column(14).visible(true);
+    $(dt.column(14).header()).text('Ajouté le');
     dt.order([14, 'desc']).draw();
   }} else {{
+    dt.column(14).visible(false);
     $('#' + tabId).removeClass('btn-outline-secondary').addClass('btn-primary');
   }}
   if (tableView === 'calendar') {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
