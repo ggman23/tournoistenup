@@ -10,7 +10,7 @@
     },
     "pratique": "TENNIS",
     "date_start": "01/04/26",
-    "date_end": "01/09/26",
+    "date_end": "31/12/26",
     "epreuves": ["SM"],
     "categories_age": [110, 120, 125, 130, 140, 145],
     "types": ["T"],
