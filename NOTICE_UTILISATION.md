@@ -246,4 +246,4 @@ Toutes les vues respectent les filtres actifs.
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 11/04/2026 (colonne Ajouté le dans vue Derniers).*
+*Document créé le 09/04/2026 — mis à jour le 11/04/2026 (repo GitHub passé en privé).*
