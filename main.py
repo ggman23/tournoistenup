@@ -29,6 +29,34 @@ from generate_html import generate_html, generate_from_file  # default, remplac�
 from enrich import enrich_all, enrich_statut_all, fix_encoding_in_tournament
 from enrich_geo import enrich_geo_all, reset_geo
 
+
+def _auto_push_html(html_file: str):
+    """Commit et push le fichier HTML vers GitHub (sauvegarde cloud). Non bloquant."""
+    import subprocess
+    stamp = datetime.now().strftime("%d/%m/%Y %H:%M")
+    try:
+        # Force-add même si data/ est dans .gitignore
+        r = subprocess.run(["git", "add", "-f", html_file],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            logger.warning("git add HTML échoué : %s", r.stderr.strip())
+            return
+        r = subprocess.run(["git", "commit", "-m", f"auto: rapport HTML — {stamp}"],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            if "nothing to commit" in r.stdout + r.stderr:
+                logger.info("HTML inchangé — pas de commit git.")
+            else:
+                logger.warning("git commit HTML échoué : %s", r.stderr.strip())
+            return
+        r = subprocess.run(["git", "push"], capture_output=True, text=True)
+        if r.returncode != 0:
+            logger.warning("git push HTML échoué : %s", r.stderr.strip())
+        else:
+            logger.info("✅ HTML sauvegardé sur GitHub : %s", html_file)
+    except Exception as e:
+        logger.warning("Auto-push HTML non critique : %s", e)
+
 def _search_city_fr(name: str) -> list[dict]:
     """Search French communes via geo.api.gouv.fr."""
     try:
@@ -262,6 +290,7 @@ def main():
             ref_lng=config["search"]["ville"].get("lng", 0.0),
             ref_city=config["search"]["ville"].get("label", ""),
         )
+        _auto_push_html(html_file)
         sys.exit(0)
 
     # ── Refresh mode : fix-encoding + enrich (retries) + statuts en une passe ─
@@ -307,6 +336,7 @@ def main():
             ref_lng=config["search"]["ville"].get("lng", 0.0),
             ref_city=config["search"]["ville"].get("label", ""),
         )
+        _auto_push_html(html_file)
         sys.exit(0)
 
     # ── HTML-only mode: just regenerate the report ──────────────────────────
@@ -318,6 +348,7 @@ def main():
         _hist = load_json(history_file)
         _new_ids = set(_hist.get("last_new_ids", []))
         generate_from_file(data_file, html_file, new_ids=_new_ids)
+        _auto_push_html(html_file)
         sys.exit(0)
 
     # ── Enrich-only mode: re-enrich + regenerate without re-scraping ─────────
@@ -352,6 +383,7 @@ def main():
             ref_lng=config["search"]["ville"].get("lng", 0.0),
             ref_city=config["search"]["ville"].get("label", ""),
         )
+        _auto_push_html(html_file)
         sys.exit(0)
 
     # ── Enrich-statut-only mode: refresh inscription status only ─────────────
@@ -377,6 +409,7 @@ def main():
                       ref_lat=config["search"]["ville"].get("lat", 0.0),
                       ref_lng=config["search"]["ville"].get("lng", 0.0),
                       ref_city=config["search"]["ville"].get("label", ""))
+        _auto_push_html(html_file)
         sys.exit(0)
 
     # ── Enrich-geo-only mode: geocode + road distances without re-scraping ───
@@ -403,6 +436,7 @@ def main():
                       fetched_at=saved.get("fetched_at", ""), only_natures=only_natures,
                       ref_lat=ref_lat, ref_lng=ref_lng,
                       ref_city=config["search"]["ville"].get("label", ""))
+        _auto_push_html(html_file)
         sys.exit(0)
 
     # ── Reset history ────────────────────────────────────────────────────────
@@ -524,6 +558,7 @@ def main():
 
     # 1) Full report (fixed name → toujours le dernier)
     generate_html(tournaments, html_file, **_html_kwargs)
+    _auto_push_html(html_file)
 
     # 2) Full report horodaté
     all_stamped  = os.path.join(html_dir, f"tournois_{stamp}.html")
