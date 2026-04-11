@@ -409,6 +409,7 @@ def generate_html(
             data-lat="{r['geo_lat'] if r['geo_lat'] is not None else ''}"
             data-lng="{r['geo_lng'] if r['geo_lng'] is not None else ''}">
           <td data-sort="{html.escape(r['date_debut_sort'])}">{html.escape(r['dates'])}</td>
+          <td style="display:none">{html.escape(r.get('first_seen', ''))}</td>
           <td>{nom_link}</td>
           <td>{html.escape(r['cat'])}</td>
           <td data-sort="{r['fmt_sort']}">{fmt_badge}</td>
@@ -422,7 +423,6 @@ def generate_html(
           <td><small>{email_link}</small></td>
           <td><small>{html.escape(r['ouverture'])}</small></td>
           <td class="text-center"><button class="fav-btn" data-id="{tid_esc}" onclick="toggleFav(this)">&#9734;</button></td>
-          <td style="display:none">{html.escape(r.get('first_seen', ''))}</td>
         </tr>""")
 
     tbody        = "\n".join(tbody_lines)
@@ -964,6 +964,7 @@ def generate_html(
       <thead class="table-dark">
         <tr>
           <th>Dates</th>
+          <th style="display:none">_first_seen</th>
           <th>Tournoi</th>
           <th>Catégorie</th>
           <th>Format</th>
@@ -977,7 +978,6 @@ def generate_html(
           <th>Email</th>
           <th>Ouv. inscr.</th>
           <th>⭐</th>
-          <th style="display:none">_first_seen</th>
         </tr>
       </thead>
       <tbody>{tbody}</tbody>
@@ -1193,10 +1193,10 @@ function pdfCustomize(doc) {{
     order: [[0, 'asc']],
     language: {{ url: 'https://cdn.datatables.net/plug-ins/2.0.5/i18n/fr-FR.json' }},
     columnDefs: [
-      {{ targets: [2,3,5,8,9], searchable: false }},
-      {{ targets: [3,7], type: 'num' }},
-      {{ targets: [13], orderable: false, searchable: false }},
-      {{ targets: [14], visible: false, searchable: false,
+      {{ targets: [3,4,6,9,10], searchable: false }},
+      {{ targets: [4,8], type: 'num' }},
+      {{ targets: [14], orderable: false, searchable: false }},
+      {{ targets: [1], visible: false, searchable: false,
          render: function(data, type, row) {{
            if (type === 'display' && data) {{
              try {{
@@ -1224,7 +1224,7 @@ function pdfCustomize(doc) {{
       {{ extend:'pdfHtml5', text:'📑 PDF', className:'btn-sm btn-outline-danger',
          orientation:'landscape', pageSize:'A4',
          exportOptions:{{
-           columns:[0,1,4,5,6,7],
+           columns:[0,2,5,6,7,8],
            format:{{
              body: function(data, row, column, node) {{
                // Dates (col 0) : "27/04/2026 → 29/04/2026" → deux lignes, sans flèche
@@ -1236,15 +1236,15 @@ function pdfCustomize(doc) {{
                  }}
                  return parts[0].trim();
                }}
-               // Tournoi (col 1) : tronqué à 35 caractères
-               if (column === 1) {{
+               // Tournoi (col 2) : tronqué à 35 caractères
+               if (column === 2) {{
                  var txt = $('<div>').html(data).text().replace(/\\s+/g,' ').trim();
                  return txt.length > 35 ? txt.substring(0, 35) + '\u2026' : txt;
                }}
-               // Épreuves (col 4) : pipe-séparé → "SM 13/14|NC-30|10€|HL|F2"
+               // Épreuves (col 5) : pipe-séparé → "SM 13/14|NC-30|10€|HL|F2"
                // BUG FIX : on lit les filtres actifs (pas le css display) car DataTables
                // rend toutes les lignes visibles lors de l'export, même les pages 2+
-               if (column === 4) {{
+               if (column === 5) {{
                  var SSHORT = {{'ouvert':'Ouv','bientot':'Bient','attente':'Att',
                    'inscrit_attente':'Att+','cloture':'Clot','hors_bornes':'HB',
                    'impossible':'HL','deja_inscrit':'Inscr','ineligible':'Inelig','autre':'?'}};
@@ -1271,16 +1271,16 @@ function pdfCustomize(doc) {{
                  }});
                  return lines.join('\\n') || '\u2014';
                }}
-               // Surfaces (col 5) : abréviations colorées
-               if (column === 5) {{
+               // Surfaces (col 6) : abréviations colorées
+               if (column === 6) {{
                  var SABBR = {{'terre battue':'TB','terre artificielle':'TA','résine':'R','béton poreux':'BP','dur':'D','gazon':'G','moquette':'M','autre':'?'}};
                  var abbrs = $(node).find('.srf-badge').map(function() {{
                    return SABBR[$(this).text().trim().toLowerCase()] || $(this).text().trim().substring(0,2).toUpperCase();
                  }}).get();
                  return abbrs.join('/') || '—';
                }}
-               // Distance (col 7) : "27.1 km / 36 min" (route) ou "24.5 km" (vol d'oiseau)
-               if (column === 7) {{
+               // Distance (col 8) : "27.1 km / 36 min" (route) ou "24.5 km" (vol d'oiseau)
+               if (column === 8) {{
                  var $tr = $(node).closest('tr');
                  var rKm  = $tr.attr('data-road-km');
                  var rMin = $tr.attr('data-road-min');
@@ -1527,11 +1527,11 @@ function showView(view) {{
   var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map'}}[tableView] || 'tab-table';
   if (isDerniers) {{
     $('#tab-derniers').removeClass('btn-outline-secondary btn-outline-warning').addClass('btn-warning');
-    dt.column(14).visible(true);
-    $(dt.column(14).header()).text('Ajouté le');
-    dt.order([14, 'desc']).draw();
+    dt.column(1).visible(true);
+    $(dt.column(1).header()).text('Ajouté le');
+    dt.order([1, 'desc']).draw();
   }} else {{
-    dt.column(14).visible(false);
+    dt.column(1).visible(false);
     $('#' + tabId).removeClass('btn-outline-secondary').addClass('btn-primary');
   }}
   if (tableView === 'calendar') {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
