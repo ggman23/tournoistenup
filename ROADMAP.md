@@ -40,6 +40,7 @@
 | Vue Calendrier | Onglet calendrier mensuel respectant les filtres actifs |
 | Vue Gantt | Diagramme de Gantt respectant les filtres actifs |
 | Vue Carte | Onglet carte interactive Leaflet, marqueurs colorés par format, ville de référence ★ |
+| Cercles isochrones | Carte : cercle cyan 30 min + cercle magenta 60 min par défaut (≈70 km/h). Saisie durée personnalisée → remplace les deux cercles par un seul cercle marron. |
 | Vue Vacs | Calendrier vacances scolaires Zone C + jours fériés sur 13 mois (APIs gouvernementales) |
 | Export PDF enrichi | PDF paysage avec colonne épreuves en nested table (classement, tarif, statut, format) |
 | --generator v1/v2/v3 | Choix du thème visuel du rapport HTML via flag en ligne de commande |

@@ -869,6 +869,14 @@ def generate_html(
              onkeydown="if(event.key==='Enter')geocodeRefCity()">
       <button onclick="geocodeRefCity()" class="btn btn-sm btn-outline-primary">Localiser ★</button>
       <small class="text-muted" id="map-ref-status"></small>
+      <span style="border-left:1px solid #dee2e6;margin:0 4px;align-self:stretch"></span>
+      <label class="fw-semibold small" style="color:#495057;margin:0">⏱ Isochrones :</label>
+      <span id="iso-legend-30" style="font-size:.8em;color:#00bcd4;font-weight:600;white-space:nowrap">◯ 30 min</span>
+      <span id="iso-legend-60" style="font-size:.8em;color:#e91e63;font-weight:600;white-space:nowrap">◯ 60 min</span>
+      <input type="number" id="iso-custom-input" placeholder="durée (min)" min="1" max="300"
+             title="Entrez une durée en minutes pour afficher un cercle personnalisé (remplace les cercles 30/60 min)"
+             style="border:1px solid #ced4da;border-radius:4px;padding:3px 8px;font-size:.85em;width:110px"
+             oninput="updateIsochrone()">
     </div>
     <button id="map-fs-btn" onclick="toggleMapFullscreen()">⛶ Plein écran</button>
     <div id="view-map"></div>
@@ -921,6 +929,7 @@ var _REF_LNG = {ref_lng or 0};
 var _REF_CITY = {json.dumps(ref_city or "")};
 var _mapObj = null;
 var _mapMarkers = null;
+var _isoLayers = null;
 var calYear, calMonth;
 
 $(function() {{
@@ -1858,6 +1867,41 @@ function buildMapPopup(t) {{
     '</div>';
 }}
 
+function _refreshIsochrones() {{
+  if (!_mapObj || !_isoLayers || !_REF_LAT || !_REF_LNG) return;
+  _isoLayers.clearLayers();
+  var mPerMin = 70 * 1000 / 60; // 70 km/h en m/min
+  var customVal = parseInt($('#iso-custom-input').val(), 10);
+  if (!isNaN(customVal) && customVal > 0) {{
+    // Cercle personnalisé (remplace les deux par défaut)
+    $('#iso-legend-30,#iso-legend-60').hide();
+    var km = Math.round(customVal * 70 / 60);
+    L.circle([_REF_LAT, _REF_LNG], {{
+      radius: customVal * mPerMin,
+      color: '#795548', fillColor: '#795548', fillOpacity: 0.06,
+      weight: 2, dashArray: '7 5'
+    }}).bindTooltip(customVal + '\u00a0min (\u223570\u00a0km/h \u2248 ' + km + '\u00a0km)', {{sticky: true}})
+      .addTo(_isoLayers);
+  }} else {{
+    // Deux cercles par défaut : 30 min (cyan) + 60 min (magenta)
+    $('#iso-legend-30,#iso-legend-60').show();
+    L.circle([_REF_LAT, _REF_LNG], {{
+      radius: 30 * mPerMin,
+      color: '#00bcd4', fillColor: '#00bcd4', fillOpacity: 0.05,
+      weight: 2, dashArray: '7 5'
+    }}).bindTooltip('30\u00a0min (\u223570\u00a0km/h \u2248 35\u00a0km)', {{sticky: true}})
+      .addTo(_isoLayers);
+    L.circle([_REF_LAT, _REF_LNG], {{
+      radius: 60 * mPerMin,
+      color: '#e91e63', fillColor: '#e91e63', fillOpacity: 0.04,
+      weight: 2, dashArray: '7 5'
+    }}).bindTooltip('60\u00a0min (\u223570\u00a0km/h \u2248 70\u00a0km)', {{sticky: true}})
+      .addTo(_isoLayers);
+  }}
+}}
+
+function updateIsochrone() {{ _refreshIsochrones(); }}
+
 function renderMap() {{
   // Collect tournaments that have coordinates
   var data = getFilteredData().filter(function(t) {{ return t.lat && t.lng; }});
@@ -1875,9 +1919,11 @@ function renderMap() {{
       maxZoom: 19
     }}).addTo(_mapObj);
     _mapMarkers = L.layerGroup().addTo(_mapObj);
+    _isoLayers = L.layerGroup().addTo(_mapObj);
   }}
 
   _mapMarkers.clearLayers();
+  _refreshIsochrones();
 
   // Reference city marker (SVG, auto-contenu, pas de CSS externe)
   if (_REF_LAT && _REF_LNG) {{
