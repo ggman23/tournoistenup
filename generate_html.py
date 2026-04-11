@@ -871,8 +871,12 @@ def generate_html(
       <small class="text-muted" id="map-ref-status"></small>
       <span style="border-left:1px solid #dee2e6;margin:0 4px;align-self:stretch"></span>
       <label class="fw-semibold small" style="color:#495057;margin:0">⏱ Isochrones :</label>
-      <span id="iso-legend-30" style="font-size:.8em;color:#00bcd4;font-weight:600;white-space:nowrap">◯ 30 min</span>
-      <span id="iso-legend-60" style="font-size:.8em;color:#e91e63;font-weight:600;white-space:nowrap">◯ 60 min</span>
+      <button type="button" id="iso-toggle-30" onclick="toggleIsoZone(30)"
+              title="Cliquer pour masquer/afficher la zone 30 min"
+              style="background:#00bcd4;color:#fff;border:none;border-radius:12px;padding:2px 10px;font-size:.8em;font-weight:600;cursor:pointer;transition:opacity .15s;white-space:nowrap">◯ 30 min</button>
+      <button type="button" id="iso-toggle-60" onclick="toggleIsoZone(60)"
+              title="Cliquer pour masquer/afficher la zone 60 min"
+              style="background:#e91e63;color:#fff;border:none;border-radius:12px;padding:2px 10px;font-size:.8em;font-weight:600;cursor:pointer;transition:opacity .15s;white-space:nowrap">◯ 60 min</button>
       <input type="number" id="iso-custom-input" placeholder="durée (min)" min="1" max="300"
              title="Entrez une durée en minutes pour afficher un cercle personnalisé (remplace les cercles 30/60 min)"
              style="border:1px solid #ced4da;border-radius:4px;padding:3px 8px;font-size:.85em;width:110px"
@@ -932,6 +936,8 @@ var _mapMarkers = null;
 var _isoLayers = null;
 var _isoCache = {{}};
 var _isoLoadingKey = null;
+var _isoVisibility = {{30: true, 60: true}};
+var _isoGeoJSONLayers = {{}};
 var calYear, calMonth;
 
 $(function() {{
@@ -1874,11 +1880,11 @@ function _refreshIsochrones() {{
   var customVal = parseInt($('#iso-custom-input').val(), 10);
   var minutes, colorMap = {{}};
   if (!isNaN(customVal) && customVal > 0) {{
-    $('#iso-legend-30,#iso-legend-60').hide();
+    $('#iso-toggle-30,#iso-toggle-60').hide();
     minutes = [customVal];
     colorMap[customVal] = '#795548';
   }} else {{
-    $('#iso-legend-30,#iso-legend-60').show();
+    $('#iso-toggle-30,#iso-toggle-60').show();
     minutes = [60, 30]; // 60 dessiné en premier (en dessous)
     colorMap[60] = '#e91e63';
     colorMap[30] = '#00bcd4';
@@ -1916,36 +1922,60 @@ function _refreshIsochrones() {{
 
 function _drawIsoGeoJSON(geojson, colorMap) {{
   _isoLayers.clearLayers();
+  _isoGeoJSONLayers = {{}};
   var features = (geojson.features || []).slice();
-  // Dessiner du plus grand au plus petit (le plus grand en dessous)
   features.sort(function(a, b) {{ return (b.properties.contour || 0) - (a.properties.contour || 0); }});
   features.forEach(function(feature) {{
     var mins = feature.properties.contour || 0;
     var color = colorMap[mins] || '#795548';
-    L.geoJSON(feature, {{
+    var layer = L.geoJSON(feature, {{
       style: {{ color: color, fillColor: color, fillOpacity: 0.1, weight: 2.5 }}
-    }}).bindTooltip(mins + '\u00a0min en voiture', {{sticky: true}})
-      .addTo(_isoLayers);
+    }}).bindTooltip(mins + '\u00a0min en voiture', {{sticky: true}});
+    _isoGeoJSONLayers[mins] = layer;
+    if (_isoVisibility[mins] !== false) {{ layer.addTo(_isoLayers); }}
+    _updateIsoToggleBtn(mins, color, _isoVisibility[mins] !== false);
   }});
 }}
 
 function _drawFallbackCircles(minutes, colorMap) {{
   _isoLayers.clearLayers();
+  _isoGeoJSONLayers = {{}};
   var mPerMin = 70 * 1000 / 60;
   minutes.slice().sort(function(a, b) {{ return b - a; }}).forEach(function(mins) {{
     var color = colorMap[mins] || '#795548';
     var km = Math.round(mins * 70 / 60);
-    L.circle([_REF_LAT, _REF_LNG], {{
+    var layer = L.circle([_REF_LAT, _REF_LNG], {{
       radius: mins * mPerMin,
       color: color, fillColor: color, fillOpacity: 0.05,
       weight: 2, dashArray: '7 5'
-    }}).bindTooltip(mins + '\u00a0min (\u2248\u00a0' + km + '\u00a0km)', {{sticky: true}})
-      .addTo(_isoLayers);
+    }}).bindTooltip(mins + '\u00a0min (\u2248\u00a0' + km + '\u00a0km)', {{sticky: true}});
+    _isoGeoJSONLayers[mins] = layer;
+    if (_isoVisibility[mins] !== false) {{ layer.addTo(_isoLayers); }}
+    _updateIsoToggleBtn(mins, color, _isoVisibility[mins] !== false);
   }});
 }}
 
+function toggleIsoZone(mins) {{
+  _isoVisibility[mins] = !_isoVisibility[mins];
+  var layer = _isoGeoJSONLayers[mins];
+  if (layer) {{
+    if (_isoVisibility[mins]) {{ layer.addTo(_isoLayers); }}
+    else {{ _isoLayers.removeLayer(layer); }}
+  }}
+  var defaultColors = {{30: '#00bcd4', 60: '#e91e63'}};
+  _updateIsoToggleBtn(mins, defaultColors[mins] || '#795548', _isoVisibility[mins]);
+}}
+
+function _updateIsoToggleBtn(mins, color, active) {{
+  var btn = document.getElementById('iso-toggle-' + mins);
+  if (!btn) return;
+  btn.style.background = active ? color : '#adb5bd';
+  btn.style.opacity = active ? '1' : '0.55';
+  btn.style.textDecoration = active ? 'none' : 'line-through';
+}}
+
 function updateIsochrone() {{
-  _isoLoadingKey = null; // annule la déduplication pour la nouvelle valeur
+  _isoLoadingKey = null;
   _refreshIsochrones();
 }}
 
