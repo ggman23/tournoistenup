@@ -314,7 +314,10 @@ def main():
         if not os.path.exists(data_file):
             logger.error("No data file found at %s — run without --html-only first.", data_file)
             sys.exit(1)
-        generate_from_file(data_file, html_file, new_ids=set())
+        # Restore NEW badges from the last real scraping run
+        _hist = load_json(history_file)
+        _new_ids = set(_hist.get("last_new_ids", []))
+        generate_from_file(data_file, html_file, new_ids=_new_ids)
         sys.exit(0)
 
     # ── Enrich-only mode: re-enrich + regenerate without re-scraping ─────────
