@@ -409,7 +409,7 @@ def generate_html(
             data-lat="{r['geo_lat'] if r['geo_lat'] is not None else ''}"
             data-lng="{r['geo_lng'] if r['geo_lng'] is not None else ''}">
           <td data-sort="{html.escape(r['date_debut_sort'])}">{html.escape(r['dates'])}</td>
-          <td style="display:none">{html.escape(r.get('first_seen', ''))}</td>
+          <td class="col-first-seen">{html.escape(r.get('first_seen', ''))}</td>
           <td>{nom_link}</td>
           <td>{html.escape(r['cat'])}</td>
           <td data-sort="{r['fmt_sort']}">{fmt_badge}</td>
@@ -964,7 +964,7 @@ def generate_html(
       <thead class="table-dark">
         <tr>
           <th>Dates</th>
-          <th style="display:none">_first_seen</th>
+          <th class="col-first-seen">_first_seen</th>
           <th>Tournoi</th>
           <th>Catégorie</th>
           <th>Format</th>
@@ -1196,7 +1196,7 @@ function pdfCustomize(doc) {{
       {{ targets: [3,4,6,9,10], searchable: false }},
       {{ targets: [4,8], type: 'num' }},
       {{ targets: [14], orderable: false, searchable: false }},
-      {{ targets: [1], visible: false, searchable: false,
+      {{ targets: ['.col-first-seen'], visible: false, searchable: false,
          render: function(data, type, row) {{
            if (type === 'display' && data) {{
              try {{
@@ -1527,11 +1527,11 @@ function showView(view) {{
   var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map'}}[tableView] || 'tab-table';
   if (isDerniers) {{
     $('#tab-derniers').removeClass('btn-outline-secondary btn-outline-warning').addClass('btn-warning');
-    dt.column(1).visible(true);
-    $(dt.column(1).header()).text('Ajouté le');
-    dt.order([1, 'desc']).draw();
+    dt.column('.col-first-seen').visible(true);
+    $(dt.column('.col-first-seen').header()).text('Ajouté le');
+    dt.order([[dt.column('.col-first-seen').index(), 'desc']]).draw();
   }} else {{
-    dt.column(1).visible(false);
+    dt.column('.col-first-seen').visible(false);
     $('#' + tabId).removeClass('btn-outline-secondary').addClass('btn-primary');
   }}
   if (tableView === 'calendar') {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
