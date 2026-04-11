@@ -226,7 +226,7 @@ Affiche par fichier : ok / fetch_failed / no_format / non traités.
 | 📊 Gantt | Diagramme de Gantt — durée des tournois sur axe temporel |
 | 🗺️ Carte | Carte interactive Leaflet — marqueurs colorés par format |
 | 🏖️ Vacs | Calendrier vacances scolaires Zone C + jours fériés (13 mois) |
-| 🆕 Derniers | Tableau trié par date d'ajout décroissante (plus récents en premier) |
+| 🆕 Derniers | Tableau trié par date d'ajout décroissante + colonne "Ajouté le" (JJ/MM HH:MM) |
 
 Toutes les vues respectent les filtres actifs.
 
@@ -246,4 +246,4 @@ Toutes les vues respectent les filtres actifs.
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 11/04/2026.*
+*Document créé le 09/04/2026 — mis à jour le 11/04/2026 (colonne Ajouté le dans vue Derniers).*

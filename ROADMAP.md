@@ -29,8 +29,8 @@
 | Distances routières | Géocodage batch (api-adresse.data.gouv.fr) + OSRM table |
 | Filtres trajet | Trajet max (km) et trajet max (min) dans le rapport HTML |
 | Cookie auto-refresh | TamperMonkey + cookie_server.py, polling mtime 15s |
-| Détection nouveaux | Badge NEW uniquement au scraping — plus de badges parasites en mode enrich/html-only |
-| Vue Derniers | Tri par date d'ajout décroissante (`_first_seen` stamped au scraping) |
+| Détection nouveaux | Badge NEW uniquement au scraping — badges préservés en `--html-only` via `last_new_ids` dans history.json |
+| Vue Derniers | Tri par date d'ajout décroissante + colonne "Ajouté le" (JJ/MM HH:MM) visible uniquement dans cette vue |
 | Favoris | Sauvegardés en localStorage dans le navigateur |
 | Masquer Vert/Orange | Filtre tournois débutants par mot-clé dans le nom |
 | Statut d'inscription | Badge par épreuve (Ouvert/Bientôt/Clôturé/etc.), filtre multi-sélection, commentaire club |
@@ -102,13 +102,20 @@ sont détectés dans la zone surveillée.
   sans navigateur headless
 - La structure HTML varie selon le type de tournoi (TMC vs homologué vs championnat)
 
-### Badges NEW — comportement correct depuis v3
+### Badges NEW — comportement correct
 
 - Les badges NEW n'apparaissent **que lors d'un scraping** qui détecte un vrai nouveau tournoi
-- En mode `--html-only`, `--enrich-only`, `--enrich-statut-only`, `--enrich-geo-only`,
-  `--fix-encoding`, `--refresh` → `new_ids = set()` → aucun badge parasite
+- En mode `--html-only` : badges restaurés depuis `history["last_new_ids"]` (sauvegardé au dernier scraping)
+- En mode `--enrich-only`, `--enrich-statut-only`, `--enrich-geo-only`, `--fix-encoding`, `--refresh` → `new_ids = set()` → aucun badge parasite
 - `_first_seen` est stamped sur chaque nouveau tournoi au moment du scraping et préservé lors des re-scrapes
+
+### Vue Derniers — colonne "Ajouté le"
+
+- La colonne `_first_seen` est en position 1 dans le tableau (juste après "Dates"), masquée par défaut
+- Elle n'est révélée que dans la vue Derniers via `dt.column('.col-first-seen').visible(true)`
+- Sélecteur CSS par classe (`.col-first-seen`) sur le `<th>` — plus fiable qu'un index numérique
+  (un `style="display:none"` sur le `<th>` empêche DataTables d'initialiser correctement la colonne)
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 11/04/2026.*
+*Document créé le 09/04/2026 — mis à jour le 11/04/2026 (colonne Ajouté le + fix badges NEW en html-only).*

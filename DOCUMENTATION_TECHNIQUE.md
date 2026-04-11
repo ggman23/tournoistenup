@@ -334,9 +334,10 @@ Chaque nouveau tournoi reçoit un timestamp `_first_seen` (ISO UTC) au moment du
 Ce timestamp est préservé lors des re-scrapes via un cache chargé depuis le JSON précédent.
 Il sert à la vue "🆕 Derniers" qui trie du plus récent au plus ancien.
 
-**Règle des badges NEW :** `new_ids` vaut `set()` (vide) dans tous les modes non-scrape
-(`--html-only`, `--enrich-only`, `--enrich-statut-only`, `--enrich-geo-only`, `--fix-encoding`,
-`--refresh`) pour ne jamais afficher de badges NEW parasites.
+**Règle des badges NEW :**
+- Au **scraping** : `new_ids` = IDs détectés comme nouveaux. Sauvegardé dans `history["last_new_ids"]`.
+- En **`--html-only`** : `new_ids` est restauré depuis `history["last_new_ids"]` → les badges du dernier scraping sont préservés.
+- En **`--enrich-only`**, **`--enrich-statut-only`**, **`--enrich-geo-only`**, **`--fix-encoding`**, **`--refresh`** → `new_ids = set()` → aucun badge parasite.
 
 ---
 
@@ -510,6 +511,28 @@ if args.generator == "v3":
 Les trois fichiers sont indépendants (copies avec CSS modifié). Tous les IDs, attributs `data-*`
 et fonctions JS sont identiques — seul le CSS du bloc filtre diffère.
 
+#### Colonne "Ajouté le" — vue Derniers
+
+La colonne `_first_seen` est placée en **position 1** dans le tableau (juste après "Dates").
+Elle reçoit la classe CSS `col-first-seen` sur le `<th>` et les `<td>`.
+
+DataTables la masque via `columnDefs: [{ targets: ['.col-first-seen'], visible: false }]`.
+Dans la vue Derniers, `showView('derniers')` la révèle avec :
+
+```javascript
+dt.column('.col-first-seen').visible(true);
+$(dt.column('.col-first-seen').header()).text('Ajouté le');
+dt.order([[dt.column('.col-first-seen').index(), 'desc']]).draw();
+```
+
+**Pourquoi le sélecteur par classe et non par index numérique :**
+Un `style="display:none"` sur le `<th>` empêche DataTables d'enregistrer correctement la colonne
+dans son registre interne à l'initialisation — `dt.column(N).visible(true)` reste sans effet.
+Le sélecteur `.col-first-seen` (classe CSS sur le `<th>`) contourne ce problème.
+
+Le `render` de la colonne formate l'ISO UTC en `JJ/MM\nHH:MM` pour l'affichage,
+et retourne le string ISO brut pour le tri lexicographique (ISO 8601 est sort-safe).
+
 | Version | Particularité |
 |---|---|
 | v1 | Style Bootstrap original, 3 lignes de filtres toujours visibles |
@@ -524,4 +547,4 @@ p.add_argument("--generator", default="v1", ...)
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 11/04/2026.*
+*Document créé le 09/04/2026 — mis à jour le 11/04/2026 (colonne Ajouté le, fix badges NEW html-only, sélecteur DataTables par classe).*
