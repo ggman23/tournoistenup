@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Test Calendrier</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/2.0.5/css/dataTables.bootstrap5.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/buttons/3.0.2/css/buttons.bootstrap5.min.css">
+  <style>
+    body { font-size: 0.875rem; background:#f4f6f9; }
+    h1   { font-size: 1.35rem; }
+    .tournament-link { font-weight:600; color:#0d6efd; text-decoration:none; }
+    .tournament-link:hover { text-decoration:underline; }
+    .ep-line  { margin-bottom:3px; white-space:nowrap; line-height:1.4; }
+    .ep-nature { color:#495057; font-weight:600; }
+    .ep-age    { color:#6c757d; font-size:.85em; }
+    .ep-range  { color:#0d6efd; }
+    .ep-tarif  { background:#e9ecef; border-radius:3px; padding:0 5px; font-weight:600; font-size:.85em; }
+    .badge        { font-size:.72em; }
+    .fmt-badge    { font-size:.85em; padding:.35em .6em; }
+    .fmt-ep-badge    { font-size:.75em; padding:.2em .45em; vertical-align:middle; opacity:.9; }
+    .statut-badge    { font-size:.72em; padding:.2em .45em; vertical-align:middle; }
+    .srf-badge       { font-size:.75em; }
+    .ep-comment      { border-top:1px solid #eee; margin-top:4px; padding-top:2px; }
+    table.dataTable td { vertical-align:middle; }
+    #filter-bar { background:white; border-radius:8px; padding:14px 18px; margin-bottom:14px;
+                   box-shadow:0 1px 4px rgba(0,0,0,.08); }
+    .stat-card  { border-radius:8px; padding:8px 16px; color:white;
+                   display:inline-block; margin-right:8px; margin-bottom:6px; font-weight:600; }
+    .dt-buttons { margin-bottom:8px; }
+    .fav-btn { background:none; border:none; cursor:pointer; font-size:1.15em;
+               padding:0 3px; color:#ccc; line-height:1; transition:color .15s; }
+    .fav-btn.fav-active { color:#f39c12; }
+    .dept-group { display:flex; align-items:center; flex-wrap:wrap; gap:3px; font-size:.8em; }
+    .dept-ligue-btn { font-size:.72em; white-space:nowrap; user-select:none; }
+    .dept-ligue-btn:hover { opacity:.8; }
+    .dept-chips { display:inline-flex; flex-wrap:wrap; gap:2px; margin-left:4px; }
+    .dept-chip { display:inline-flex; align-items:center; gap:2px; padding:1px 5px;
+                 border:1px solid #dee2e6; border-radius:3px; cursor:pointer;
+                 background:#f8f9fa; white-space:nowrap; }
+    .dept-chip:has(input:checked) { background:#0d6efd; color:white; border-color:#0d6efd; }
+    .dept-chip input { display:none; }
+    /* ── Vue onglets ──────────────────────────────────────────────────────── */
+    .view-tab { transition:all .15s; }
+    /* ── Calendrier ──────────────────────────────────────────────────────── */
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+    .cal-dow  { text-align:center; font-weight:600; font-size:.78em; padding:5px 2px;
+                background:#e9ecef; border-radius:4px; }
+    .cal-cell { min-height:78px; border:1px solid #dee2e6; border-radius:5px;
+                padding:4px 5px; cursor:pointer; transition:background .12s; }
+    .cal-cell:hover:not(.cal-empty) { background:#f0f7ff; }
+    .cal-has-events { background:#f5faff; border-color:#bee3f8; }
+    .cal-today  { border:2px solid #e74c3c !important; }
+    .cal-empty  { border:none !important; background:transparent !important; cursor:default; }
+    .cal-day-num { font-size:.82em; font-weight:600; color:#6c757d; line-height:1.2; }
+    .cal-today .cal-day-num { color:#e74c3c; }
+    .cal-count  { font-weight:700; font-size:1.05em; color:#0d6efd; line-height:1.3; }
+    .cal-chip   { font-size:.67em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+                  padding:1px 3px; border-radius:2px; margin-top:1px; }
+    .cal-chip-more { font-size:.67em; color:#6c757d; margin-top:1px; }
+    .cal-panel  { border:1px solid #dee2e6; border-radius:6px; padding:14px 16px;
+                  background:#f8f9fa; margin-top:10px; }
+    /* ── Gantt ────────────────────────────────────────────────────────────── */
+    .gantt-row   { display:flex; align-items:center; border-bottom:1px solid #f0f0f0; min-height:26px; }
+    .gantt-row:hover { background:#f8f9fa; }
+    .gantt-label { width:210px; min-width:210px; font-size:.75em; overflow:hidden;
+                   text-overflow:ellipsis; white-space:nowrap; padding-right:8px;
+                   color:#495057; text-align:right; }
+    .gantt-bar   { position:absolute; height:16px; top:3px; border-radius:3px;
+                   cursor:pointer; opacity:.82; transition:opacity .12s; }
+    .gantt-bar:hover { opacity:1; box-shadow:0 2px 5px rgba(0,0,0,.2); }
+    .gantt-today { position:absolute; top:0; bottom:0; width:2px;
+                   background:#e74c3c; opacity:.55; pointer-events:none; z-index:5; }
+  </style>
+</head>
+<body>
+<div class="container-fluid py-3">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center mb-3 gap-3 flex-wrap">
+    <h1 class="mb-0">🎾 Test Calendrier</h1>
+    <span class="stat-card" style="background:#0d6efd">1 tournois</span>
+    
+    <small class="text-muted ms-auto">Mis à jour : 2026-04-09 15:48 UTC</small>
+  </div>
+
+  <!-- Filter bar -->
+  <div id="filter-bar">
+
+    <!-- Ligne 0 : Recherche + Ligue + Comités -->
+    <div class="row g-2 align-items-end mb-2 pb-2 border-bottom">
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">🔍 Rechercher</label>
+        <input type="search" class="form-control form-control-sm" id="filter-search"
+               placeholder="Nom, juge, ville, club…" style="min-width:240px"
+               oninput="applySearch(this.value)">
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Ligue</label>
+        <select class="form-select form-select-sm" id="filter-ligue"
+                style="min-width:210px" onchange="onLigueChange()">
+          <option value="">Toutes les ligues</option>
+          <option>Auvergne-Rhône-Alpes</option>
+          <option>Bourgogne-Franche-Comté</option>
+          <option>Bretagne</option>
+          <option>Centre-Val de Loire</option>
+          <option>Corse</option>
+          <option>Grand Est</option>
+          <option>Hauts-de-France</option>
+          <option>Île-de-France</option>
+          <option>Normandie</option>
+          <option>Nouvelle-Aquitaine</option>
+          <option>Occitanie</option>
+          <option>Pays de la Loire</option>
+          <option>PACA</option>
+        </select>
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Comités (depts)</label><br>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+                  id="dept-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                  aria-expanded="false">
+            Tous les comités
+          </button>
+          <div class="dropdown-menu p-2" style="min-width:480px;max-height:320px;overflow-y:auto">
+            <div class="d-flex justify-content-between mb-1">
+              <small class="text-muted fst-italic">Cliquez sur une ligue pour tout cocher</small>
+              <button class="btn btn-xs btn-link p-0 text-danger" onclick="clearDepts()">Tout décocher</button>
+            </div>
+            <div id="dept-checkboxes">
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Auvergne-Rhône-Alpes')" style="cursor:pointer">Auvergne-Rhône-Alpes</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-01" value="01" onchange="onDeptChange()"> 01</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-03" value="03" onchange="onDeptChange()"> 03</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-15" value="15" onchange="onDeptChange()"> 15</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-26" value="26" onchange="onDeptChange()"> 26</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-38" value="38" onchange="onDeptChange()"> 38</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-42" value="42" onchange="onDeptChange()"> 42</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-43" value="43" onchange="onDeptChange()"> 43</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-63" value="63" onchange="onDeptChange()"> 63</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-69" value="69" onchange="onDeptChange()"> 69</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-73" value="73" onchange="onDeptChange()"> 73</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-74" value="74" onchange="onDeptChange()"> 74</label></span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Bourgogne-Franche-Comté')" style="cursor:pointer">Bourgogne-Franche-Comté</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-21" value="21" onchange="onDeptChange()"> 21</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-25" value="25" onchange="onDeptChange()"> 25</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-39" value="39" onchange="onDeptChange()"> 39</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-58" value="58" onchange="onDeptChange()"> 58</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-70" value="70" onchange="onDeptChange()"> 70</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-71" value="71" onchange="onDeptChange()"> 71</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-89" value="89" onchange="onDeptChange()"> 89</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-90" value="90" onchange="onDeptChange()"> 90</label></span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Bretagne')" style="cursor:pointer">Bretagne</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-22" value="22" onchange="onDeptChange()"> 22</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-29" value="29" onchange="onDeptChange()"> 29</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-35" value="35" onchange="onDeptChange()"> 35</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-56" value="56" onchange="onDeptChange()"> 56</label></span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Centre-Val de Loire')" style="cursor:pointer">Centre-Val de Loire</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-18" value="18" onchange="onDeptChange()"> 18</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-28" value="28" onchange="onDeptChange()"> 28</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-36" value="36" onchange="onDeptChange()"> 36</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-37" value="37" onchange="onDeptChange()"> 37</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-41" value="41" onchange="onDeptChange()"> 41</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-45" value="45" onchange="onDeptChange()"> 45</label></span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Corse')" style="cursor:pointer">Corse</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-20" value="20" onchange="onDeptChange()"> 20 (2A/2B)</label></span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Grand Est')" style="cursor:pointer">Grand Est</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-08" value="08" onchange="onDeptChange()"> 08</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-10" value="10" onchange="onDeptChange()"> 10</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-51" value="51" onchange="onDeptChange()"> 51</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-52" value="52" onchange="onDeptChange()"> 52</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-54" value="54" onchange="onDeptChange()"> 54</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-55" value="55" onchange="onDeptChange()"> 55</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-57" value="57" onchange="onDeptChange()"> 57</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-67" value="67" onchange="onDeptChange()"> 67</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-68" value="68" onchange="onDeptChange()"> 68</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-88" value="88" onchange="onDeptChange()"> 88</label></span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Hauts-de-France')" style="cursor:pointer">Hauts-de-France</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-02" value="02" onchange="onDeptChange()"> 02</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-59" value="59" onchange="onDeptChange()"> 59</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-60" value="60" onchange="onDeptChange()"> 60</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-62" value="62" onchange="onDeptChange()"> 62</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-80" value="80" onchange="onDeptChange()"> 80</label></span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Île-de-France')" style="cursor:pointer">Île-de-France</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-75" value="75" onchange="onDeptChange()"> 75</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-77" value="77" onchange="onDeptChange()"> 77</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-78" value="78" onchange="onDeptChange()"> 78</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-91" value="91" onchange="onDeptChange()"> 91</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-92" value="92" onchange="onDeptChange()"> 92</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-93" value="93" onchange="onDeptChange()"> 93</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-94" value="94" onchange="onDeptChange()"> 94</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-95" value="95" onchange="onDeptChange()"> 95</label></span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Normandie')" style="cursor:pointer">Normandie</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-14" value="14" onchange="onDeptChange()"> 14</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-27" value="27" onchange="onDeptChange()"> 27</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-50" value="50" onchange="onDeptChange()"> 50</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-61" value="61" onchange="onDeptChange()"> 61</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-76" value="76" onchange="onDeptChange()"> 76</label></span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Nouvelle-Aquitaine')" style="cursor:pointer">Nouvelle-Aquitaine</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-16" value="16" onchange="onDeptChange()"> 16</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-17" value="17" onchange="onDeptChange()"> 17</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-19" value="19" onchange="onDeptChange()"> 19</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-23" value="23" onchange="onDeptChange()"> 23</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-24" value="24" onchange="onDeptChange()"> 24</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-33" value="33" onchange="onDeptChange()"> 33</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-40" value="40" onchange="onDeptChange()"> 40</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-47" value="47" onchange="onDeptChange()"> 47</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-64" value="64" onchange="onDeptChange()"> 64</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-79" value="79" onchange="onDeptChange()"> 79</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-86" value="86" onchange="onDeptChange()"> 86</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-87" value="87" onchange="onDeptChange()"> 87</label></span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Occitanie')" style="cursor:pointer">Occitanie</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-09" value="09" onchange="onDeptChange()"> 09</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-11" value="11" onchange="onDeptChange()"> 11</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-12" value="12" onchange="onDeptChange()"> 12</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-30" value="30" onchange="onDeptChange()"> 30</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-31" value="31" onchange="onDeptChange()"> 31</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-32" value="32" onchange="onDeptChange()"> 32</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-34" value="34" onchange="onDeptChange()"> 34</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-46" value="46" onchange="onDeptChange()"> 46</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-48" value="48" onchange="onDeptChange()"> 48</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-65" value="65" onchange="onDeptChange()"> 65</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-66" value="66" onchange="onDeptChange()"> 66</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-81" value="81" onchange="onDeptChange()"> 81</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-82" value="82" onchange="onDeptChange()"> 82</label></span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('Pays de la Loire')" style="cursor:pointer">Pays de la Loire</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-44" value="44" onchange="onDeptChange()"> 44</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-49" value="49" onchange="onDeptChange()"> 49</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-53" value="53" onchange="onDeptChange()"> 53</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-72" value="72" onchange="onDeptChange()"> 72</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-85" value="85" onchange="onDeptChange()"> 85</label></span></div>
+              <div class="dept-group mb-1"><span class="badge bg-secondary dept-ligue-btn" onclick="selectLigueGroup('PACA')" style="cursor:pointer">PACA</span>
+                <span class="dept-chips"><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-04" value="04" onchange="onDeptChange()"> 04</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-05" value="05" onchange="onDeptChange()"> 05</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-06" value="06" onchange="onDeptChange()"> 06</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-13" value="13" onchange="onDeptChange()"> 13</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-83" value="83" onchange="onDeptChange()"> 83</label><label class="dept-chip"><input type="checkbox" class="dept-chk" id="dept-chk-84" value="84" onchange="onDeptChange()"> 84</label></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="row g-2 align-items-end">
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Épreuve</label>
+        <select class="form-select form-select-sm" id="filter-epreuve"
+                style="min-width:220px" onchange="applyFilters()">
+          <option value="">Toutes les épreuves</option>
+<option value="SM_140">Simple Messieurs 13/14 ans</option>
+
+        </select>
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Vol d'oiseau max (km)</label>
+        <input type="number" class="form-control form-control-sm" id="filter-distance"
+               placeholder="ex: 50" style="width:110px" oninput="applyFilters()">
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">🚗 Trajet max (km)</label>
+        <input type="number" class="form-control form-control-sm" id="filter-road-km"
+               placeholder="ex: 60" style="width:110px" oninput="applyFilters()">
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">🕐 Trajet max (min)</label>
+        <input type="number" class="form-control form-control-sm" id="filter-road-min"
+               placeholder="ex: 45" style="width:110px" oninput="applyFilters()">
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Surface</label>
+        <select class="form-select form-select-sm" id="filter-surface"
+                style="min-width:150px" onchange="applyFilters()">
+          <option value="">Toutes</option>
+          <option>Résine</option>
+          <option>Terre battue</option>
+          <option>Terre artificielle</option>
+          <option>Béton poreux</option>
+          <option>Gazon</option>
+          <option>Moquette</option>
+        </select>
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Format</label>
+        <select class="form-select form-select-sm" id="filter-format"
+                style="width:110px" onchange="applyFilters()">
+          <option value="">Tous</option>
+          <option value="1">F1</option><option value="2">F2</option>
+          <option value="3">F3</option><option value="4">F4</option>
+          <option value="5">F5</option><option value="6">F6</option>
+          <option value="7">F7</option>
+        </select>
+        <div class="form-check mt-1">
+          <input class="form-check-input" type="checkbox" id="chk-no-fmt" onchange="applyFilters()">
+          <label class="form-check-label small" for="chk-no-fmt">+ sans format</label>
+        </div>
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Statut inscription</label>
+        <select class="form-select form-select-sm" id="filter-statut"
+                style="min-width:175px" onchange="applyFilters()">
+          <option value="">Tous statuts</option>
+          <option value="ouvert">✅ Ouvert</option>
+          <option value="bientot">🔵 Bientôt</option>
+          <option value="attente">🟠 Liste d'attente</option>
+          <option value="cloture">🔴 Clôturé</option>
+          <option value="impossible">⬜ Hors ligne</option>
+          <option value="hors_bornes">⬜ Hors bornes</option>
+          <option value="deja_inscrit">🟢 Déjà inscrit</option>
+          <option value="ineligible">⬛ Non éligible</option>
+        </select>
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">&nbsp;</label><br>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-hide-past" checked onchange="applyFilters()">
+          <label class="form-check-label small fw-semibold" for="chk-hide-past" style="color:#6c757d">Masquer terminés</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-new" onchange="applyFilters()">
+          <label class="form-check-label small" for="chk-new">Nouveaux</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-tmc" onchange="applyFilters()">
+          <label class="form-check-label small" for="chk-tmc">TMC</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-insc" onchange="applyFilters()">
+          <label class="form-check-label small" for="chk-insc">Inscr. en ligne</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-fav" onchange="applyFilters()">
+          <label class="form-check-label small" for="chk-fav">⭐ Favoris</label>
+        </div>
+      </div>
+
+      <div class="col-auto ms-auto align-self-end">
+        <button class="btn btn-sm btn-outline-secondary" onclick="resetFilters()">
+          ✕ Réinitialiser
+        </button>
+        <span id="filter-count" class="ms-2 text-muted small"></span>
+      </div>
+    </div>
+
+    <!-- Ligne 2 : masquer mots-clés + plage de dates -->
+    <div class="row g-2 align-items-end mt-2 pt-2 border-top">
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Masquer tournois contenant</label><br>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-hide-vert" onchange="applyFilters()">
+          <label class="form-check-label small fw-bold" for="chk-hide-vert" style="color:#198754">Vert</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-hide-orange" onchange="applyFilters()">
+          <label class="form-check-label small fw-bold" for="chk-hide-orange" style="color:#fd7e14">Orange</label>
+        </div>
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Mots à exclure (séparés par espace)</label>
+        <input type="text" class="form-control form-control-sm" id="filter-exclude"
+               placeholder="ex: hiver open fédéral" style="min-width:260px" oninput="applyFilters()">
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Dates du</label>
+        <input type="date" class="form-control form-control-sm" id="filter-date-start"
+               style="width:150px" onchange="applyFilters()">
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">au</label>
+        <input type="date" class="form-control form-control-sm" id="filter-date-end"
+               style="width:150px" onchange="applyFilters()">
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Onglets de vue -->
+  <div class="d-flex gap-2 mb-2 align-items-center">
+    <button class="btn btn-sm btn-primary view-tab" id="tab-table"
+            onclick="showView('table')">📋 Tableau</button>
+    <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-cal"
+            onclick="showView('calendar')">📅 Calendrier</button>
+    <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-gantt"
+            onclick="showView('gantt')">📊 Gantt</button>
+    <small class="text-muted ms-2" id="view-info"></small>
+  </div>
+
+  <!-- Vue Calendrier -->
+  <div id="view-calendar" style="display:none" class="bg-white rounded shadow-sm p-3"></div>
+
+  <!-- Vue Gantt -->
+  <div id="view-gantt" style="display:none" class="bg-white rounded shadow-sm p-3" style="overflow-x:auto"></div>
+
+  <!-- Table -->
+  <div id="view-table" class="bg-white rounded shadow-sm p-3">
+    <table id="t" class="table table-hover table-striped" style="width:100%">
+      <thead class="table-dark">
+        <tr>
+          <th>Dates</th>
+          <th>Tournoi</th>
+          <th>Catégorie</th>
+          <th>Format</th>
+          <th>Épreuves</th>
+          <th>Surface</th>
+          <th>Ville</th>
+          <th>Distance</th>
+          <th>Inscr.</th>
+          <th>Paiem.</th>
+          <th>Juge / Tél</th>
+          <th>Email</th>
+          <th>Ouv. inscr.</th>
+          <th>⭐</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class=""
+            data-id="1"
+            data-ep-keys='["SM_140"]'
+            data-statuts='["ouvert"]'
+            data-distance="10.0"
+            data-fmt="4"
+            data-has-format="true"
+            data-new="false"
+            data-tmc="false"
+            data-libelle="test tournoi"
+            data-cat="tournoi"
+            data-date-debut="2026-04-17"
+            data-date-fin="2026-04-25"
+            data-dept="75"
+            data-road-km=""
+            data-road-min="">
+          <td data-sort="2026-04-17T00:00:00.000000+0000">17/04/2026 → 25/04/2026</td>
+          <td><a href="https://tenup.fft.fr/tournoi/1" target="_blank" class="tournament-link">Test tournoi</a></td>
+          <td>Tournoi</td>
+          <td data-sort="4"><span class="badge fmt-badge" style="background:#27ae60" title="Format 4" data-bs-toggle="tooltip">F4</span></td>
+          <td><div class="ep-line" data-ep-key="SM_140"><span class="ep-nature">Simple Messieurs</span> <span class="ep-age">13/14 ans</span> <span class="ep-range">NC → N1</span> <span class="ep-tarif">20€</span> <span class="badge fmt-ep-badge" style="background:#27ae60" title="Format 4 — test" data-bs-toggle="tooltip">F4</span> <span class="badge statut-badge" style="background:#27ae60" title="Ouvert" data-bs-toggle="tooltip">Ouvert</span></div></td>
+          <td><span class="badge srf-badge" style="background:#2980b9">Résine</span></td>
+          <td>PARIS <small class="text-muted">75001</small></td>
+          <td data-sort="10.0">10 km</td>
+          <td class="text-center">✅</td>
+          <td class="text-center">❌</td>
+          <td><small>Jean Dupont<br>—</small></td>
+          <td><small>—</small></td>
+          <td><small></small></td>
+          <td class="text-center"><button class="fav-btn" data-id="1" onclick="toggleFav(this)">&#9734;</button></td>
+        </tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/2.0.5/js/dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/2.0.5/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.0.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.0.2/js/buttons.print.min.js"></script>
+<script>
+var dt;
+var currentView = 'table';
+var calYear, calMonth;
+
+$(function() {
+  $('[data-bs-toggle="tooltip"]').each(function() {
+    new bootstrap.Tooltip(this);
+  });
+
+  // ── Custom DataTables row filter ──────────────────────────────────────────
+  $.fn.dataTable.ext.search.push(function(settings, _data, index) {
+    var node = settings.aoData[index] && settings.aoData[index].nTr;
+    if (!node) return true;
+    var $tr = $(node);
+
+    var epKey    = $('#filter-epreuve').val();
+    var maxDist  = parseFloat($('#filter-distance').val()) || null;
+    var surface  = $('#filter-surface').val().toLowerCase();
+    var fmt      = $('#filter-format').val();
+    var onlyNew  = $('#chk-new').prop('checked');
+    var onlyTmc  = $('#chk-tmc').prop('checked');
+    var onlyInsc = $('#chk-insc').prop('checked');
+    var onlyFav  = $('#chk-fav').prop('checked');
+
+    // ── Filtre comités/départements ───────────────────────────────────────────
+    var checkedDepts = $('.dept-chk:checked').map(function() { return $(this).val(); }).get();
+    if (checkedDepts.length > 0) {
+      var dept = $tr.attr('data-dept') || '';
+      if (checkedDepts.indexOf(dept) === -1) return false;
+    }
+
+    if (epKey) {
+      var keys = JSON.parse($tr.attr('data-ep-keys') || '[]');
+      if (keys.indexOf(epKey) === -1) return false;
+    }
+    if (maxDist !== null && (parseFloat($tr.attr('data-distance')) || 0) > maxDist) return false;
+
+    var maxRoadKm  = parseFloat($('#filter-road-km').val())  || null;
+    var maxRoadMin = parseFloat($('#filter-road-min').val()) || null;
+    if (maxRoadKm !== null) {
+      var roadKm = $tr.attr('data-road-km');
+      if (!roadKm || parseFloat(roadKm) > maxRoadKm) return false;
+    }
+    if (maxRoadMin !== null) {
+      var roadMin = $tr.attr('data-road-min');
+      if (!roadMin || parseFloat(roadMin) > maxRoadMin) return false;
+    }
+
+    if (surface && $tr.find('td:nth-child(6)').text().toLowerCase().indexOf(surface) === -1) return false;
+    if (fmt) {
+      var fmts      = ($tr.attr('data-fmt') || '').split(',');
+      var hasFmt    = $tr.attr('data-has-format') === 'true';
+      var inclNoFmt = $('#chk-no-fmt').prop('checked');
+      if (fmts.indexOf(fmt) === -1 && !(inclNoFmt && !hasFmt)) return false;
+    }
+    // ── Masquer tournois terminés (date de fin dépassée) ─────────────────────
+    if ($('#chk-hide-past').prop('checked')) {
+      var dateFin = $tr.attr('data-date-fin') || '';
+      if (dateFin) {
+        var todayStr = (function() {
+          var d = new Date();
+          return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        })();
+        if (dateFin < todayStr) return false;
+      }
+    }
+
+    var filterStatut = $('#filter-statut').val();
+    if (filterStatut) {
+      var statuts = JSON.parse($tr.attr('data-statuts') || '[]');
+      if (statuts.indexOf(filterStatut) === -1) return false;
+    }
+
+    if (onlyNew  && $tr.attr('data-new') !== 'true')  return false;
+    if (onlyTmc  && $tr.attr('data-tmc') !== 'true')  return false;
+    if (onlyInsc && $tr.find('td:nth-child(9)').text().trim() !== '✅') return false;
+    if (onlyFav) {
+      var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{}');
+      if (!favs[$tr.attr('data-id')]) return false;
+    }
+
+    // ── Masquer Vert / Orange (nom + catégorie uniquement) ────────────────
+    var libelle = $tr.attr('data-libelle') || '';
+    var cat     = $tr.attr('data-cat') || '';
+    var nameCat = libelle + ' ' + cat;
+    if ($('#chk-hide-vert').prop('checked')   && nameCat.indexOf('vert')   !== -1) return false;
+    if ($('#chk-hide-orange').prop('checked') && nameCat.indexOf('orange') !== -1) return false;
+
+    // ── Exclure mots personnalisés (nom + catégorie) ──────────────────────
+    var excludeRaw = $('#filter-exclude').val().trim().toLowerCase();
+    if (excludeRaw) {
+      var words = excludeRaw.split(/\s+/).filter(Boolean);
+      for (var wi = 0; wi < words.length; wi++) {
+        if (nameCat.indexOf(words[wi]) !== -1) return false;
+      }
+    }
+
+    // ── Filtre plage de dates ─────────────────────────────────────────────
+    var fStart = $('#filter-date-start').val();
+    var fEnd   = $('#filter-date-end').val();
+    if (fStart || fEnd) {
+      var tStart = $tr.attr('data-date-debut') || '';
+      var tEnd   = $tr.attr('data-date-fin')   || '';
+      if (fEnd   && tStart && tStart > fEnd)   return false;
+      if (fStart && tEnd   && tEnd   < fStart) return false;
+    }
+
+    return true;
+  });
+
+  dt = $('#t').DataTable({
+    pageLength: 25,
+    lengthMenu: [[25, 50, 100, -1], [25, 50, 100, "Tout"]],
+    order: [[0, 'asc']],
+    language: { url: 'https://cdn.datatables.net/plug-ins/2.0.5/i18n/fr-FR.json' },
+    columnDefs: [
+      { targets: [2,3,5,8,9], searchable: false },
+      { targets: [3,7], type: 'num' },
+      { targets: [-1], orderable: false, searchable: false },
+    ],
+    dom: '<"row"<"col-sm-6"B><"col-sm-6"l>>rtip',
+    buttons: [
+      { extend:'excelHtml5', text:'📥 Excel', className:'btn-sm btn-outline-success',
+         exportOptions:{ columns:':visible' } },
+      { extend:'csvHtml5',   text:'📄 CSV',   className:'btn-sm btn-outline-secondary',
+         exportOptions:{ columns:':visible' } },
+      { extend:'print',      text:'🖨 Print',  className:'btn-sm btn-outline-secondary' },
+    ],
+    drawCallback: function() {
+      restoreFavs();
+      applyEpLineFilter();
+      var n = dt.page.info().recordsDisplay;
+      $('#filter-count').text(n + ' affiché(s)');
+      $('#view-info').text(n + ' tournois dans la vue');
+      if (currentView === 'calendar') renderCalendar();
+      if (currentView === 'gantt')    renderGantt();
+    }
+  });
+});
+
+function applyFilters() {
+  if (dt) dt.draw();
+}
+
+// ── Recherche texte (toutes colonnes via DataTables) ─────────────────────────
+function applySearch(val) {
+  if (dt) dt.search(val).draw();
+}
+
+// ── Ligue → Comités ──────────────────────────────────────────────────────────
+var LIGUES = {
+  "Auvergne-Rhône-Alpes":    ["01","03","15","26","38","42","43","63","69","73","74"],
+  "Bourgogne-Franche-Comté": ["21","25","39","58","70","71","89","90"],
+  "Bretagne":                ["22","29","35","56"],
+  "Centre-Val de Loire":     ["18","28","36","37","41","45"],
+  "Corse":                   ["20"],
+  "Grand Est":               ["08","10","51","52","54","55","57","67","68","88"],
+  "Hauts-de-France":         ["02","59","60","62","80"],
+  "Île-de-France":      ["75","77","78","91","92","93","94","95"],
+  "Normandie":               ["14","27","50","61","76"],
+  "Nouvelle-Aquitaine":      ["16","17","19","23","24","33","40","47","64","79","86","87"],
+  "Occitanie":               ["09","11","12","30","31","32","34","46","48","65","66","81","82"],
+  "Pays de la Loire":        ["44","49","53","72","85"],
+  "PACA":                    ["04","05","06","13","83","84"]
+};
+
+function onLigueChange() {
+  var ligue = $('#filter-ligue').val();
+  $('.dept-chk').prop('checked', false);
+  if (ligue && LIGUES[ligue]) {
+    LIGUES[ligue].forEach(function(d) {
+      $('#dept-chk-' + d).prop('checked', true);
+    });
+  }
+  updateDeptBtn();
+  applyFilters();
+}
+
+function selectLigueGroup(ligue) {
+  if (LIGUES[ligue]) {
+    var allChecked = LIGUES[ligue].every(function(d) {
+      return $('#dept-chk-' + d).prop('checked');
+    });
+    LIGUES[ligue].forEach(function(d) {
+      $('#dept-chk-' + d).prop('checked', !allChecked);
+    });
+    updateDeptBtn();
+    applyFilters();
+  }
+}
+
+function onDeptChange() {
+  // Clear ligue select when manually picking depts
+  $('#filter-ligue').val('');
+  updateDeptBtn();
+  applyFilters();
+}
+
+function clearDepts() {
+  $('.dept-chk').prop('checked', false);
+  $('#filter-ligue').val('');
+  updateDeptBtn();
+  applyFilters();
+}
+
+function updateDeptBtn() {
+  var checked = $('.dept-chk:checked').map(function() { return $(this).val(); }).get();
+  var btn = $('#dept-btn');
+  if (checked.length === 0) {
+    btn.text('Tous les comités').removeClass('btn-primary').addClass('btn-outline-secondary');
+  } else {
+    btn.text(checked.join(', ')).removeClass('btn-outline-secondary').addClass('btn-primary');
+  }
+}
+
+function applyEpLineFilter() {
+  var epKey = $('#filter-epreuve').val();
+  $('#ep-line-filter-style').remove();
+  if (epKey) {
+    $('<style id="ep-line-filter-style">')
+      .text('.ep-line:not([data-ep-key="' + epKey + '"]) { display:none !important; }')
+      .appendTo('head');
+  }
+}
+
+// ── Favorites (stored in localStorage) ───────────────────────────────────────
+function toggleFav(btn) {
+  var id   = btn.getAttribute('data-id');
+  var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{}');
+  if (favs[id]) {
+    delete favs[id];
+    btn.textContent = '☆';
+    btn.classList.remove('fav-active');
+  } else {
+    favs[id] = true;
+    btn.textContent = '★';
+    btn.classList.add('fav-active');
+  }
+  localStorage.setItem('tenup_favs', JSON.stringify(favs));
+  if ($('#chk-fav').prop('checked')) dt.draw();
+}
+
+function restoreFavs() {
+  var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{}');
+  $('.fav-btn').each(function() {
+    var id  = $(this).attr('data-id');
+    var isFav = !!favs[id];
+    $(this).text(isFav ? '★' : '☆').toggleClass('fav-active', isFav);
+  });
+}
+
+function resetFilters() {
+  $('#filter-epreuve, #filter-surface, #filter-format, #filter-statut').val('');
+  $('#filter-distance, #filter-road-km, #filter-road-min, #filter-exclude').val('');
+  $('#filter-date-start, #filter-date-end').val('');
+  $('#filter-ligue').val('');
+  $('.dept-chk').prop('checked', false);
+  updateDeptBtn();
+  $('#chk-new, #chk-tmc, #chk-insc, #chk-fav, #chk-no-fmt').prop('checked', false);
+  $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
+  $('#chk-hide-past').prop('checked', true);  // remet masquer-terminés coché par défaut
+  $('#filter-search').val('');
+  if (dt) { dt.search('').draw(); } else { applyFilters(); }
+}
+
+// ── Gestion des vues (Tableau / Calendrier / Gantt) ──────────────────────────
+function showView(view) {
+  currentView = view;
+  $('#view-table').toggle(view === 'table');
+  $('#view-calendar').toggle(view === 'calendar');
+  $('#view-gantt').toggle(view === 'gantt');
+  $('.view-tab').removeClass('btn-primary').addClass('btn-outline-secondary');
+  var tabId = view === 'table' ? 'tab-table' : view === 'calendar' ? 'tab-cal' : 'tab-gantt';
+  $('#' + tabId).removeClass('btn-outline-secondary').addClass('btn-primary');
+  if (view === 'calendar') { calYear = undefined; calMonth = undefined; renderCalendar(); }
+  if (view === 'gantt')    renderGantt();
+}
+
+// ── Extraction des données filtrées depuis DataTables ────────────────────────
+function getFilteredData() {
+  var result = [];
+  dt.rows({ search: 'applied' }).nodes().each(function(node) {
+    var $tr = $(node);
+    var $link = $tr.find('a.tournament-link').first();
+    result.push({
+      id:    $tr.attr('data-id') || '',
+      nom:   $link.text().trim(),
+      url:   $link.attr('href') || '',
+      debut: $tr.attr('data-date-debut') || '',
+      fin:   $tr.attr('data-date-fin')   || '',
+      fmt:   ($tr.attr('data-fmt') || '').split(',')[0] || '',
+      ville: $tr.find('td:eq(6)').contents().first().text().trim(),
+      statuts: $tr.attr('data-statuts') || '[]',
+    });
+  });
+  return result;
+}
+
+var _FMT_COLORS = {'1':'#c0392b','2':'#e67e22','3':'#f39c12','4':'#27ae60','5':'#2980b9','6':'#8e44ad','7':'#7f8c8d'};
+var _STATUT_CFG = {'ouvert':['#27ae60','Ouvert'],'bientot':['#2980b9','Bientôt'],'attente':['#e67e22','Attente'],'cloture':['#c0392b','Clôturé'],'impossible':['#95a5a6','Hors ligne'],'hors_bornes':['#7f8c8d','Hors bornes'],'deja_inscrit':['#1abc9c','Déjà inscrit'],'ineligible':['#34495e','Non éligible'],'autre':['#bdc3c7','?']};
+var _MONTH_NAMES = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+var _MONTH_SHORT = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
+var _DAY_NAMES   = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+
+// ── Calendrier ────────────────────────────────────────────────────────────────
+function renderCalendar() {
+  var data = getFilteredData();
+
+  // Initialise le mois : 1er mois avec des tournois ≥ aujourd'hui, sinon mois courant
+  if (calYear === undefined) {
+    var today = new Date();
+    var todayYM = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0');
+    var earliest = null;
+    data.forEach(function(t) {
+      var ym = t.debut.slice(0,7);
+      if (ym >= todayYM && (!earliest || ym < earliest)) earliest = ym;
+    });
+    var initYM = earliest || todayYM;
+    calYear  = parseInt(initYM.slice(0,4));
+    calMonth = parseInt(initYM.slice(5,7)) - 1;
+  }
+
+  // Regroupement par date de début
+  var byDate = {};
+  data.forEach(function(t) {
+    if (!t.debut) return;
+    if (!byDate[t.debut]) byDate[t.debut] = [];
+    byDate[t.debut].push(t);
+  });
+
+  var firstDay    = new Date(calYear, calMonth, 1);
+  var daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  var startDow    = (firstDay.getDay() + 6) % 7; // Lundi = 0
+  var now         = new Date();
+  var todayStr    = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+
+  // Compte total du mois
+  var monthTotal = 0;
+  for (var d2 = 1; d2 <= daysInMonth; d2++) {
+    var ds2 = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d2).padStart(2,'0');
+    monthTotal += (byDate[ds2] || []).length;
+  }
+
+  var html = '<div class="d-flex align-items-center gap-3 mb-3">';
+  html += '<button class="btn btn-sm btn-outline-secondary" onclick="calNav(-1)">‹ Préc</button>';
+  html += '<h5 class="mb-0 fw-bold" style="min-width:220px;text-align:center">' + _MONTH_NAMES[calMonth] + ' ' + calYear + '</h5>';
+  html += '<button class="btn btn-sm btn-outline-secondary" onclick="calNav(1)">Suiv ›</button>';
+  html += '<small class="text-muted ms-3">' + monthTotal + ' tournoi(s) débutant ce mois · ' + data.length + ' au total</small>';
+  html += '</div>';
+
+  html += '<div class="cal-grid mb-2">';
+  ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].forEach(function(d3) {
+    html += '<div class="cal-dow">' + d3 + '</div>';
+  });
+  for (var i = 0; i < startDow; i++) html += '<div class="cal-cell cal-empty"></div>';
+
+  for (var d = 1; d <= daysInMonth; d++) {
+    var ds = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    var ts = byDate[ds] || [];
+    var isToday = ds === todayStr;
+    var cls = 'cal-cell' + (isToday ? ' cal-today' : '') + (ts.length ? ' cal-has-events' : '');
+    html += '<div class="' + cls + '" onclick="showDayPanel('' + ds + '')">';
+    html += '<div class="cal-day-num">' + d + '</div>';
+    if (ts.length) {
+      html += '<div class="cal-count">' + ts.length + ' 🎾</div>';
+      ts.slice(0, 3).forEach(function(t) {
+        var color = _FMT_COLORS[t.fmt] || '#999';
+        var nomCourt = t.nom.length > 20 ? t.nom.substring(0,19)+'…' : t.nom;
+        html += '<div class="cal-chip" style="background:' + color + '22;border-left:3px solid ' + color + '">' + nomCourt + '</div>';
+      });
+      if (ts.length > 3) html += '<div class="cal-chip-more">+' + (ts.length-3) + ' autres</div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  html += '<div id="cal-day-panel"></div>';
+  $('#view-calendar').html(html);
+}
+
+function calNav(dir) {
+  calMonth += dir;
+  if (calMonth < 0)  { calMonth = 11; calYear--; }
+  if (calMonth > 11) { calMonth = 0;  calYear++; }
+  renderCalendar();
+}
+
+function showDayPanel(dateStr) {
+  var data  = getFilteredData();
+  var ts    = data.filter(function(t) { return t.debut === dateStr; });
+  var panel = $('#cal-day-panel');
+  if (!ts.length) { panel.html('').hide(); return; }
+
+  var d = new Date(dateStr + 'T12:00:00');
+  var title = _DAY_NAMES[d.getDay()] + ' ' + d.getDate() + ' ' + _MONTH_NAMES[d.getMonth()].toLowerCase() + ' ' + d.getFullYear();
+
+  var html = '<div class="cal-panel">';
+  html += '<div class="d-flex align-items-center mb-2 gap-2">';
+  html += '<strong>' + title + '</strong>';
+  html += '<span class="badge bg-primary">' + ts.length + ' tournoi(s)</span>';
+  html += '<button class="btn btn-sm btn-close ms-auto" onclick="$('#cal-day-panel').html('')"></button>';
+  html += '</div><div class="row g-2">';
+  ts.forEach(function(t) {
+    var color   = _FMT_COLORS[t.fmt] || '#aaa';
+    var statuts = [];
+    try { statuts = JSON.parse(t.statuts); } catch(e) {}
+    var statutsHtml = statuts.map(function(s) {
+      var cfg = _STATUT_CFG[s] || ['#bdc3c7', s];
+      return '<span class="badge" style="background:' + cfg[0] + ';font-size:.68em">' + cfg[1] + '</span>';
+    }).join(' ');
+    html += '<div class="col-xl-3 col-lg-4 col-md-6">';
+    html += '<div class="border rounded p-2 h-100" style="border-left:4px solid ' + color + ' !important">';
+    html += '<div><a href="' + t.url + '" target="_blank" class="fw-semibold text-decoration-none" style="font-size:.85em">' + t.nom.replace(/</g,'&lt;') + '</a></div>';
+    html += '<div class="text-muted" style="font-size:.78em">' + t.ville + '</div>';
+    if (t.fmt) html += '<span class="badge mt-1" style="background:' + color + ';font-size:.68em">F' + t.fmt + '</span> ';
+    html += statutsHtml;
+    html += '</div></div>';
+  });
+  html += '</div></div>';
+  panel.html(html);
+}
+
+// ── Gantt ─────────────────────────────────────────────────────────────────────
+function renderGantt() {
+  var data = getFilteredData().filter(function(t) { return t.debut && t.fin; });
+  data.sort(function(a,b) { return a.debut < b.debut ? -1 : a.debut > b.debut ? 1 : 0; });
+
+  if (!data.length) {
+    $('#view-gantt').html('<p class="text-muted p-3">Aucun tournoi dans la vue courante.</p>');
+    return;
+  }
+
+  var minDate = data[0].debut;
+  var maxDate = data.reduce(function(m,t) { return t.fin > m ? t.fin : m; }, data[0].fin);
+  var minMs   = new Date(minDate + 'T00:00:00').getTime();
+  var maxMs   = new Date(maxDate + 'T00:00:00').getTime();
+  var spanMs  = maxMs - minMs || 86400000;
+
+  // Aujourd'hui
+  var now = new Date(); now.setHours(0,0,0,0);
+  var todayPct = (now.getTime() - minMs) / spanMs * 100;
+
+  var html = '<p class="text-muted mb-2" style="font-size:.82em">'
+           + data.length + ' tournois — cliquer sur une barre pour ouvrir TenUp</p>';
+
+  // Axe des mois
+  html += '<div style="display:flex;margin-left:212px;margin-bottom:3px;position:relative;height:18px;overflow:hidden">';
+  var cur = new Date(minDate + 'T00:00:00'); cur.setDate(1);
+  while (cur.getTime() <= maxMs + 86400000*31) {
+    var pct = (cur.getTime() - minMs) / spanMs * 100;
+    if (pct > 100) break;
+    if (pct >= -5) {
+      html += '<div style="position:absolute;left:' + Math.max(0,pct).toFixed(1) + '%;font-size:.7em;color:#888;white-space:nowrap;border-left:1px solid #ddd;padding-left:3px">'
+            + _MONTH_SHORT[cur.getMonth()] + ' ' + cur.getFullYear() + '</div>';
+    }
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  html += '</div>';
+
+  // Barres
+  html += '<div style="max-height:520px;overflow-y:auto;position:relative">';
+  // Ligne "aujourd'hui"
+  if (todayPct >= 0 && todayPct <= 100) {
+    html += '<div class="gantt-today" style="left:calc(212px + ' + todayPct.toFixed(2) + '% * (100% - 212px) / 100)"></div>';
+  }
+  data.forEach(function(t) {
+    var startMs = new Date(t.debut + 'T00:00:00').getTime();
+    var endMs   = new Date(t.fin   + 'T00:00:00').getTime() + 86400000; // inclure dernier jour
+    var left    = (startMs - minMs) / spanMs * 100;
+    var width   = Math.max((endMs  - startMs) / spanMs * 100, 0.4);
+    var color   = _FMT_COLORS[t.fmt] || '#aaa';
+    var nbDays  = Math.round((endMs - startMs) / 86400000);
+    var tip     = t.nom + '\n' + t.debut + ' → ' + t.fin + ' (' + nbDays + ' j)\n' + t.ville;
+    html += '<div class="gantt-row">';
+    html += '<div class="gantt-label" title="' + t.nom.replace(/"/g,'&quot;') + '">' + (t.nom.length>28 ? t.nom.substring(0,27)+'…' : t.nom) + '</div>';
+    html += '<div style="flex:1;position:relative;height:22px">';
+    html += '<div class="gantt-bar" style="left:' + left.toFixed(2) + '%;width:' + width.toFixed(2) + '%;background:' + color + ';min-width:4px" ';
+    html += 'title="' + tip.replace(/"/g,'&quot;') + '" onclick="window.open('' + t.url + '','_blank')">';
+    if (width > 6) {
+      html += '<span style="font-size:.62em;color:rgba(255,255,255,.9);padding:0 4px;line-height:16px;overflow:hidden;white-space:nowrap;display:block">' + t.ville + '</span>';
+    }
+    html += '</div></div></div>';
+  });
+  html += '</div>';
+  $('#view-gantt').html(html);
+}
+</script>
+</body>
+</html>
