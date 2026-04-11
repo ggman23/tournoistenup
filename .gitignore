@@ -1,5 +1,6 @@
 data/
 cookies.json
+config.json
 *.pyc
 __pycache__/
 .env
