@@ -88,11 +88,17 @@ class TenupScraper:
             logger.info("GET %s → HTTP %d (final URL: %s)", url, resp.status_code, resp.url)
             resp.raise_for_status()
 
-            # Detect queue-it redirect
-            if "queue-it.net" in resp.url:
+            # Detect session expiry: queue-it redirect OR TenUp homepage redirect
+            # (TenUp now sometimes redirects to its own homepage instead of queue-it.net)
+            _redirected_away = (
+                "queue-it.net" in resp.url
+                or resp.url.rstrip("/") in ("https://tenup.fft.fr", "http://tenup.fft.fr")
+                or "/recherche/tournois" not in resp.url
+            )
+            if _redirected_away:
                 if not self.cookies_file or wait_total >= wait_max_s:
                     raise RuntimeError(
-                        "Redirigé vers queue-it.net — cookie expiré. "
+                        "Cookie de session expiré (redirigé vers : " + resp.url + "). "
                         "Lancez cookie_server.py + TamperMonkey pour renouveler les cookies."
                     )
                 # Get mtime before waiting
@@ -102,10 +108,10 @@ class TenupScraper:
                     mtime_before = 0
 
                 logger.warning(
-                    "⚠️  Queue-it détecté — cookie expiré. "
-                    "Attente de la mise à jour de %s par TamperMonkey... "
+                    "⚠️  Session expirée (redirigé vers : %s) — "
+                    "attente de la mise à jour de %s par TamperMonkey... "
                     "(max %ds, vérification toutes les %ds)",
-                    self.cookies_file, wait_max_s - wait_total, wait_poll_s,
+                    resp.url, self.cookies_file, wait_max_s - wait_total, wait_poll_s,
                 )
                 time.sleep(wait_poll_s)
                 wait_total += wait_poll_s
