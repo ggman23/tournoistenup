@@ -112,7 +112,49 @@ python main.py --html-only --generator v3 --no-prompt --city "VAIRES SUR MARNE, 
 
 ---
 
-## CAS 2 — Run France entière (toutes les villes de cities_france.json)
+## CAS 2 — Batch mes 4 villes favorites
+
+> Script dédié : `run_batch_mes_villes.py`
+> Villes : Vaires-sur-Marne 100 km · Moncé-en-Belin 72 (150 km) · Saint-Jean-de-Monts 85 (150 km) · Monchy-Cayeux 62 (150 km)
+
+### Run complet (scraping + formats + distances + HTML v3)
+```
+python run_batch_mes_villes.py --cookies cookies.json
+```
+Enchaîne pour chaque ville : scraping TenUp → enrichissement F1-F7 → distances routières → HTML v3.
+
+### Régénérer uniquement les 4 HTMLs (sans téléchargement)
+```
+python run_batch_mes_villes.py --html-only
+```
+
+### Rafraîchir uniquement les statuts d'inscription
+```
+python run_batch_mes_villes.py --enrich-statut-only --cookies cookies.json
+```
+
+### Recalculer uniquement les distances routières
+```
+python run_batch_mes_villes.py --enrich-geo-only
+```
+
+### Ignorer certaines villes avec --skip (indices 0-3)
+```
+python run_batch_mes_villes.py --cookies cookies.json --skip 2,3
+```
+Ici : ignore les villes 2 (Saint-Jean-de-Monts) et 3 (Monchy-Cayeux).
+
+### Fichiers HTML produits
+| Fichier | Ville |
+|---|---|
+| `data/tournaments_vaires_sur_marne_77360_100km.html` | Vaires-sur-Marne |
+| `data/tournaments_monce_en_belin_72230_150km.html` | Moncé-en-Belin |
+| `data/tournaments_saint_jean_de_monts_85160_150km.html` | Saint-Jean-de-Monts |
+| `data/tournaments_monchy_cayeux_62134_150km.html` | Monchy-Cayeux |
+
+---
+
+## CAS 3 — Run France entière (toutes les villes de cities_france.json)
 
 > **Temps estimé :** scraping ~30-60 min | enrichissement ~2-15h | distances ~3 min | statuts ~5-15 min
 
@@ -144,7 +186,7 @@ python run_batch.py --cookies cookies.json --enrich --enrich-geo --date-start 01
 
 ---
 
-## CAS 3 — Reprendre après une coupure / erreur
+## CAS 4 — Reprendre après une coupure / erreur
 
 Les tournois qui ont échoué sont marqués `fetch_failed=True` dans le JSON.
 Ils sont automatiquement retentés au prochain run :
@@ -154,7 +196,7 @@ python main.py --enrich-only --cookies cookies.json --generator v3 --no-prompt -
 
 ---
 
-## CAS 4 — Corriger des mauvais flags
+## CAS 5 — Corriger des mauvais flags
 
 Parfois, si l'enrichissement s'est fait sans cookie valide, des tournois sont marqués
 `no_format_in_html=True` à tort. Pour corriger :
@@ -172,7 +214,7 @@ python main.py --enrich-geo-only --reset-geo --generator v3 --no-prompt --city "
 
 ---
 
-## CAS 5 — Vérifier l'état des données
+## CAS 6 — Vérifier l'état des données
 
 ```
 python check_enrichment.py
