@@ -43,19 +43,68 @@ class TenupScraper:
             self._load_cookies(cookies_file)
 
     def _load_cookies(self, cookies_file: str):
-        """Load cookies from a JSON file (list of cookie dicts with name/value/domain...)."""
+        """Load cookies from either format:
+        - JSON (Cookie-Editor JSON export) : [{name, value, domain, ...}, ...]
+        - Header string (document.cookie)  : name=value; name2=value2; ...
+        """
         try:
-            with open(cookies_file) as f:
-                cookies = json.load(f)
-            for cookie in cookies:
+            with open(cookies_file, encoding="utf-8") as f:
+                raw = f.read().strip()
+        except Exception as e:
+            logger.warning("Could not read cookies file %s: %s", cookies_file, e)
+            return
+
+        cookies: list[dict] = []
+
+        # --- Format JSON (Cookie-Editor) ---
+        if raw.startswith("[") or raw.startswith("{"):
+            try:
+                data = json.loads(raw)
+                if isinstance(data, list):
+                    cookies = data
+                elif isinstance(data, dict):
+                    cookies = [data]
+            except json.JSONDecodeError as e:
+                logger.warning("JSON parse error in %s: %s", cookies_file, e)
+
+        # --- Format header string (document.cookie / Cookie-Editor "Header String") ---
+        if not cookies and "=" in raw:
+            for part in raw.split(";"):
+                part = part.strip()
+                if not part:
+                    continue
+                name, _, value = part.partition("=")
+                name = name.strip()
+                if name:
+                    cookies.append({
+                        "name":   name,
+                        "value":  value.strip(),
+                        "domain": ".tenup.fft.fr",
+                    })
+            if cookies:
+                logger.info(
+                    "Cookies file %s détecté au format header-string "
+                    "(%d cookies — domaine par défaut .tenup.fft.fr)",
+                    cookies_file, len(cookies),
+                )
+
+        if not cookies:
+            logger.warning("Aucun cookie parsé depuis %s", cookies_file)
+            return
+
+        loaded = 0
+        for cookie in cookies:
+            try:
                 self.session.cookies.set(
                     cookie["name"],
                     cookie["value"],
                     domain=cookie.get("domain", ".tenup.fft.fr"),
                 )
-            logger.info("Loaded %d cookies from %s", len(cookies), cookies_file)
-        except Exception as e:
-            logger.warning("Could not load cookies from %s: %s", cookies_file, e)
+                loaded += 1
+            except Exception as e:
+                logger.debug("Cookie ignoré %s: %s", cookie.get("name", "?"), e)
+
+        logger.info("Loaded %d cookies from %s", loaded, cookies_file)
 
     def _reload_cookies(self):
         """Reload cookies from file into session (called when queue-it is detected)."""

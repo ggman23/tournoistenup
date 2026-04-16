@@ -92,6 +92,19 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 existing = []
 
+        # Index par nom des cookies existants → pour récupérer le bon domaine
+        # (Cookie-Editor exporte les vrais domaines : .fft.fr, tenup.fft.fr…)
+        existing_by_name = {c["name"]: c for c in existing}
+
+        # Corriger le domaine des cookies TamperMonkey :
+        # TamperMonkey ne connaît pas le domaine d'origine → on réutilise celui
+        # présent dans le fichier existant s'il y en a un, sinon on garde
+        # le domaine par défaut (.tenup.fft.fr).
+        for c in cookies:
+            if c["name"] in existing_by_name:
+                orig_domain = existing_by_name[c["name"]].get("domain", DOMAIN)
+                c["domain"] = orig_domain
+
         # Index par nom des nouveaux cookies
         new_by_name = {c["name"]: c for c in cookies}
         # Garder les anciens non-présents dans les nouveaux (HttpOnly, etc.)
