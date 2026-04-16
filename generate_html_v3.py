@@ -848,8 +848,12 @@ def generate_html(
       <div class="col-auto">
         <label class="form-label mb-1 fw-semibold small">&nbsp;</label><br>
         <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" id="chk-hide-past" checked onchange="applyFilters()">
+          <input class="form-check-input" type="checkbox" id="chk-hide-past" checked onchange="onChkHidePastChange()">
           <label class="form-check-label small fw-semibold" for="chk-hide-past" style="color:#6c757d">Masquer terminés</label>
+        </div>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-termines" onchange="onChkTerminesChange()">
+          <label class="form-check-label small fw-semibold" for="chk-termines" style="color:#6c757d">Terminés</label>
         </div>
         <div class="form-check form-check-inline">
           <input class="form-check-input" type="checkbox" id="chk-new" onchange="applyFilters()">
@@ -859,6 +863,24 @@ def generate_html(
           <input class="form-check-input" type="checkbox" id="chk-tmc" onchange="applyFilters()">
           <label class="form-check-label small" for="chk-tmc">TMC</label>
         </div>
+        <span class="text-muted small me-1 ms-1">|</span>
+        <div class="form-check form-check-inline" title="Tournois d'exactement 1 jour">
+          <input class="form-check-input" type="checkbox" id="chk-1j" onchange="applyFilters()">
+          <label class="form-check-label small fw-semibold" for="chk-1j" style="color:#0d6efd">1J</label>
+        </div>
+        <div class="form-check form-check-inline" title="Tournois d'exactement 2 jours">
+          <input class="form-check-input" type="checkbox" id="chk-2j" onchange="applyFilters()">
+          <label class="form-check-label small fw-semibold" for="chk-2j" style="color:#0d6efd">2J</label>
+        </div>
+        <div class="form-check form-check-inline" title="Tournois d'exactement 3 jours">
+          <input class="form-check-input" type="checkbox" id="chk-3j" onchange="applyFilters()">
+          <label class="form-check-label small fw-semibold" for="chk-3j" style="color:#0d6efd">3J</label>
+        </div>
+        <div class="form-check form-check-inline" title="Tournois d'exactement 4 jours">
+          <input class="form-check-input" type="checkbox" id="chk-4j" onchange="applyFilters()">
+          <label class="form-check-label small fw-semibold" for="chk-4j" style="color:#0d6efd">4J</label>
+        </div>
+        <span class="text-muted small me-1 ms-1">|</span>
         <div class="form-check form-check-inline">
           <input class="form-check-input" type="checkbox" id="chk-insc" onchange="applyFilters()">
           <label class="form-check-label small" for="chk-insc">Inscr. en ligne</label>
@@ -1036,11 +1058,17 @@ $(function() {{
     var $tr = $(node);
 
     var checkedEpreuves = $('.ep-chk:checked').map(function() {{ return $(this).val(); }}).get();
-    var maxDist  = parseFloat($('#filter-distance').val()) || null;
-    var onlyNew  = $('#chk-new').prop('checked');
-    var onlyTmc  = $('#chk-tmc').prop('checked');
-    var onlyInsc = $('#chk-insc').prop('checked');
-    var onlyFav  = $('#chk-fav').prop('checked');
+    var maxDist      = parseFloat($('#filter-distance').val()) || null;
+    var onlyNew      = $('#chk-new').prop('checked');
+    var onlyTmc      = $('#chk-tmc').prop('checked');
+    var onlyInsc     = $('#chk-insc').prop('checked');
+    var onlyFav      = $('#chk-fav').prop('checked');
+    var onlyTermines = $('#chk-termines').prop('checked');
+    var dureeChecked = ['1','2','3','4'].filter(function(n) {{ return $('#chk-'+n+'j').prop('checked'); }});
+
+    // Calculer la date du jour une seule fois
+    var d0 = new Date();
+    var todayStr = d0.getFullYear() + '-' + String(d0.getMonth()+1).padStart(2,'0') + '-' + String(d0.getDate()).padStart(2,'0');
 
     // ── Filtre comités/départements ───────────────────────────────────────────
     var checkedDepts = $('.dept-chk:checked').map(function() {{ return $(this).val(); }}).get();
@@ -1080,16 +1108,13 @@ $(function() {{
       var hasMatch  = checkedFmts.some(function(f) {{ return fmts.indexOf(f) !== -1; }});
       if (!hasMatch && !(inclNoFmt && !hasFmt)) return false;
     }}
-    // ── Masquer tournois terminés (date de fin dépassée) ─────────────────────
+    // ── Masquer / Afficher uniquement les tournois terminés ──────────────────
+    var dateFin = $tr.attr('data-date-fin') || '';
     if ($('#chk-hide-past').prop('checked')) {{
-      var dateFin = $tr.attr('data-date-fin') || '';
-      if (dateFin) {{
-        var todayStr = (function() {{
-          var d = new Date();
-          return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-        }})();
-        if (dateFin < todayStr) return false;
-      }}
+      if (dateFin && dateFin < todayStr) return false;
+    }}
+    if (onlyTermines) {{
+      if (!dateFin || dateFin >= todayStr) return false;
     }}
 
     var checkedStatuts = $('.statut-chk:checked').map(function() {{ return $(this).val(); }}).get();
@@ -1101,6 +1126,14 @@ $(function() {{
     if (onlyNew  && $tr.attr('data-new') !== 'true')  return false;
     if (onlyTmc  && $tr.attr('data-tmc') !== 'true')  return false;
     if (onlyInsc && $tr.find('td:nth-child(9)').text().trim() !== '✅') return false;
+
+    // ── Filtre durée 1J / 2J / 3J / 4J (exactement N jours) ─────────────────
+    if (dureeChecked.length > 0) {{
+      var d1 = new Date($tr.attr('data-date-debut') || '');
+      var d2 = new Date($tr.attr('data-date-fin')   || '');
+      var duree = (isNaN(d1) || isNaN(d2)) ? -1 : Math.round((d2 - d1) / 86400000) + 1;
+      if (duree < 1 || dureeChecked.indexOf(String(duree)) === -1) return false;
+    }}
     if (onlyFav) {{
       var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}');
       if (!favs[$tr.attr('data-id')]) return false;
@@ -1123,13 +1156,17 @@ $(function() {{
     }}
 
     // ── Filtre plage de dates ─────────────────────────────────────────────
+    // fStart seul : overlap — masque si le tournoi se termine avant fStart
+    // fEnd défini : strict — masque si le tournoi DÉBUTE après fEnd
+    //               ET masque si le tournoi SE TERMINE après fEnd
     var fStart = $('#filter-date-start').val();
     var fEnd   = $('#filter-date-end').val();
     if (fStart || fEnd) {{
       var tStart = $tr.attr('data-date-debut') || '';
-      var tEnd   = $tr.attr('data-date-fin')   || '';
-      if (fEnd   && tStart && tStart > fEnd)   return false;
-      if (fStart && tEnd   && tEnd   < fStart) return false;
+      var tEnd2  = $tr.attr('data-date-fin')   || '';
+      if (fStart && tEnd2  && tEnd2  < fStart) return false;  // tournoi terminé avant la plage
+      if (fEnd   && tStart && tStart > fEnd)   return false;  // tournoi commence après la plage
+      if (fEnd   && tEnd2  && tEnd2  > fEnd)   return false;  // tournoi se termine hors plage
     }}
 
     return true;
@@ -1474,6 +1511,20 @@ function restoreFavs() {{
   }});
 }}
 
+// ── Masquer terminés / Terminés : exclusion mutuelle ──────────────────────────
+function onChkHidePastChange() {{
+  if ($('#chk-hide-past').prop('checked')) {{
+    $('#chk-termines').prop('checked', false);
+  }}
+  applyFilters();
+}}
+function onChkTerminesChange() {{
+  if ($('#chk-termines').prop('checked')) {{
+    $('#chk-hide-past').prop('checked', false);
+  }}
+  applyFilters();
+}}
+
 function resetFilters() {{
   $('#filter-distance, #filter-road-km, #filter-road-min, #filter-exclude').val('');
   $('#filter-date-start, #filter-date-end').val('');
@@ -1481,6 +1532,7 @@ function resetFilters() {{
   $('.dept-chk').prop('checked', false);
   updateDeptBtn();
   $('#chk-new, #chk-tmc, #chk-insc, #chk-fav').prop('checked', false);
+  $('#chk-termines, #chk-1j, #chk-2j, #chk-3j, #chk-4j').prop('checked', false);
   $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
   $('#chk-hide-past').prop('checked', true);  // remet masquer-terminés coché par défaut
   $('#filter-search').val('');
