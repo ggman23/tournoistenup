@@ -304,6 +304,13 @@ def _tournament_to_row(t, only_natures=None):
         "ouverture":    t.get("dateOuvertureInscriptionEnLigne", ""),
         "is_new":       t.get("_is_new", False),
         "first_seen":   t.get("_first_seen", ""),
+        "classements_ep": [
+            ep.get("classementBas",  {}).get("libelle", "").strip() + "|" +
+            ep.get("classementHaut", {}).get("libelle", "").strip()
+            for ep in t.get("epreuves", [])
+            if ep.get("classementBas",  {}).get("libelle", "").strip()
+            or ep.get("classementHaut", {}).get("libelle", "").strip()
+        ],
     }
 
 
@@ -319,7 +326,7 @@ def _collect_epreuve_options(rows):
                 if len(parts) == 2:
                     nat, age_id = parts[0], int(parts[1])
                     nat_lbl = nature_labels.get(nat, nat)
-                    age_lbl = AGE_LABELS.get(age_id, f"cat {age_id}")
+                    age_lbl = AGE_LABELS.get(age_id, "cat " + str(age_id // 10 if age_id > 200 and age_id % 10 == 0 else age_id))
                     seen[key] = f"{nat_lbl} {age_lbl}"
     # Sort: SM first, then SD, then others; within each by age
     def sort_key(item):
@@ -407,7 +414,9 @@ def generate_html(
             data-road-km="{r['road_km'] if r['road_km'] is not None else ''}"
             data-road-min="{r['road_min'] if r['road_min'] is not None else ''}"
             data-lat="{r['geo_lat'] if r['geo_lat'] is not None else ''}"
-            data-lng="{r['geo_lng'] if r['geo_lng'] is not None else ''}">
+            data-lng="{r['geo_lng'] if r['geo_lng'] is not None else ''}"
+            data-classements='{json.dumps(r["classements_ep"])}'>
+
           <td data-sort="{html.escape(r['date_debut_sort'])}">{html.escape(r['dates'])}</td>
           <td class="col-first-seen">{html.escape(r.get('first_seen', ''))}</td>
           <td>{nom_link}</td>
@@ -461,6 +470,8 @@ def generate_html(
             surf_chips_parts.append(
                 f'<label class="dept-chip">'
                 f'<input type="checkbox" class="surf-chk" value="{key}" onchange="onSurfChange()"> '
+                f'<span style="display:inline-block;width:9px;height:9px;border-radius:50%;'
+                f'background:{_color};margin-right:4px;vertical-align:middle;flex-shrink:0"></span>'
                 f'{label}</label>'
             )
     surf_chips_html = "".join(surf_chips_parts)
@@ -487,6 +498,21 @@ def generate_html(
         for code, (color, label) in STATUT_CONFIG.items()
         if code != "autre"
     )
+
+    # Prochain 1er mardi du mois (sortie de classement FFT)
+    def _next_first_tuesday():
+        today = datetime.now().date()
+        for mo in range(0, 18):
+            yr  = today.year + (today.month + mo - 1) // 12
+            mth = (today.month + mo - 1) % 12 + 1
+            first = datetime(yr, mth, 1)
+            days_to_tue = (1 - first.weekday()) % 7  # weekday: Mon=0, Tue=1
+            ft = (first + timedelta(days=days_to_tue)).date()
+            if ft >= today:
+                return ft, (ft - today).days
+        return None, None
+    _next_class_date, _days_to_class = _next_first_tuesday()
+    _next_class_str = _next_class_date.strftime("%d/%m") if _next_class_date else "—"
 
     html_content = f"""<!DOCTYPE html>
 <html lang="fr">
@@ -1338,6 +1364,7 @@ def generate_html(
           <span class="stat-value">{total}</span>
         </div>
         {('<div class="stat-card stat-accent"><span class="stat-label">Nouveaux</span><span class="stat-value">' + str(new_count) + '</span></div>') if new_count else ''}
+        {('<div class="stat-card" style="border-top-color:#8e44ad"><span class="stat-label">Prochain classement</span><span class="stat-value" style="color:#8e44ad">' + _next_class_str + '</span><span class="stat-label">' + str(_days_to_class) + ' jours</span></div>') if _days_to_class is not None else ''}
       </div>
     </div>
   </div>
@@ -1521,6 +1548,22 @@ def generate_html(
           <input class="form-check-input" type="checkbox" id="chk-4j" onchange="applyFilters()">
           <label class="form-check-label small fw-semibold" for="chk-4j" style="color:#0d6efd">4J</label>
         </div>
+        <div class="form-check form-check-inline" title="Tournois d'exactement 5 jours">
+          <input class="form-check-input" type="checkbox" id="chk-5j" onchange="applyFilters()">
+          <label class="form-check-label small fw-semibold" for="chk-5j" style="color:#0d6efd">5J</label>
+        </div>
+        <div class="form-check form-check-inline" title="Tournois d'exactement 6 jours">
+          <input class="form-check-input" type="checkbox" id="chk-6j" onchange="applyFilters()">
+          <label class="form-check-label small fw-semibold" for="chk-6j" style="color:#0d6efd">6J</label>
+        </div>
+        <div class="form-check form-check-inline" title="Tournois d'exactement 7 jours">
+          <input class="form-check-input" type="checkbox" id="chk-7j" onchange="applyFilters()">
+          <label class="form-check-label small fw-semibold" for="chk-7j" style="color:#0d6efd">7J</label>
+        </div>
+        <div class="form-check form-check-inline" title="Tournois de 14 jours (2 semaines)">
+          <input class="form-check-input" type="checkbox" id="chk-14j" onchange="applyFilters()">
+          <label class="form-check-label small fw-semibold" for="chk-14j" style="color:#8e44ad">14J</label>
+        </div>
         <span class="text-muted small me-1 ms-1">|</span>
         <div class="form-check form-check-inline">
           <input class="form-check-input" type="checkbox" id="chk-insc" onchange="applyFilters()">
@@ -1573,6 +1616,22 @@ def generate_html(
                style="width:150px" onchange="applyFilters()">
       </div>
 
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Classement bas ≤</label>
+        <select class="form-select form-select-sm" id="filter-rang-bas" style="width:110px" onchange="applyFilters()">
+          <option value="">Tous</option>
+          {''.join(f'<option>{r}</option>' for r in ['NC','40','30/5','30/4','30/3','30/2','30/1','30','15/5','15/4','15/3','15/2','15/1','15','5/6','4/6','3/6','2/6','1/6','N3','N2','N1'])}
+        </select>
+      </div>
+
+      <div class="col-auto">
+        <label class="form-label mb-1 fw-semibold small">Classement haut ≥</label>
+        <select class="form-select form-select-sm" id="filter-rang-haut" style="width:110px" onchange="applyFilters()">
+          <option value="">Tous</option>
+          {''.join(f'<option>{r}</option>' for r in ['NC','40','30/5','30/4','30/3','30/2','30/1','30','15/5','15/4','15/3','15/2','15/1','15','5/6','4/6','3/6','2/6','1/6','N3','N2','N1'])}
+        </select>
+      </div>
+
     </div>
   </div>
 
@@ -1591,9 +1650,19 @@ def generate_html(
               onclick="showView('map')">🗺️ Carte</button>
       <button class="btn btn-sm btn-outline-warning view-tab" id="tab-derniers"
               onclick="showView('derniers')">🆕 Derniers</button>
+      <button class="btn btn-sm btn-outline-success view-tab" id="tab-inscrit"
+              onclick="showView('inscrit')">✅ Inscrit</button>
+      <button class="btn btn-sm btn-outline-info view-tab" id="tab-classements"
+              onclick="showView('classements')">📆 Classements</button>
     </div>
     <small class="text-muted" id="view-info"></small>
   </div>
+
+  <!-- Vue Inscrit -->
+  <div id="view-inscrit" style="display:none" class="bg-white rounded shadow-sm p-3"></div>
+
+  <!-- Vue Classements -->
+  <div id="view-classements" style="display:none" class="bg-white rounded shadow-sm p-3"></div>
 
   <!-- Vue Calendrier -->
   <div id="view-calendar" style="display:none" class="bg-white rounded shadow-sm p-3"></div>
@@ -1707,7 +1776,7 @@ $(function() {{
     var onlyInsc     = $('#chk-insc').prop('checked');
     var onlyFav      = $('#chk-fav').prop('checked');
     var onlyTermines = $('#chk-termines').prop('checked');
-    var dureeChecked = ['1','2','3','4'].filter(function(n) {{ return $('#chk-'+n+'j').prop('checked'); }});
+    var dureeChecked = ['1','2','3','4','5','6','7','14'].filter(function(n) {{ return $('#chk-'+n+'j').prop('checked'); }});
 
     // Calculer la date du jour une seule fois
     var d0 = new Date();
@@ -1795,6 +1864,33 @@ $(function() {{
       var words = excludeRaw.split(/\\s+/).filter(Boolean);
       for (var wi = 0; wi < words.length; wi++) {{
         if (nameCat.indexOf(words[wi]) !== -1) return false;
+      }}
+    }}
+
+    // ── Filtre classement ────────────────────────────────────────────────────
+    var RANK_ORD = ['NC','40','30/5','30/4','30/3','30/2','30/1','30','15/5','15/4','15/3','15/2','15/1','15','5/6','4/6','3/6','2/6','1/6','N3','N2','N1'];
+    var rangBas  = $('#filter-rang-bas').val();
+    var rangHaut = $('#filter-rang-haut').val();
+    if (rangBas || rangHaut) {{
+      var classementsEp = JSON.parse($tr.attr('data-classements') || '[]');
+      if (classementsEp.length > 0) {{
+        var rankMatch = classementsEp.some(function(pair) {{
+          var parts  = pair.split('|');
+          var epBas  = (parts[0] || '').trim();
+          var epHaut = (parts[1] || '').trim();
+          if (rangBas && epBas) {{
+            var iEpBas  = RANK_ORD.indexOf(epBas);
+            var iFilter = RANK_ORD.indexOf(rangBas);
+            if (iEpBas !== -1 && iFilter !== -1 && iEpBas > iFilter) return false;
+          }}
+          if (rangHaut && epHaut) {{
+            var iEpHaut  = RANK_ORD.indexOf(epHaut);
+            var iFilterH = RANK_ORD.indexOf(rangHaut);
+            if (iEpHaut !== -1 && iFilterH !== -1 && iEpHaut < iFilterH) return false;
+          }}
+          return true;
+        }});
+        if (!rankMatch) return false;
       }}
     }}
 
@@ -2175,7 +2271,8 @@ function resetFilters() {{
   $('.dept-chk').prop('checked', false);
   updateDeptBtn();
   $('#chk-new, #chk-tmc, #chk-insc, #chk-fav').prop('checked', false);
-  $('#chk-termines, #chk-1j, #chk-2j, #chk-3j, #chk-4j').prop('checked', false);
+  $('#chk-termines, #chk-1j, #chk-2j, #chk-3j, #chk-4j, #chk-5j, #chk-6j, #chk-7j, #chk-14j').prop('checked', false);
+  $('#filter-rang-bas, #filter-rang-haut').val('');
   $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
   $('#chk-hide-past').prop('checked', true);  // remet masquer-terminés coché par défaut
   $('#filter-search').val('');
@@ -2235,21 +2332,26 @@ function showView(view) {{
   $('#view-gantt').toggle(tableView === 'gantt');
   $('#view-vacs').toggle(tableView === 'vacs');
   $('#view-map-wrap').toggle(tableView === 'map');
-  $('.view-tab').removeClass('btn-primary btn-warning').addClass('btn-outline-secondary');
-  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map'}}[tableView] || 'tab-table';
+  $('#view-inscrit').toggle(tableView === 'inscrit');
+  $('#view-classements').toggle(tableView === 'classements');
+  $('.view-tab').removeClass('btn-primary btn-warning btn-success btn-info').addClass('btn-outline-secondary');
+  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements'}}[tableView] || 'tab-table';
   if (isDerniers) {{
     $('#tab-derniers').removeClass('btn-outline-secondary btn-outline-warning').addClass('btn-warning');
     dt.column('.col-first-seen').visible(true);
     $(dt.column('.col-first-seen').header()).text('Ajouté le');
     dt.order([[dt.column('.col-first-seen').index(), 'desc']]).draw();
   }} else {{
-    dt.column('.col-first-seen').visible(false);
-    $('#' + tabId).removeClass('btn-outline-secondary').addClass('btn-primary');
+    if (tableView !== 'inscrit' && tableView !== 'classements') dt.column('.col-first-seen').visible(false);
+    var actCls = {{inscrit:'btn-success', classements:'btn-info'}}[tableView] || 'btn-primary';
+    $('#' + tabId).removeClass('btn-outline-secondary btn-outline-success btn-outline-info').addClass(actCls);
   }}
-  if (tableView === 'calendar') {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
-  if (tableView === 'gantt')    renderGantt();
-  if (tableView === 'vacs')     renderVacs();
-  if (tableView === 'map')      renderMap();
+  if (tableView === 'calendar')    {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
+  if (tableView === 'gantt')       renderGantt();
+  if (tableView === 'vacs')        renderVacs();
+  if (tableView === 'map')         renderMap();
+  if (tableView === 'inscrit')     renderInscrit();
+  if (tableView === 'classements') renderClassements();
 }}
 
 // ── Extraction des données filtrées depuis DataTables ────────────────────────
@@ -2300,6 +2402,73 @@ var _STATUT_CFG = {{'ouvert':['#27ae60','Ouvert'],'bientot':['#2980b9','Bientôt
 var _MONTH_NAMES = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 var _MONTH_SHORT = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
 var _DAY_NAMES   = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+
+// ── Vue Inscrit ────────────────────────────────────────────────────────────────
+function renderInscrit() {{
+  var rows = [];
+  dt.rows().nodes().each(function(node) {{
+    var $tr = $(node);
+    if ($tr.find('td:nth-child(9)').text().trim() === '✅') {{
+      rows.push({{
+        nom:   $tr.find('a.tournament-link').first().text().trim(),
+        url:   $tr.find('a.tournament-link').first().attr('href') || '',
+        debut: $tr.attr('data-date-debut') || '',
+        fin:   $tr.attr('data-date-fin')   || '',
+        ville: $tr.find('td:nth-child(7)').text().trim(),
+        surf:  $tr.find('td:nth-child(6)').text().trim()
+      }});
+    }}
+  }});
+  var html = '';
+  if (rows.length === 0) {{
+    html = '<div class="text-center text-muted py-5"><h4>Aucun tournoi inscrit</h4><p>Activez la synchronisation pour voir vos inscriptions.</p></div>';
+  }} else {{
+    html = '<h5 class="mb-3">✅ Mes inscriptions (' + rows.length + ')</h5><div class="row g-3">';
+    rows.forEach(function(t) {{
+      var dateStr = t.debut === t.fin ? t.debut : t.debut + ' → ' + t.fin;
+      html += '<div class="col-md-4 col-lg-3"><div class="card h-100 border-success">';
+      html += '<div class="card-body"><h6 class="card-title"><a href="' + t.url + '" target="_blank">' + t.nom + '</a></h6>';
+      html += '<p class="card-text text-muted small">📅 ' + dateStr + '<br>📍 ' + t.ville + '<br>🎾 ' + t.surf + '</p>';
+      html += '</div></div></div>';
+    }});
+    html += '</div>';
+  }}
+  $('#view-inscrit').html(html);
+}}
+
+// ── Vue Classements ───────────────────────────────────────────────────────────
+function renderClassements() {{
+  var today = new Date();
+  var todayISO = today.toISOString().substring(0,10);
+  var html = '<h5 class="mb-3">📆 Prochains classements FFT</h5>';
+  html += '<p class="text-muted small mb-3">Les classements FFT sont publiés le 1er mardi de chaque mois.</p>';
+  html += '<div class="list-group" style="max-width:420px">';
+  var nextFound = false;
+  for (var mo = 0; mo < 18; mo++) {{
+    var totalMo = today.getMonth() + mo;
+    var yr  = today.getFullYear() + Math.floor(totalMo / 12);
+    var mth = totalMo % 12;
+    var first = new Date(yr, mth, 1);
+    var dow = first.getDay();
+    var daysToTue = (2 - dow + 7) % 7;
+    var ft = new Date(yr, mth, 1 + daysToTue);
+    var ftISO = ft.toISOString().substring(0,10);
+    var isPast = ftISO < todayISO;
+    var isNext = !isPast && !nextFound;
+    if (isNext) nextFound = true;
+    var ftStr = ft.toLocaleDateString('fr-FR', {{weekday:'long', year:'numeric', month:'long', day:'numeric'}});
+    var cls = isPast ? 'list-group-item text-muted' : (isNext ? 'list-group-item list-group-item-success fw-bold' : 'list-group-item');
+    html += '<div class="' + cls + '">';
+    html += (isPast ? '✓ ' : (isNext ? '⭐ ' : '📅 ')) + ftStr;
+    if (isNext) {{
+      var diff = Math.round((ft - today) / 86400000);
+      html += ' <span class="badge bg-success ms-2">' + diff + ' j</span>';
+    }}
+    html += '</div>';
+  }}
+  html += '</div>';
+  $('#view-classements').html(html);
+}}
 
 // ── Calendrier ────────────────────────────────────────────────────────────────
 function renderCalendar() {{
