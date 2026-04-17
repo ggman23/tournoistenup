@@ -179,7 +179,7 @@ def parse_args():
                    help="Fix corrupted UTF-8 strings in existing JSON data, then regenerate HTML")
     p.add_argument("--refresh", action="store_true",
                    help="Tout-en-un : fix-encoding + enrich-only (retries) + enrich-statut-only")
-    p.add_argument("--generator", default="v1", choices=["v1", "v2", "v3"],
+    p.add_argument("--generator", default="v1", choices=["v1", "v2", "v3", "v4"],
                    help="HTML generator version (default: v1)")
     return p.parse_args()
 
@@ -193,6 +193,8 @@ def main():
         from generate_html_v2 import generate_html, generate_from_file
     elif args.generator == "v3":
         from generate_html_v3 import generate_html, generate_from_file
+    elif args.generator == "v4":
+        from generate_html_v4 import generate_html, generate_from_file
 
     # Load config
     if not os.path.exists(args.config):
