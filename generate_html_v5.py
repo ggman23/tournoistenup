@@ -2481,7 +2481,7 @@ function renderInscrit() {{
     html += '</div>';
   }}
   html += '</div><div id="inscr-day-panel"></div>';
-  if (_inscritData.length === 0) html = '<div class="text-center text-muted py-5"><h4>Aucune inscription trouvée</h4><p>Lancez l\'enrichissement pour voir les tournois où vous êtes inscrits.</p></div>';
+  if (_inscritData.length === 0) html = '<div class="text-center text-muted py-5"><h4>Aucune inscription trouvée</h4><p>Activez la synchronisation (--cookies) pour voir vos inscriptions.</p></div>';
   $('#view-inscrit').html(html);
 }}
 
