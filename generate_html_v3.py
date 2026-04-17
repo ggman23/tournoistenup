@@ -976,7 +976,7 @@ def generate_html(
       </div>
 
       <div class="col-auto">
-        <label class="form-label mb-1 fw-semibold small">Classement bas ≤</label>
+        <label class="form-label mb-1 fw-semibold small">Classement min ≥</label>
         <select class="form-select form-select-sm" id="filter-rang-bas" style="width:100px" onchange="applyFilters()">
           <option value="">Tous</option>
           <option>NC</option><option>40</option><option>30/5</option><option>30/4</option>
@@ -989,7 +989,7 @@ def generate_html(
       </div>
 
       <div class="col-auto">
-        <label class="form-label mb-1 fw-semibold small">Classement haut ≥</label>
+        <label class="form-label mb-1 fw-semibold small">Classement max ≤</label>
         <select class="form-select form-select-sm" id="filter-rang-haut" style="width:100px" onchange="applyFilters()">
           <option value="">Tous</option>
           <option>NC</option><option>40</option><option>30/5</option><option>30/4</option>
@@ -1248,12 +1248,12 @@ $(function() {{
           if (rangBas && epBas) {{
             var iEpBas  = RANK_ORD.indexOf(epBas);
             var iFilter = RANK_ORD.indexOf(rangBas);
-            if (iEpBas !== -1 && iFilter !== -1 && iEpBas > iFilter) return false;
+            if (iEpBas !== -1 && iFilter !== -1 && iEpBas < iFilter) return false;
           }}
           if (rangHaut && epHaut) {{
             var iEpHaut  = RANK_ORD.indexOf(epHaut);
             var iFilterH = RANK_ORD.indexOf(rangHaut);
-            if (iEpHaut !== -1 && iFilterH !== -1 && iEpHaut < iFilterH) return false;
+            if (iEpHaut !== -1 && iFilterH !== -1 && iEpHaut > iFilterH) return false;
           }}
           return true;
         }});
@@ -1771,41 +1771,122 @@ var _MONTH_SHORT = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','
 var _DAY_NAMES   = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
 
 // ── Vue Inscrit ────────────────────────────────────────────────────────────────
+var inscYear, inscMonth;
+var _inscritData = [];
+
 function renderInscrit() {{
-  var rows = [];
+  _inscritData = [];
   dt.rows().nodes().each(function(node) {{
-    var $tr = $(node);
-    if ($tr.find('td:nth-child(9)').text().trim() === '✅') {{
-      rows.push({{
-        nom:   $tr.find('a.tournament-link').first().text().trim(),
-        url:   $tr.find('a.tournament-link').first().attr('href') || '',
-        debut: $tr.attr('data-date-debut') || '',
-        fin:   $tr.attr('data-date-fin')   || '',
-        ville: $tr.find('td:nth-child(7)').text().trim(),
-        surf:  $tr.find('td:nth-child(6)').text().trim()
+    var $tr   = $(node);
+    var stats = JSON.parse($tr.attr('data-statuts') || '[]');
+    if (stats.indexOf('deja_inscrit') !== -1) {{
+      var $link = $tr.find('a.tournament-link').first();
+      _inscritData.push({{
+        nom:    $link.text().trim(),
+        url:    $link.attr('href') || '',
+        debut:  $tr.attr('data-date-debut') || '',
+        fin:    $tr.attr('data-date-fin')   || '',
+        ville:  $tr.find('td:nth-child(7)').text().trim(),
+        surf:   $tr.find('td:nth-child(6)').text().trim()
       }});
     }}
   }});
-  var html = '';
-  if (rows.length === 0) {{
-    html = '<div class="text-center text-muted py-5"><h4>Aucun tournoi inscrit</h4><p>Activez la synchronisation pour voir vos inscriptions.</p></div>';
-  }} else {{
-    html = '<h5 class="mb-3">✅ Mes inscriptions (' + rows.length + ')</h5><div class="row g-3">';
-    rows.forEach(function(t) {{
-      var dateStr = t.debut === t.fin ? t.debut : t.debut + ' → ' + t.fin;
-      html += '<div class="col-md-4 col-lg-3"><div class="card h-100 border-success">';
-      html += '<div class="card-body"><h6 class="card-title"><a href="' + t.url + '" target="_blank">' + t.nom + '</a></h6>';
-      html += '<p class="card-text text-muted small">📅 ' + dateStr + '<br>📍 ' + t.ville + '<br>🎾 ' + t.surf + '</p>';
-      html += '</div></div></div>';
+  if (inscYear === undefined) {{
+    var nowI = new Date();
+    var todayYM = nowI.getFullYear() + '-' + String(nowI.getMonth()+1).padStart(2,'0');
+    var earliest = null;
+    _inscritData.forEach(function(t) {{
+      var ym = t.debut.slice(0,7);
+      if (ym >= todayYM && (!earliest || ym < earliest)) earliest = ym;
     }});
+    var initYM = earliest || todayYM;
+    inscYear  = parseInt(initYM.slice(0,4));
+    inscMonth = parseInt(initYM.slice(5,7)) - 1;
+  }}
+  var byDate = {{}};
+  _inscritData.forEach(function(t) {{
+    if (!t.debut) return;
+    if (!byDate[t.debut]) byDate[t.debut] = [];
+    byDate[t.debut].push(t);
+  }});
+  var firstDay    = new Date(inscYear, inscMonth, 1);
+  var daysInMonth = new Date(inscYear, inscMonth+1, 0).getDate();
+  var startDow    = (firstDay.getDay() + 6) % 7;
+  var nowI2       = new Date();
+  var todayStr    = nowI2.getFullYear() + '-' + String(nowI2.getMonth()+1).padStart(2,'0') + '-' + String(nowI2.getDate()).padStart(2,'0');
+  var monthTotal  = 0;
+  for (var d2 = 1; d2 <= daysInMonth; d2++) {{
+    var ds2 = inscYear + '-' + String(inscMonth+1).padStart(2,'0') + '-' + String(d2).padStart(2,'0');
+    monthTotal += (byDate[ds2] || []).length;
+  }}
+  var html = '<div class="d-flex align-items-center gap-3 mb-3">';
+  html += '<button class="btn btn-sm btn-outline-secondary" onclick="inscNav(-1)">‹ Préc</button>';
+  html += '<h5 class="mb-0 fw-bold" style="min-width:220px;text-align:center">' + _MONTH_NAMES[inscMonth] + ' ' + inscYear + '</h5>';
+  html += '<button class="btn btn-sm btn-outline-secondary" onclick="inscNav(1)">Suiv ›</button>';
+  html += '<small class="text-muted ms-3">' + monthTotal + ' ce mois · ' + _inscritData.length + ' inscriptions au total</small>';
+  html += '</div>';
+  html += '<div class="cal-grid mb-2">';
+  ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].forEach(function(d3) {{
+    html += '<div class="cal-dow">' + d3 + '</div>';
+  }});
+  for (var i = 0; i < startDow; i++) html += '<div class="cal-cell cal-empty"></div>';
+  for (var d = 1; d <= daysInMonth; d++) {{
+    var ds = inscYear + '-' + String(inscMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    var ts = byDate[ds] || [];
+    var isToday = ds === todayStr;
+    var clsI = 'cal-cell' + (isToday ? ' cal-today' : '') + (ts.length ? ' cal-has-events' : '');
+    html += '<div class="' + clsI + '" onclick="showInscDayPanel(\\'' + ds + '\\')">';
+    html += '<div class="cal-day-num">' + d + '</div>';
+    if (ts.length) {{
+      html += '<div class="cal-count">' + ts.length + ' ✅</div>';
+      ts.slice(0,3).forEach(function(t) {{
+        var nomCourt = t.nom.length > 20 ? t.nom.substring(0,19)+'…' : t.nom;
+        html += '<div class="cal-chip" style="background:#1abc9c22;border-left:3px solid #1abc9c">' + nomCourt + '</div>';
+      }});
+      if (ts.length > 3) html += '<div class="cal-chip-more">+' + (ts.length-3) + ' autres</div>';
+    }}
     html += '</div>';
   }}
+  html += '</div><div id="inscr-day-panel"></div>';
+  if (_inscritData.length === 0) html = '<div class="text-center text-muted py-5"><h4>Aucune inscription trouvée</h4><p>Lancez l\'enrichissement pour voir les tournois où vous êtes inscrits.</p></div>';
   $('#view-inscrit').html(html);
+}}
+
+function inscNav(dir) {{
+  inscMonth += dir;
+  if (inscMonth < 0)  {{ inscMonth = 11; inscYear--; }}
+  if (inscMonth > 11) {{ inscMonth = 0;  inscYear++; }}
+  renderInscrit();
+}}
+
+function showInscDayPanel(dateStr) {{
+  var ts = _inscritData.filter(function(t) {{ return t.debut === dateStr; }});
+  var panel = $('#inscr-day-panel');
+  if (!ts.length) {{ panel.html('').hide(); return; }}
+  var d = new Date(dateStr + 'T12:00:00');
+  var title = _DAY_NAMES[d.getDay()] + ' ' + d.getDate() + ' ' + _MONTH_NAMES[d.getMonth()].toLowerCase() + ' ' + d.getFullYear();
+  var html = '<div class="cal-panel">';
+  html += '<div class="d-flex align-items-center mb-2 gap-2">';
+  html += '<strong>' + title + '</strong>';
+  html += '<span class="badge bg-success">' + ts.length + ' inscription(s)</span>';
+  html += '<button class="btn btn-sm btn-close ms-auto" onclick="$(\\\'#inscr-day-panel\\\').html(\\\'\\\')"></button>';
+  html += '</div><div class="row g-2">';
+  ts.forEach(function(t) {{
+    html += '<div class="col-xl-3 col-lg-4 col-md-6">';
+    html += '<div class="border rounded p-2 h-100" style="border-left:4px solid #1abc9c !important">';
+    html += '<div><a href="' + t.url + '" target="_blank" class="fw-semibold text-decoration-none" style="font-size:.85em">' + t.nom.replace(/</g,'&lt;') + '</a></div>';
+    html += '<div class="text-muted" style="font-size:.78em">📍 ' + t.ville + ' · 🎾 ' + t.surf + '</div>';
+    html += '<div class="text-muted" style="font-size:.78em">📅 ' + (t.debut === t.fin ? t.debut : t.debut + ' → ' + t.fin) + '</div>';
+    html += '</div></div>';
+  }});
+  html += '</div></div>';
+  panel.html(html);
 }}
 
 // ── Vue Classements ───────────────────────────────────────────────────────────
 function renderClassements() {{
   var today = new Date();
+  today.setHours(0,0,0,0);
   var todayISO = today.toISOString().substring(0,10);
   var html = '<h5 class="mb-3">📆 Prochains classements FFT</h5>';
   html += '<p class="text-muted small mb-3">Les classements FFT sont publiés le 1er mardi de chaque mois.</p>';
