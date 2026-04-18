@@ -555,7 +555,7 @@ def main():
             print(f"  ... and {len(tournaments) - 5} more.")
         sys.exit(0)
 
-    # ── Enrich (format 1-7 + detail URL + statuts) ───────────────────────────
+    # ── Enrich (format 1-7 + detail URL) ─────────────────────────────────────
     if args.enrich:
         # Enrichment needs the queue-it bypass cookie — TenUp serves different
         # HTML (without epreuve-detail-format divs) to unauthenticated sessions.
@@ -564,8 +564,9 @@ def main():
             delay_s=1.5, max_enrich=args.enrich_max,
             cookies_file=cookies_file,
         )
-        # Always refresh inscription statuses after enriching formats
-        enrich_statut_all(tournaments, scraper.session, delay_s=1.5, cookies_file=cookies_file)
+        # Refresh inscription statuses (separate pass to avoid overloading TenUp)
+        if cookies_file:
+            enrich_statut_all(tournaments, scraper.session, delay_s=2.0, cookies_file=cookies_file)
 
     # ── Geo enrichment (road distance + travel time) ─────────────────────────
     if args.enrich_geo or args.enrich_geo_only:
