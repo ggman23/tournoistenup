@@ -1878,15 +1878,17 @@ $(function() {{
           var parts  = pair.split('|');
           var epBas  = (parts[0] || '').trim();
           var epHaut = (parts[1] || '').trim();
-          if (rangBas && epBas) {{
+          if (rangBas) {{
+            if (!epBas) return false;
             var iEpBas  = RANK_ORD.indexOf(epBas);
             var iFilter = RANK_ORD.indexOf(rangBas);
-            if (iEpBas !== -1 && iFilter !== -1 && iEpBas < iFilter) return false;
+            if (iEpBas === -1 || iFilter === -1 || iEpBas !== iFilter) return false;
           }}
-          if (rangHaut && epHaut) {{
+          if (rangHaut) {{
+            if (!epHaut) return false;
             var iEpHaut  = RANK_ORD.indexOf(epHaut);
             var iFilterH = RANK_ORD.indexOf(rangHaut);
-            if (iEpHaut !== -1 && iFilterH !== -1 && iEpHaut > iFilterH) return false;
+            if (iEpHaut === -1 || iFilterH === -1 || iEpHaut !== iFilterH) return false;
           }}
           return true;
         }});
