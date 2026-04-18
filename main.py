@@ -17,7 +17,10 @@ import json
 import logging
 import os
 import re
+import socket
+import subprocess
 import sys
+import time
 from datetime import datetime
 
 import requests as _req
@@ -28,6 +31,48 @@ from notify import notify
 from generate_html import generate_html, generate_from_file  # default, remplacé si --generator v2/v3
 from enrich import enrich_all, enrich_statut_all, fix_encoding_in_tournament
 from enrich_geo import enrich_geo_all, reset_geo
+
+
+COOKIE_SERVER_PORT = 5057
+
+
+def _ensure_cookie_server(port: int = COOKIE_SERVER_PORT) -> bool:
+    """Start cookie_server.py in background if not already listening on port."""
+    try:
+        with socket.create_connection(("localhost", port), timeout=1):
+            logger.info("Serveur de cookies déjà actif (port %d).", port)
+            return True
+    except OSError:
+        pass
+
+    server_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookie_server.py")
+    if not os.path.exists(server_script):
+        logger.warning("cookie_server.py introuvable (%s) — serveur non démarré.", server_script)
+        return False
+
+    logger.info("🚀 Démarrage automatique du serveur de cookies (port %d)...", port)
+    try:
+        kwargs: dict = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+        if sys.platform == "win32":
+            kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
+        else:
+            kwargs["start_new_session"] = True
+        subprocess.Popen([sys.executable, server_script], **kwargs)
+    except Exception as exc:
+        logger.warning("Impossible de démarrer cookie_server.py : %s", exc)
+        return False
+
+    for _ in range(10):
+        time.sleep(0.5)
+        try:
+            with socket.create_connection(("localhost", port), timeout=1):
+                logger.info("✅ Serveur de cookies prêt.")
+                return True
+        except OSError:
+            pass
+
+    logger.warning("Serveur de cookies ne répond pas après 5s — continuez manuellement.")
+    return False
 
 
 def _auto_push_html(html_file: str):
@@ -186,6 +231,10 @@ def parse_args():
 
 def main():
     args = parse_args()
+
+    # Démarrer le serveur de cookies si --cookies est passé et que le serveur n'est pas actif
+    if args.cookies:
+        _ensure_cookie_server()
 
     # Sélection du générateur HTML
     global generate_html, generate_from_file
