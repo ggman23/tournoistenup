@@ -1502,8 +1502,8 @@ $(function() {{
     var rangHaut = $('#filter-rang-haut').val();
     if (rangBas || rangHaut) {{
       var classementsEp = JSON.parse($tr.attr('data-classements') || '[]');
-      if (classementsEp.length > 0) {{
-        var rankMatch = classementsEp.some(function(pair) {{
+      if (classementsEp.length === 0) return false;
+      var rankMatch = classementsEp.some(function(pair) {{
           var parts  = pair.split('|');
           var epBas  = (parts[0] || '').trim();
           var epHaut = (parts[1] || '').trim();
@@ -1521,8 +1521,7 @@ $(function() {{
           }}
           return true;
         }});
-        if (!rankMatch) return false;
-      }}
+      if (!rankMatch) return false;
     }}
 
     // ── Filtre plage de dates ─────────────────────────────────────────────
