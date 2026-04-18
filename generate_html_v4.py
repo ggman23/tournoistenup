@@ -1182,10 +1182,11 @@ def generate_html(
           <input class="form-check-input" type="checkbox" id="chk-insc" onchange="applyFilters()">
           <label class="form-check-label small" for="chk-insc">Inscr. en ligne</label>
         </div>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" id="chk-paiem" onchange="applyFilters()">
-          <label class="form-check-label small" for="chk-paiem">Paiement en ligne</label>
-        </div>
+        <select id="sel-paiem" class="form-select form-select-sm d-inline-block ms-1" style="width:auto" onchange="applyFilters()">
+          <option value="">Paiement</option>
+          <option value="oui">✅ En ligne</option>
+          <option value="non">❌ Sur place</option>
+        </select>
         <div class="form-check form-check-inline">
           <input class="form-check-input" type="checkbox" id="chk-fav" onchange="applyFilters()">
           <label class="form-check-label small" for="chk-fav">⭐ Favoris</label>
@@ -1391,7 +1392,7 @@ $(function() {{
     var onlyNew      = $('#chk-new').prop('checked');
     var onlyTmc      = $('#chk-tmc').prop('checked');
     var onlyInsc     = $('#chk-insc').prop('checked');
-    var onlyPaiem    = $('#chk-paiem').prop('checked');
+    var paiemFilter  = $('#sel-paiem').val();
     var onlyFav      = $('#chk-fav').prop('checked');
     var onlyTermines = $('#chk-termines').prop('checked');
     var dureeChecked = ['1','2','3','4','5','6','7','14'].filter(function(n) {{ return $('#chk-'+n+'j').prop('checked'); }});
@@ -1456,7 +1457,8 @@ $(function() {{
     if (onlyNew  && $tr.attr('data-new') !== 'true')  return false;
     if (onlyTmc  && $tr.attr('data-tmc') !== 'true')  return false;
     if (onlyInsc && $tr.find('td:nth-child(9)').text().trim() !== '✅') return false;
-    if (onlyPaiem && $tr.attr('data-paiement') !== 'true') return false;
+    if (paiemFilter === 'oui' && $tr.attr('data-paiement') !== 'true')  return false;
+    if (paiemFilter === 'non' && $tr.attr('data-paiement') !== 'false') return false;
 
     // ── Filtre durée 1J / 2J / 3J / 4J (exactement N jours) ─────────────────
     if (dureeChecked.length > 0) {{
@@ -1890,7 +1892,8 @@ function resetFilters() {{
   $('#filter-ligue').val('');
   $('.dept-chk').prop('checked', false);
   updateDeptBtn();
-  $('#chk-new, #chk-tmc, #chk-insc, #chk-paiem, #chk-fav').prop('checked', false);
+  $('#chk-new, #chk-tmc, #chk-insc, #chk-fav').prop('checked', false);
+  $('#sel-paiem').val('');
   $('#chk-termines, #chk-1j, #chk-2j, #chk-3j, #chk-4j, #chk-5j, #chk-6j, #chk-7j, #chk-14j').prop('checked', false);
   $('#filter-rang-bas, #filter-rang-haut').val('');
   $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
