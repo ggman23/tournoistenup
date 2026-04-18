@@ -1993,7 +1993,7 @@ function pdfCustomize(doc) {{
   dt = $('#t').DataTable({{
     pageLength: 25,
     lengthMenu: [[25, 50, 100, -1], [25, 50, 100, "Tout"]],
-    order: [[0, 'asc']],
+    order: [[8, 'asc']],
     language: {{ url: 'https://cdn.datatables.net/plug-ins/2.0.5/i18n/fr-FR.json' }},
     columnDefs: [
       {{ targets: [3,4,6,9,10], searchable: false }},
@@ -2116,6 +2116,13 @@ function pdfCustomize(doc) {{
       $('.multi-panel').hide();
     }}
   }});
+
+  // ── Valeurs par défaut au chargement ─────────────────────────────────────
+  $('#chk-hide-vert, #chk-hide-orange').prop('checked', true);
+  $('.ep-chk[value="SM_110"], .ep-chk[value="SM_120"], .ep-chk[value="SM_125"]').prop('checked', true);
+  updateMultiBtn('btn-ep', '.ep-chk', 'Toutes les épreuves');
+  applyEpLineFilter();
+  applyFilters();
 }});
 
 function applyFilters() {{
@@ -2284,11 +2291,12 @@ function resetFilters() {{
   $('#sel-paiem').val('');
   $('#chk-termines, #chk-1j, #chk-2j, #chk-3j, #chk-4j, #chk-5j, #chk-6j, #chk-7j, #chk-14j').prop('checked', false);
   $('#filter-rang-bas, #filter-rang-haut').val('');
-  $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
+  $('#chk-hide-vert, #chk-hide-orange').prop('checked', true);  // default = masqué
   $('#chk-hide-past').prop('checked', true);  // remet masquer-terminés coché par défaut
   $('#filter-search').val('');
   $('.ep-chk, .surf-chk, .fmt-chk, .statut-chk, #chk-no-fmt').prop('checked', false);
-  $('#btn-ep').text('Toutes les épreuves ▾').removeClass('btn-primary').addClass('btn-outline-primary');
+  $('.ep-chk[value="SM_110"], .ep-chk[value="SM_120"], .ep-chk[value="SM_125"]').prop('checked', true);
+  updateMultiBtn('btn-ep', '.ep-chk', 'Toutes les épreuves');
   $('#btn-surf').text('Toutes ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-fmt').text('Tous ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-statut').text('Tous statuts ▾').removeClass('btn-primary').addClass('btn-outline-primary');
