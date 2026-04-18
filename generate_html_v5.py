@@ -1881,7 +1881,7 @@ $(function() {{
           if (rangBas && epBas) {{
             var iEpBas  = RANK_ORD.indexOf(epBas);
             var iFilter = RANK_ORD.indexOf(rangBas);
-            if (iEpBas !== -1 && iFilter !== -1 && iEpBas !== iFilter) return false;
+            if (iEpBas !== -1 && iFilter !== -1 && iEpBas < iFilter) return false;
           }}
           if (rangHaut && epHaut) {{
             var iEpHaut  = RANK_ORD.indexOf(epHaut);
