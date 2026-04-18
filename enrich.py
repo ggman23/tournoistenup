@@ -161,13 +161,16 @@ def _extract_statut_inscription(soup: BeautifulSoup) -> dict:
         info_div = block.find(class_="epreuve-detail-info")
         info_text = info_div.get_text(" ", strip=True) if info_div else ""
 
-        # Fallback 1: scan buttons inside this block for "attente" text
-        # (TenUp bug: sometimes the info div is empty but the button reveals the status)
-        if not info_text:
-            for btn in block.find_all(["button", "a", "span"]):
-                btn_text = btn.get_text(" ", strip=True).lower()
-                if "attente" in btn_text or "liste d" in btn_text or "complet" in btn_text:
-                    info_text = btn.get_text(" ", strip=True)
+        # Fallback 1: scan all tags in block for "attente" text, even if info_div had content.
+        # TenUp sometimes puts the generic "ouverte" text in info_div and the per-user
+        # waiting list message ("liste d'attente pour votre classement") in a sibling p/div.
+        _attente_keywords = ("attente", "liste d")
+        _info_lower = info_text.lower()
+        if not any(k in _info_lower for k in _attente_keywords):
+            for tag in block.find_all(["p", "div", "li", "button", "a", "span"]):
+                tag_text = tag.get_text(" ", strip=True)
+                if any(k in tag_text.lower() for k in _attente_keywords):
+                    info_text = tag_text
                     break
 
         statut_code = _normalize_statut(info_text, is_closed=is_closed)

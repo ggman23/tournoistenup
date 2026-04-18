@@ -415,7 +415,8 @@ def generate_html(
             data-road-min="{r['road_min'] if r['road_min'] is not None else ''}"
             data-lat="{r['geo_lat'] if r['geo_lat'] is not None else ''}"
             data-lng="{r['geo_lng'] if r['geo_lng'] is not None else ''}"
-            data-classements='{json.dumps(r["classements_ep"])}'>
+            data-classements='{json.dumps(r["classements_ep"])}'
+            data-paiement="{str(r['paiement']).lower()}">
 
           <td data-sort="{html.escape(r['date_debut_sort'])}">{html.escape(r['dates'])}</td>
           <td class="col-first-seen">{html.escape(r.get('first_seen', ''))}</td>
@@ -929,6 +930,10 @@ def generate_html(
           <label class="form-check-label small" for="chk-insc">Inscr. en ligne</label>
         </div>
         <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-paiem" onchange="applyFilters()">
+          <label class="form-check-label small" for="chk-paiem">Paiement en ligne</label>
+        </div>
+        <div class="form-check form-check-inline">
           <input class="form-check-input" type="checkbox" id="chk-fav" onchange="applyFilters()">
           <label class="form-check-label small" for="chk-fav">⭐ Favoris</label>
         </div>
@@ -1141,6 +1146,7 @@ $(function() {{
     var onlyNew      = $('#chk-new').prop('checked');
     var onlyTmc      = $('#chk-tmc').prop('checked');
     var onlyInsc     = $('#chk-insc').prop('checked');
+    var onlyPaiem    = $('#chk-paiem').prop('checked');
     var onlyFav      = $('#chk-fav').prop('checked');
     var onlyTermines = $('#chk-termines').prop('checked');
     var dureeChecked = ['1','2','3','4','5','6','7','14'].filter(function(n) {{ return $('#chk-'+n+'j').prop('checked'); }});
@@ -1205,6 +1211,7 @@ $(function() {{
     if (onlyNew  && $tr.attr('data-new') !== 'true')  return false;
     if (onlyTmc  && $tr.attr('data-tmc') !== 'true')  return false;
     if (onlyInsc && $tr.find('td:nth-child(9)').text().trim() !== '✅') return false;
+    if (onlyPaiem && $tr.attr('data-paiement') !== 'true') return false;
 
     // ── Filtre durée 1J / 2J / 3J / 4J (exactement N jours) ─────────────────
     if (dureeChecked.length > 0) {{
@@ -1638,7 +1645,7 @@ function resetFilters() {{
   $('#filter-ligue').val('');
   $('.dept-chk').prop('checked', false);
   updateDeptBtn();
-  $('#chk-new, #chk-tmc, #chk-insc, #chk-fav').prop('checked', false);
+  $('#chk-new, #chk-tmc, #chk-insc, #chk-paiem, #chk-fav').prop('checked', false);
   $('#chk-termines, #chk-1j, #chk-2j, #chk-3j, #chk-4j, #chk-5j, #chk-6j, #chk-7j, #chk-14j').prop('checked', false);
   $('#filter-rang-bas, #filter-rang-haut').val('');
   $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
