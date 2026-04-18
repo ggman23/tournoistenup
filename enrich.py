@@ -568,7 +568,8 @@ def enrich_statut_all(
         t for t in tournaments
         if t.get("enriched")
         and not t["enriched"].get("fetch_failed")
-        and not t["enriched"].get("no_format_in_html")
+        # no_format_in_html was set during initial enrichment (no cookies).
+        # With cookies the status page is accessible, so we include them.
     ]
 
     to_process = []
