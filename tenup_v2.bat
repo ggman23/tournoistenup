@@ -52,6 +52,12 @@ echo       Jitter + pauses automatiques pour eviter le ban (~2h).
 echo       Necessite cookies.json
 echo       Demande : meme ville / meme rayon que lors du [7]
 echo.
+echo  [9]  France complete en une seule fois  [7] + [8]
+echo       Scraping + distances routieres + formats + statuts + commentaires.
+echo       Lancez et revenez dans ~3h.
+echo       Necessite cookies.json
+echo       Demande : ville de reference / dates  (une seule fois)
+echo.
 echo  [0]  Quitter
 echo.
 echo  =============================================================
@@ -67,6 +73,7 @@ if "%choix%"=="4" goto html
 if "%choix%"=="5" goto geo
 if "%choix%"=="6" goto tout_ville
 if "%choix%"=="8" goto enrichir_france
+if "%choix%"=="9" goto france_complete
 if "%choix%"=="0" goto fin
 
 echo.
@@ -162,6 +169,25 @@ echo  Entrez la ville et le rayon souhaites.
 echo  Les formats deja connus (autres villes) ne seront pas re-telecharges.
 echo.
 python main_v2.py --enrich --enrich-geo --km-default 100 --cookies cookies.json --generator v3
+goto fin_action
+
+:: ─────────────────────────────────────────────────────────────────────────────
+:france_complete
+cls
+echo.
+echo  [9] France complete  (scraping + distances + formats + statuts)
+echo  ─────────────────────────────────────────────────────────────
+echo.
+echo  Etape 1/2 : Scraping 2700+ tournois + distances routieres (~25 min)
+echo  Etape 2/2 : Enrichissement formats + statuts + commentaires (~2h)
+echo  Duree totale : ~3h. Lancez et faites autre chose.
+echo.
+python main_v2.py --km 1100 --force-pages 200 --enrich-geo --cookies cookies.json --generator v3
+if errorlevel 1 goto fin_action
+echo.
+echo  Etape 1/2 terminee. Lancement de l'enrichissement...
+echo.
+python main_v2.py --enrich-only --km-default 1100 --cookies cookies.json --generator v3
 goto fin_action
 
 :: ─────────────────────────────────────────────────────────────────────────────
