@@ -936,15 +936,16 @@ def generate_html(
           <label class="form-check-label small fw-semibold" for="chk-14j" style="color:#8e44ad">14J</label>
         </div>
         <span class="text-muted small me-1 ms-1">|</span>
-        {''.join(f'''<div class="form-check form-check-inline" title="Débute un {lbl}">
-          <input class="form-check-input" type="checkbox" id="chk-dow-{i}" onchange="applyFilters()">
-          <label class="form-check-label small fw-semibold" for="chk-dow-{i}" style="color:#198754">{lbl}</label>
-        </div>''' for i, lbl in enumerate(['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']))}
-        <span class="text-muted small me-1 ms-1">|</span>
         <div class="form-check form-check-inline">
           <input class="form-check-input" type="checkbox" id="chk-insc" onchange="applyFilters()">
           <label class="form-check-label small" for="chk-insc">Inscr. en ligne</label>
         </div>
+        <br>
+        <span class="text-muted small fw-semibold me-1" style="color:#198754 !important">Début :</span>
+        {''.join(f'''<div class="form-check form-check-inline" title="Débute un {lbl}">
+          <input class="form-check-input" type="checkbox" id="chk-dow-{i}" onchange="applyFilters()">
+          <label class="form-check-label small fw-semibold" for="chk-dow-{i}" style="color:#198754">{lbl}</label>
+        </div>''' for i, lbl in enumerate(['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']))}
         <select id="sel-paiem" class="form-select form-select-sm d-inline-block ms-1" style="width:auto" onchange="applyFilters()">
           <option value="">Paiement</option>
           <option value="oui">✅ En ligne</option>
