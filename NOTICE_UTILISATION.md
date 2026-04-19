@@ -4,7 +4,7 @@
 
 ---
 
-## ⚠️ Règle importante pour l'assistant Claude
+## Règle importante pour l'assistant Claude
 
 **Toujours donner les commandes complètes et exactes**, copiables telles quelles.
 Ne jamais omettre un flag obligatoire comme `--cookies cookies.json`.
@@ -17,220 +17,139 @@ L'utilisateur n'est pas développeur — une commande incomplète est une comman
 1. **Python** installé (3.10+)
 2. **Dépendances** : `pip install -r requirements.txt`
 3. **Cookies valides** dans `cookies.json` (voir section Cookies ci-dessous)
-4. Être dans le dossier du projet :
-   ```
-   cd C:\tournoistenupv2\tournoistenup
-   ```
+4. Être dans le dossier du projet
 
 ---
 
 ## Les cookies — point critique
 
 TenUp utilise une salle d'attente virtuelle (queue-it) qui expire **toutes les 10 minutes**.
-Sans cookie valide, le scraper est bloqué avec le message :
-`Redirigé vers queue-it.net — cookie expiré`
+Sans cookie valide : `Redirigé vers queue-it.net — cookie expiré`
 
-### Option A — Export manuel (simple, mais cookie expire vite)
+### Option A — Export manuel (simple, cookie expire vite)
 
-1. Ouvre Chrome/Firefox → va sur `https://tenup.fft.fr`
-2. Attends que la page charge complètement (passe la salle d'attente si nécessaire)
-3. Ouvre l'extension **Cookie-Editor** → Export → copie le JSON → colle dans `cookies.json`
-4. **Lance ta commande dans les 5 minutes** qui suivent
+1. Chrome → `https://tenup.fft.fr/recherche/tournois` (page recherche, pas l'accueil)
+2. Attends que la page charge complètement
+3. Extension **Cookie-Editor** → Export → colle dans `cookies.json`
+4. Lance la commande dans les 5 minutes qui suivent
 
-### Option B — Refresh automatique (recommandé, obligatoire pour les runs longs)
-
-Nécessite TamperMonkey installé dans le navigateur + le script `tampermonkey_tenup.js` actif.
+### Option B — Refresh automatique (obligatoire pour runs longs)
 
 **Terminal 1 (laisser ouvert pendant tout le run) :**
 ```
 python cookie_server.py
 ```
-Tu dois voir : `Cookie server démarré → http://localhost:5057/update_cookie`
+Doit afficher : `Cookie server démarré → http://localhost:5057/update_cookie`
 
 **Navigateur :** Ouvre `https://tenup.fft.fr` et laisse l'onglet ouvert.
-TamperMonkey envoie automatiquement les cookies toutes les 8 min.
-Tu verras dans le terminal : `✅ 31 cookies mis à jour → cookies.json`
+TamperMonkey envoie les cookies toutes les 8 min automatiquement.
 
-**Terminal 2 :** Lance ton run avec `--cookies cookies.json` (voir commandes ci-dessous).
+**Terminal 2 :** Lance ton run normalement avec `--cookies cookies.json`.
 
 ---
 
-## Générateurs HTML disponibles
+## L'outil principal : tenup_v2.bat
 
-Le flag `--generator` permet de choisir le style visuel du rapport HTML :
+Double-clique sur `tenup_v2.bat`. Menu interactif avec toutes les options.
+Un fichier de log horodaté est créé automatiquement dans `logs/` à chaque lancement.
+
+### Menu complet
+
+| Option | Nom | Ce que ça fait | Durée | Cookies |
+|--------|-----|----------------|-------|---------|
+| **[10]** | Tout tout tout — option nuit | [7]+[8]+[3] : scraping + geo + formats + statuts | ~3h30 | Oui |
+| [9] | France complète | [7]+[8] : scraping + geo + formats nouveaux | ~3h | Oui |
+| [8] | Enrichir toute la France | Formats + statuts + commentaires pour tous les tournois | ~2h | Oui |
+| [7] | France entière + distances | 2700+ tournois scraping + distances routières | ~25 min | Oui |
+| [6] | Tout pour une ville | Scraping + formats + statuts + distances (zone locale) | variable | Oui |
+| [5] | Distances routières seules | Après un [1] ou [7] oublié | ~10 min | Non |
+| [4] | Générer HTML uniquement | Régénère HTML depuis données existantes | <1 min | Non |
+| [3] | Refresh statuts | Actualise ouvert/attente/clôturé pour tous les tournois | ~30 min | Oui |
+| [2] | Scraper + Enrichir une ville | Scraping zone + formats + statuts locaux | variable | Oui |
+| [1] | France entière (scraping seul) | 2700+ tournois sans formats ni distances | ~15 min | Oui |
+
+### Workflow recommandé
+
+**Première fois :**
+```
+Lancer [9] ou [10]  →  ~3h  →  tous les tournois France avec formats + distances
+```
+
+**Chaque semaine (vendredi soir) :**
+```
+Lancer [10]  →  ~3h30  →  nouveaux tournois + statuts à jour
+```
+
+**Vacances dans une autre ville (ex: Saint-Jean-de-Monts) :**
+```
+Lancer [2]  →  entrer "Saint-Jean-de-Monts" + "150 km"  →  tournois locaux enrichis
+```
+
+**Juste vérifier les statuts ce matin :**
+```
+Lancer [3]  →  ~30 min  →  statuts à jour
+```
+
+### Note importante sur [8] et [10]
+
+Lors du lancement de [8] ou [10], le script demande la **même ville et le même rayon**
+que lors du [7] précédent. Par exemple : `Vaires-sur-Marne` puis `1100` km.
+Les tournois déjà enrichis sont automatiquement sautés — seuls les nouveaux sont traités.
+
+---
+
+## Lire les logs après un run
+
+Chaque lancement crée un fichier dans le dossier `logs/` :
+```
+logs/tenup_20260419_21h30.log
+```
+Ouvre-le avec le Bloc-notes ou VS Code pour relire toutes les pages scrapées,
+les tournois enrichis, les éventuelles erreurs.
+
+---
+
+## Générateurs HTML
 
 | Flag | Description |
 |---|---|
-| `--generator v1` | Style original Bootstrap (défaut) |
-| `--generator v2` | Style épuré avec filtres avancés repliés |
-| `--generator v3` | Panel de filtres sombre (dark theme) — **recommandé** |
-
-**Ajouter `--generator v3` à toutes les commandes** pour obtenir le design moderne.
+| `--generator v1` | Style Bootstrap original |
+| `--generator v2` | Style épuré, filtres repliés |
+| `--generator v3` | Panel de filtres sombre — **recommandé**, utilisé par tenup_v2.bat |
 
 ---
 
-## CAS 1 — Scraper les tournois de ta ville (usage principal)
+## Commandes directes (sans bat)
 
-### Scraping complet + enrichissement des formats + HTML v3
+### Scraping + enrichissement zone locale
 ```
-python main.py --enrich --cookies cookies.json --generator v3
-```
-Le menu interactif te demande la ville, la distance et les dates. Appuie sur Entrée pour valider les valeurs par défaut.
-
-### Scraping sans enrichissement (plus rapide, sans format F1-F7)
-```
-python main.py --cookies cookies.json --generator v3
+python main_v2.py --enrich --cookies cookies.json --generator v3
 ```
 
-### Refresh complet : fix encodage + formats manquants + statuts (sans re-scraper)
+### France entière force-pages
 ```
-python main.py --refresh --cookies cookies.json --generator v3
-```
-
-### Mettre à jour uniquement les statuts d'inscription (sans re-scraper)
-```
-python main.py --enrich-statut-only --cookies cookies.json --generator v3 --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100 --lat 48.874 --lng 2.638
-```
-Rafraîchit les statuts (Ouvert / Clôturé / Bientôt…). Ignore les tournois terminés.
-Durée : ~1.5s × tournois à venir (ex: 80 tournois ≈ 2 minutes).
-
-### Re-enrichir les formats sans re-scraper
-```
-python main.py --enrich-only --cookies cookies.json --generator v3 --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100 --lat 48.874 --lng 2.638
+python main_v2.py --km 1100 --force-pages 200 --enrich-geo --cookies cookies.json --generator v3
 ```
 
-### Ajouter les distances routières et temps de trajet (pas besoin de cookies)
+### Enrichir sans re-scraper
 ```
-python main.py --enrich-geo-only --generator v3 --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100 --lat 48.874 --lng 2.638
-```
-Durée : ~45 secondes pour 368 tournois.
-
-### Régénérer uniquement le fichier HTML (sans rien télécharger)
-```
-python main.py --html-only --generator v3 --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100
+python main_v2.py --enrich-only --cookies cookies.json --generator v3
 ```
 
----
-
-## CAS 2 — Batch mes 4 villes favorites
-
-> Script dédié : `run_batch_mes_villes.py`
-> Villes : Vaires-sur-Marne 100 km · Moncé-en-Belin 72 (150 km) · Saint-Jean-de-Monts 85 (150 km) · Monchy-Cayeux 62 (150 km)
-
-### Run complet (scraping + formats + distances + HTML v3)
+### Refresh statuts uniquement
 ```
-python run_batch_mes_villes.py --cookies cookies.json
-```
-Enchaîne pour chaque ville : scraping TenUp → enrichissement F1-F7 → distances routières → HTML v3.
-
-### Régénérer uniquement les 4 HTMLs (sans téléchargement)
-```
-python run_batch_mes_villes.py --html-only
+python main_v2.py --enrich-statut-only --cookies cookies.json --generator v3
 ```
 
-### Rafraîchir uniquement les statuts d'inscription
+### Distances routières uniquement
 ```
-python run_batch_mes_villes.py --enrich-statut-only --cookies cookies.json
-```
-
-### Recalculer uniquement les distances routières
-```
-python run_batch_mes_villes.py --enrich-geo-only
+python main_v2.py --enrich-geo-only --generator v3
 ```
 
-### Ignorer certaines villes avec --skip (indices 0-3)
+### Régénérer HTML sans téléchargement
 ```
-python run_batch_mes_villes.py --cookies cookies.json --skip 2,3
+python main_v2.py --html-only --generator v3
 ```
-Ici : ignore les villes 2 (Saint-Jean-de-Monts) et 3 (Monchy-Cayeux).
-
-### Fichiers HTML produits
-| Fichier | Ville |
-|---|---|
-| `data/tournaments_vaires_sur_marne_77360_100km.html` | Vaires-sur-Marne |
-| `data/tournaments_monce_en_belin_72230_150km.html` | Moncé-en-Belin |
-| `data/tournaments_saint_jean_de_monts_85160_150km.html` | Saint-Jean-de-Monts |
-| `data/tournaments_monchy_cayeux_62134_150km.html` | Monchy-Cayeux |
-
----
-
-## CAS 3 — Run France entière (toutes les villes de cities_france.json)
-
-> **Temps estimé :** scraping ~30-60 min | enrichissement ~2-15h | distances ~3 min | statuts ~5-15 min
-
-### Étape 1 — Scraper toutes les villes (cookies requis)
-```
-python run_batch.py --cookies cookies.json --date-start 01/04/26 --date-end 31/12/26
-```
-
-### Étape 2 — Enrichir (récupérer les formats)
-```
-python run_batch.py --enrich-only --cookies cookies.json
-```
-Les tournois déjà enrichis sont ignorés → peut être interrompu et relancé.
-
-### Étape 3 — Distances routières (pas besoin de cookies)
-```
-python run_batch.py --enrich-geo-only
-```
-
-### Étape 4 — Juste régénérer les HTMLs sans rien télécharger
-```
-python run_batch.py --html-only
-```
-
-### Ou tout en une seule commande
-```
-python run_batch.py --cookies cookies.json --enrich --enrich-geo --date-start 01/04/26 --date-end 31/12/26
-```
-
----
-
-## CAS 4 — Reprendre après une coupure / erreur
-
-Les tournois qui ont échoué sont marqués `fetch_failed=True` dans le JSON.
-Ils sont automatiquement retentés au prochain run :
-```
-python main.py --enrich-only --cookies cookies.json --generator v3 --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100 --lat 48.874 --lng 2.638
-```
-
----
-
-## CAS 5 — Corriger des mauvais flags
-
-Parfois, si l'enrichissement s'est fait sans cookie valide, des tournois sont marqués
-`no_format_in_html=True` à tort. Pour corriger :
-
-```
-python reset_no_format.py --dry-run
-python reset_no_format.py
-python main.py --enrich-only --cookies cookies.json --generator v3 --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100 --lat 48.874 --lng 2.638
-```
-
-**Recalculer les distances routières depuis zéro :**
-```
-python main.py --enrich-geo-only --reset-geo --generator v3 --no-prompt --city "VAIRES SUR MARNE, 77360" --km 100 --lat 48.874 --lng 2.638
-```
-
----
-
-## CAS 6 — Vérifier l'état des données
-
-```
-python check_enrichment.py
-```
-Affiche par fichier : ok / fetch_failed / no_format / non traités.
-
----
-
-## Fichiers produits
-
-| Fichier | Contenu |
-|---|---|
-| `data/tournaments_<ville>_<km>km.json` | Données brutes + enrichies |
-| `data/history_<ville>_<km>km.json` | IDs connus → détection des nouveaux |
-| `data/tournaments_<ville>_<km>km.html` | Rapport HTML (v1 par défaut, v3 si --generator v3) |
-| `data/tournaments_france_entiere.html` | Rapport combiné toutes villes (dédupliqué) |
 
 ---
 
@@ -238,13 +157,13 @@ Affiche par fichier : ok / fetch_failed / no_format / non traités.
 
 | Filtre | Ce qu'il fait |
 |---|---|
-| 🔍 Rechercher | Cherche dans nom, juge, ville, club |
+| Rechercher | Cherche dans nom, juge, ville, club |
 | Ligue | Sélectionne une ligue → coche automatiquement ses départements |
 | Comités | Panneau multi-sélection de départements |
 | Épreuve | Panneau multi-sélection — ex : SM 11/12 ET SM 13/14 simultanément |
 | Vol d'oiseau max (km) | Distance à vol d'oiseau depuis la ville de référence |
-| 🚗 Trajet max (km) | Distance réelle par la route |
-| 🕐 Trajet max (min) | Temps de trajet estimé en voiture |
+| Trajet max (km) | Distance réelle par la route |
+| Trajet max (min) | Temps de trajet estimé en voiture |
 | Surface | Panneau multi-sélection |
 | Format | Panneau multi-sélection F1-F7 + "sans format" |
 | Statut inscription | Panneau multi-sélection (Ouvert, Bientôt, Clôturé…) |
@@ -253,9 +172,16 @@ Affiche par fichier : ok / fetch_failed / no_format / non traités.
 | TMC | Tournois "Match Compétition" internes |
 | Inscr. en ligne | Seulement ceux avec inscription en ligne |
 | Masquer Vert/Orange | Cache les tournois débutants |
-| Mots à exclure | Ex : `hiver open` → cache tout tournoi contenant ces mots |
+| Mots à exclure | Ex : `hiver open` → cache les tournois contenant ces mots |
 | Dates | Plage de dates de début/fin |
-| ⭐ Favoris | Sauvegardés dans le navigateur (localStorage) |
+| Favoris | Sauvegardés dans le navigateur (localStorage) |
+
+### Boutons de réinitialisation
+
+| Bouton | Effet |
+|--------|-------|
+| ↺ Réinitialiser | Restaure les filtres par défaut (SM sélectionné, masquer vert/orange actif) |
+| ✕ Tout vider | Efface absolument tout — ardoise vierge |
 
 ---
 
@@ -263,14 +189,15 @@ Affiche par fichier : ok / fetch_failed / no_format / non traités.
 
 | Vue | Description |
 |---|---|
-| 📋 Tableau | Vue par défaut — tableau trié/paginé avec tous les filtres |
-| 📅 Calendrier | Vue mensuelle — nombre de tournois par jour |
-| 📊 Gantt | Diagramme de Gantt — durée des tournois sur axe temporel |
-| 🗺️ Carte | Carte interactive Leaflet — marqueurs colorés par format |
-| 🏖️ Vacs | Calendrier vacances scolaires Zone C + jours fériés (13 mois) |
-| 🆕 Derniers | Tableau trié par date d'ajout décroissante + colonne "Ajouté le" (JJ/MM HH:MM) |
+| Tableau | Vue par défaut — tableau trié/paginé |
+| Calendrier | Vue mensuelle — nombre de tournois par jour |
+| Gantt | Diagramme de Gantt — durée des tournois sur axe temporel |
+| Carte | Carte interactive — marqueurs colorés par format, isochrones 30/60 min routières |
+| Vacs | Calendrier vacances scolaires Zone C + jours fériés (13 mois) |
+| Derniers | Tableau trié par date d'ajout décroissante + colonne "Ajouté le" |
 
-Toutes les vues respectent les filtres actifs.
+**Dans l'onglet Carte :** tu peux changer la ville de référence — les isochrones 30/60 min
+se recalculent automatiquement en temps réel via l'API Valhalla (vraies routes).
 
 ---
 
@@ -281,11 +208,47 @@ Toutes les vues respectent les filtres actifs.
 | Ouvert | Inscriptions en cours |
 | Bientôt | Date d'ouverture future affichée |
 | Liste d'attente | Tournoi plein — inscription possible en liste d'attente |
-| Inscrit (liste d'attente) | Déjà inscrit mais en attente de place |
+| Inscrit (attente) | Déjà inscrit mais en attente de place |
 | Clôturé | Inscriptions fermées |
 | Déjà inscrit | Inscription confirmée |
 | Non éligible | Catégorie d'âge ou classement hors bornes |
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 11/04/2026 (repo GitHub passé en privé).*
+## Reprendre après une coupure / erreur
+
+Les tournois qui ont échoué sont marqués `fetch_failed=True` dans le JSON
+et automatiquement retentés au prochain run :
+```
+python main_v2.py --enrich-only --cookies cookies.json --generator v3
+```
+
+## Corriger des faux "no_format_in_html"
+
+Si l'enrichissement s'est fait sans cookie valide, utiliser :
+```
+python reset_no_format.py --dry-run
+python reset_no_format.py
+python main_v2.py --enrich-only --cookies cookies.json --generator v3
+```
+
+## Recalculer les distances routières depuis zéro
+
+```
+python main_v2.py --enrich-geo-only --reset-geo --generator v3
+```
+
+---
+
+## Fichiers produits
+
+| Fichier | Contenu |
+|---|---|
+| `data/tournaments_<ville>_<km>km.json` | Données brutes + enrichies |
+| `data/history_<ville>_<km>km.json` | IDs connus → détection des nouveaux |
+| `data/tournaments_<ville>_<km>km.html` | Rapport HTML interactif |
+| `logs/tenup_YYYYMMDD_HHhMMSS.log` | Log complet de chaque run |
+
+---
+
+*Document créé le 09/04/2026 — mis à jour le 19/04/2026 (tenup_v2.bat options 7-10, logs, jitter, workflow nuit).*
