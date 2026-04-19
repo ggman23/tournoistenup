@@ -15,6 +15,7 @@ echo.
 echo  [1]  Scraping de base
 echo       Recupere la liste des tournois depuis TenUp.
 echo       Rapide, pas de risque de ban.
+echo       Necessite cookies.json
 echo       Demande : ville / km / dates de debut et fin
 echo.
 echo  [2]  Scraping + Formats (F1-F7) + Statuts d'inscription
@@ -71,7 +72,7 @@ echo.
 echo  [1] Scraping de base
 echo  ─────────────────────────────────────────────────────────────
 echo.
-python main.py --generator v3
+python main.py --cookies cookies.json --generator v3
 goto fin_action
 
 :: ─────────────────────────────────────────────────────────────────────────────
