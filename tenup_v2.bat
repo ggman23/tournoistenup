@@ -10,11 +10,15 @@ echo  =============================================================
 echo    TENUP v2  —  Scraper de tournois de tennis
 echo  =============================================================
 echo.
-echo  [1]  Scraper toute la France  (infos de base)
-echo       Recupere les 2700+ tournois sur tout le territoire.
-echo       Force 200 pages pour ne rater aucun tournoi (~30 min).
+echo  [1]  France entiere  (scraping seul, ~15 min)
+echo       2700+ tournois, infos de base, tri par distance vol d'oiseau.
+echo       Sans distances routieres — carte incomplete.
 echo       Demande : ville de reference / dates
-echo       Rayon fixe : 1100 km
+echo.
+echo  [7]  France entiere + distances routieres  (recommande, ~25 min)
+echo       Meme chose que [1] mais calcule aussi les distances routieres.
+echo       Carte 100%% complete, isochrones 30/60 min utilisables.
+echo       Demande : ville de reference / dates
 echo.
 echo  [2]  Scraper + Enrichir une ville  (formats + statuts)
 echo       Scrape une zone reduite et visite chaque page de tournoi.
@@ -32,8 +36,8 @@ echo       Regenere la page HTML depuis les donnees existantes.
 echo       Aucune requete vers TenUp.
 echo       Demande : ville / rayon
 echo.
-echo  [5]  Calculer les distances routieres
-echo       Calcule les distances de conduite depuis la ville choisie.
+echo  [5]  Calculer les distances routieres uniquement
+echo       A lancer apres [1] si vous avez oublie [7].
 echo       Aucune requete vers TenUp.
 echo       Demande : ville / rayon
 echo.
@@ -50,6 +54,7 @@ set "choix="
 set /p choix=  Votre choix :
 
 if "%choix%"=="1" goto france
+if "%choix%"=="7" goto france_geo
 if "%choix%"=="2" goto enrichir_ville
 if "%choix%"=="3" goto statuts
 if "%choix%"=="4" goto html
@@ -66,14 +71,29 @@ goto menu
 :france
 cls
 echo.
-echo  [1] Scrape toute la France  (1100 km fixe)
+echo  [1] France entiere  (scraping seul)
 echo  ─────────────────────────────────────────────────────────────
 echo.
-echo  Rayon fixe : 1100 km (toute la France metropolitaine + Corse)
-echo  Force 200 pages pour ignorer le stop sur doublons de TenUp.
-echo  Seules la ville de reference et les dates seront demandees.
+echo  Rayon fixe : 1100 km — Force 200 pages pour couvrir toute la France.
+echo  Distances routieres non calculees (carte incomplete).
+echo  Lancez ensuite [5] ou utilisez [7] pour tout faire d'un coup.
 echo.
 python main_v2.py --km 1100 --force-pages 200 --cookies cookies.json --generator v3
+goto fin_action
+
+:: ─────────────────────────────────────────────────────────────────────────────
+:france_geo
+cls
+echo.
+echo  [7] France entiere + distances routieres  (recommande)
+echo  ─────────────────────────────────────────────────────────────
+echo.
+echo  Rayon fixe : 1100 km — Force 200 pages pour couvrir toute la France.
+echo  Calcule ensuite les distances routieres pour tous les tournois.
+echo  Carte 100%% complete avec isochrones 30/60 min.
+echo  Duree totale : ~25 min. Lancez et faites autre chose.
+echo.
+python main_v2.py --km 1100 --force-pages 200 --enrich-geo --cookies cookies.json --generator v3
 goto fin_action
 
 :: ─────────────────────────────────────────────────────────────────────────────
@@ -116,8 +136,10 @@ goto fin_action
 :geo
 cls
 echo.
-echo  [5] Calcul des distances routieres
+echo  [5] Calcul des distances routieres uniquement
 echo  ─────────────────────────────────────────────────────────────
+echo.
+echo  A utiliser apres [1] si vous avez oublie de faire [7].
 echo.
 python main_v2.py --enrich-geo-only --generator v3
 goto fin_action
