@@ -195,12 +195,12 @@ if errorlevel 1 goto fin_action
 echo.
 echo  Etape 1/3 terminee. Enrichissement des nouveaux tournois...
 echo.
-python main_v2.py --enrich-only --km-default 1100 --cookies cookies.json --generator v3
+python main_v2.py --enrich-only --no-prompt --cookies cookies.json --generator v3
 if errorlevel 1 goto fin_action
 echo.
 echo  Etape 2/3 terminee. Refresh statuts de tous les tournois...
 echo.
-python main_v2.py --enrich-statut-only --km-default 1100 --cookies cookies.json --generator v3
+python main_v2.py --enrich-statut-only --no-prompt --cookies cookies.json --generator v3
 goto fin_action
 
 :: ─────────────────────────────────────────────────────────────────────────────
@@ -219,7 +219,7 @@ if errorlevel 1 goto fin_action
 echo.
 echo  Etape 1/2 terminee. Lancement de l'enrichissement...
 echo.
-python main_v2.py --enrich-only --km-default 1100 --cookies cookies.json --generator v3
+python main_v2.py --enrich-only --no-prompt --cookies cookies.json --generator v3
 goto fin_action
 
 :: ─────────────────────────────────────────────────────────────────────────────
