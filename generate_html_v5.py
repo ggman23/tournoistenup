@@ -333,13 +333,17 @@ def _collect_epreuve_options(rows):
                     nat_lbl = nature_labels.get(nat, nat)
                     age_lbl = AGE_LABELS.get(age_id, "cat " + str(age_id // 10 if age_id > 200 and age_id % 10 == 0 else age_id))
                     seen[key] = f"{nat_lbl} {age_lbl}"
-    # Sort: SM first, then SD, then others; within each by age
+    # Sort: SM first, then SD, then others; within each by known age ID, unknown at end
     def sort_key(item):
         k, lbl = item
         order = {"SM": 0, "SD": 1, "DM": 2, "DD": 3, "DX": 4}
         nat = k.split("_")[0]
-        age = int(k.split("_")[1]) if k.split("_")[1].isdigit() else 999
-        return (order.get(nat, 9), age)
+        try:
+            age_id = int(k.split("_")[1])
+        except (ValueError, IndexError):
+            age_id = 9999
+        age_sort = age_id if age_id in AGE_LABELS else 9000 + age_id
+        return (order.get(nat, 9), age_sort)
     return sorted(seen.items(), key=sort_key)
 
 
@@ -1588,7 +1592,10 @@ def generate_html(
 
       <div class="col-auto ms-auto align-self-end">
         <button class="btn btn-sm btn-outline-secondary" onclick="resetFilters()">
-          ✕ Réinitialiser
+          ↺ Réinitialiser
+        </button>
+        <button class="btn btn-sm btn-outline-secondary ms-1" onclick="resetFiltersAll()">
+          ✕ Tout vider
         </button>
         <span id="filter-count" class="ms-2 text-muted small"></span>
       </div>
@@ -2304,6 +2311,28 @@ function resetFilters() {{
   $('#filter-search').val('');
   $('.ep-chk, .surf-chk, .fmt-chk, .statut-chk, #chk-no-fmt').prop('checked', false);
   $('.ep-chk[value="SM_110"], .ep-chk[value="SM_120"], .ep-chk[value="SM_125"]').prop('checked', true);
+  updateMultiBtn('btn-ep', '.ep-chk', 'Toutes les épreuves');
+  $('#btn-surf').text('Toutes ▾').removeClass('btn-primary').addClass('btn-outline-primary');
+  $('#btn-fmt').text('Tous ▾').removeClass('btn-primary').addClass('btn-outline-primary');
+  $('#btn-statut').text('Tous statuts ▾').removeClass('btn-primary').addClass('btn-outline-primary');
+  applyEpLineFilter();
+  if (dt) {{ dt.search('').draw(); }} else {{ applyFilters(); }}
+}}
+
+function resetFiltersAll() {{
+  $('#filter-distance, #filter-road-km, #filter-road-min, #filter-exclude').val('');
+  $('#filter-date-start, #filter-date-end').val('');
+  $('#filter-ligue').val('');
+  $('.dept-chk').prop('checked', false);
+  updateDeptBtn();
+  $('#chk-new, #chk-tmc, #chk-insc, #chk-fav').prop('checked', false);
+  $('#sel-paiem').val('');
+  $('#chk-termines, #chk-1j, #chk-2j, #chk-3j, #chk-4j, #chk-5j, #chk-6j, #chk-7j, #chk-14j').prop('checked', false);
+  $('#filter-rang-bas, #filter-rang-haut').val('');
+  $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
+  $('#chk-hide-past').prop('checked', false);
+  $('#filter-search').val('');
+  $('.ep-chk, .surf-chk, .fmt-chk, .statut-chk, #chk-no-fmt').prop('checked', false);
   updateMultiBtn('btn-ep', '.ep-chk', 'Toutes les épreuves');
   $('#btn-surf').text('Toutes ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-fmt').text('Tous ▾').removeClass('btn-primary').addClass('btn-outline-primary');
