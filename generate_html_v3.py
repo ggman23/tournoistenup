@@ -305,11 +305,16 @@ def _tournament_to_row(t, only_natures=None):
         "is_new":       t.get("_is_new", False),
         "first_seen":   t.get("_first_seen", ""),
         "classements_ep": [
-            ep.get("classementBas",  {}).get("libelle", "").strip() + "|" +
-            ep.get("classementHaut", {}).get("libelle", "").strip()
+            {
+                "key": f"{ep.get('natureEpreuve', {}).get('code', '')}_{ep.get('categorieAge', {}).get('id', 0)}",
+                "pair": ep.get("classementBas",  {}).get("libelle", "").strip() + "|" +
+                        ep.get("classementHaut", {}).get("libelle", "").strip()
+            }
             for ep in t.get("epreuves", [])
-            if ep.get("classementBas",  {}).get("libelle", "").strip()
-            or ep.get("classementHaut", {}).get("libelle", "").strip()
+            if (ep.get("classementBas",  {}).get("libelle", "").strip()
+                or ep.get("classementHaut", {}).get("libelle", "").strip())
+            and ep.get("natureEpreuve", {}).get("code", "")
+            and ep.get("categorieAge", {}).get("id", 0)
         ],
     }
 
@@ -1249,9 +1254,12 @@ $(function() {{
     var rangHaut = $('#filter-rang-haut').val();
     if (rangBas || rangHaut) {{
       var classementsEp = JSON.parse($tr.attr('data-classements') || '[]');
-      if (classementsEp.length === 0) return false;
-      var rankMatch = classementsEp.some(function(pair) {{
-          var parts  = pair.split('|');
+      var classementsToCheck = (checkedEpreuves.length > 0)
+          ? classementsEp.filter(function(item) {{ return checkedEpreuves.indexOf(item.key) !== -1; }})
+          : classementsEp;
+      if (classementsToCheck.length === 0) return false;
+      var rankMatch = classementsToCheck.some(function(item) {{
+          var parts  = item.pair.split('|');
           var epBas  = (parts[0] || '').trim();
           var epHaut = (parts[1] || '').trim();
           if (rangBas) {{
