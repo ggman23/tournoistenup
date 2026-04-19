@@ -380,7 +380,7 @@ class TenupScraper:
         logger.warning("No recherche_tournois_update on page %d — got: %s", page, cmd_names)
         return [], 0, new_fbid
 
-    def fetch_all(self, max_pages: int = 0) -> list[dict]:
+    def fetch_all(self, max_pages: int = 0, force_pages: int = 0) -> list[dict]:
         """
         Fetch all pages, deduplicate by originalId/id, and return a flat list.
 
@@ -391,11 +391,15 @@ class TenupScraper:
         page position in the cached state, so ?page=N in the URL and page=N
         in the POST body can take effect via pager_find_page().
 
-        max_pages: stop after this many pages (0 = no limit, useful for testing).
+        max_pages:   stop after N pages (0 = no limit). Respects duplicate-stop.
+        force_pages: fetch exactly N pages regardless of duplicates, then stop.
+                     Useful for large radii where TenUp cycles results — forces
+                     a full sweep so no tournament is missed.
         """
         seen_ids: set[str] = set()
         all_items: list[dict] = []
         page = 0
+        effective_max = force_pages if force_pages else max_pages
 
         while True:
             logger.info("Fetching fresh tokens for page %d...", page)
@@ -422,12 +426,14 @@ class TenupScraper:
                 page, len(items), new_on_page, len(all_items), nb_results,
             )
 
-            if new_on_page == 0 or len(all_items) >= nb_results:
-                break
+            # In force mode, ignore duplicate-stop — sweep all pages no matter what
+            if not force_pages:
+                if new_on_page == 0 or len(all_items) >= nb_results:
+                    break
 
             page += 1
-            if max_pages and page >= max_pages:
-                logger.info("Stopping after %d page(s) (--pages-max).", max_pages)
+            if effective_max and page >= effective_max:
+                logger.info("Stopping after %d page(s).", effective_max)
                 break
 
             time.sleep(self.scraper_cfg["delay_between_pages_s"])

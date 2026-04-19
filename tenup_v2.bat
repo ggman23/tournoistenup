@@ -12,7 +12,7 @@ echo  =============================================================
 echo.
 echo  [1]  Scraper toute la France  (infos de base)
 echo       Recupere les 2700+ tournois sur tout le territoire.
-echo       Rapide (~5 min). Aucun enrichissement.
+echo       Force 200 pages pour ne rater aucun tournoi (~30 min).
 echo       Demande : ville de reference / dates
 echo       Rayon fixe : 1100 km
 echo.
@@ -70,9 +70,10 @@ echo  [1] Scrape toute la France  (1100 km fixe)
 echo  ─────────────────────────────────────────────────────────────
 echo.
 echo  Rayon fixe : 1100 km (toute la France metropolitaine + Corse)
+echo  Force 200 pages pour ignorer le stop sur doublons de TenUp.
 echo  Seules la ville de reference et les dates seront demandees.
 echo.
-python main_v2.py --km 1100 --cookies cookies.json --generator v3
+python main_v2.py --km 1100 --force-pages 200 --cookies cookies.json --generator v3
 goto fin_action
 
 :: ─────────────────────────────────────────────────────────────────────────────

@@ -203,6 +203,9 @@ def parse_args():
                    help="Re-enrich existing data (no scraping) then regenerate HTML")
     p.add_argument("--pages-max", type=int, default=0, metavar="N",
                    help="Stop scraping after N pages (0 = all). Use to test pagination quickly.")
+    p.add_argument("--force-pages", type=int, default=0, metavar="N",
+                   help="Force scraping exactly N pages, ignoring duplicate-stop logic. "
+                        "Use for large radii (ex: 1100km France entière) où TenUp cycle les résultats.")
     p.add_argument("--date-start", default=None, metavar="DD/MM/YY",
                    help="Start date for search (overrides config). Format: 01/04/26")
     p.add_argument("--date-end", default=None, metavar="DD/MM/YY",
@@ -516,7 +519,7 @@ def main():
     logger.info("Starting tournament fetch...")
 
     try:
-        tournaments = scraper.fetch_all(max_pages=args.pages_max)
+        tournaments = scraper.fetch_all(max_pages=args.pages_max, force_pages=args.force_pages)
     except Exception as e:
         logger.error("Scraping failed: %s", e)
         sys.exit(1)
