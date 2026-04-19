@@ -52,9 +52,15 @@ echo       Jitter + pauses automatiques pour eviter le ban (~2h).
 echo       Necessite cookies.json
 echo       Demande : meme ville / meme rayon que lors du [7]
 echo.
-echo  [9]  France complete en une seule fois  [7] + [8]
-echo       Scraping + distances routieres + formats + statuts + commentaires.
+echo  [9]  France complete  [7] + [8]
+echo       Scraping + distances routieres + formats nouveaux tournois.
 echo       Lancez et revenez dans ~3h.
+echo       Necessite cookies.json
+echo       Demande : ville de reference / dates  (une seule fois)
+echo.
+echo  [10] Tout tout tout  [7] + [8] + [3]  — option nuit
+echo       Comme [9] + refresh statuts de TOUS les tournois existants.
+echo       Lancez avant de dormir, tout est pret le matin. (~3h30)
 echo       Necessite cookies.json
 echo       Demande : ville de reference / dates  (une seule fois)
 echo.
@@ -74,6 +80,7 @@ if "%choix%"=="5" goto geo
 if "%choix%"=="6" goto tout_ville
 if "%choix%"=="8" goto enrichir_france
 if "%choix%"=="9" goto france_complete
+if "%choix%"=="10" goto tout_tout_tout
 if "%choix%"=="0" goto fin
 
 echo.
@@ -169,6 +176,31 @@ echo  Entrez la ville et le rayon souhaites.
 echo  Les formats deja connus (autres villes) ne seront pas re-telecharges.
 echo.
 python main_v2.py --enrich --enrich-geo --km-default 100 --cookies cookies.json --generator v3
+goto fin_action
+
+:: ─────────────────────────────────────────────────────────────────────────────
+:tout_tout_tout
+cls
+echo.
+echo  [10] Tout tout tout  —  option nuit
+echo  ─────────────────────────────────────────────────────────────
+echo.
+echo  Etape 1/3 : Scraping 2700+ tournois + distances routieres (~25 min)
+echo  Etape 2/3 : Enrichissement nouveaux tournois (~variable)
+echo  Etape 3/3 : Refresh statuts de TOUS les tournois (~30 min)
+echo  Duree totale : ~3h30. Lancez et allez dormir.
+echo.
+python main_v2.py --km 1100 --force-pages 200 --enrich-geo --cookies cookies.json --generator v3
+if errorlevel 1 goto fin_action
+echo.
+echo  Etape 1/3 terminee. Enrichissement des nouveaux tournois...
+echo.
+python main_v2.py --enrich-only --km-default 1100 --cookies cookies.json --generator v3
+if errorlevel 1 goto fin_action
+echo.
+echo  Etape 2/3 terminee. Refresh statuts de tous les tournois...
+echo.
+python main_v2.py --enrich-statut-only --km-default 1100 --cookies cookies.json --generator v3
 goto fin_action
 
 :: ─────────────────────────────────────────────────────────────────────────────
