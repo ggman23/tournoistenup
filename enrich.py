@@ -544,6 +544,7 @@ def enrich_statut_all(
     session: requests.Session,
     delay_s: float = 1.5,
     cookies_file: Optional[str] = None,
+    min_age_hours: float = 1.0,
 ) -> list[dict]:
     """
     Fetch/refresh inscription status for all previously enriched tournaments.
@@ -551,9 +552,11 @@ def enrich_statut_all(
     Skips tournaments that:
     - were never enriched (no 'enriched' key)
     - had a fetch failure
-    - are JS-rendered (no_format_in_html) — those pages also won't have status
+    - had their status fetched less than min_age_hours ago (default 1h)
+    - are past their end date
     """
     today = datetime.now(timezone.utc).date()
+    now   = datetime.now(timezone.utc)
 
     def _date_fin(t: dict):
         raw = (t.get("dateFin") or {}).get("date", "")
@@ -568,21 +571,39 @@ def enrich_statut_all(
         t for t in tournaments
         if t.get("enriched")
         and not t["enriched"].get("fetch_failed")
-        # no_format_in_html was set during initial enrichment (no cookies).
-        # With cookies the status page is accessible, so we include them.
     ]
 
     to_process = []
-    skipped_past = 0
+    skipped_past  = 0
+    skipped_fresh = 0
     for t in candidates:
         d = _date_fin(t)
         if d is not None and d < today:
             skipped_past += 1
-        else:
-            to_process.append(t)
+            continue
+        # Skip if status was refreshed recently
+        if min_age_hours > 0:
+            fetched_str = t["enriched"].get("statut_fetched_at", "")
+            if fetched_str:
+                try:
+                    fetched_dt = datetime.fromisoformat(fetched_str.replace("Z", "+00:00"))
+                    if fetched_dt.tzinfo is None:
+                        fetched_dt = fetched_dt.replace(tzinfo=timezone.utc)
+                    age_h = (now - fetched_dt).total_seconds() / 3600
+                    if age_h < min_age_hours:
+                        skipped_fresh += 1
+                        continue
+                except Exception:
+                    pass
+        to_process.append(t)
 
     if skipped_past:
-        logger.info("Ignorés (tournoi terminé) : %d — seuls %d restants", skipped_past, len(to_process))
+        logger.info("Ignorés (tournoi terminé) : %d", skipped_past)
+    if skipped_fresh:
+        logger.info("Ignorés (statut récent < %.1fh) : %d", min_age_hours, skipped_fresh)
+    if not to_process:
+        logger.info("Aucun statut à rafraîchir.")
+        return tournaments
 
     total = len(to_process)
     logger.info(

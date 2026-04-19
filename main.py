@@ -371,9 +371,10 @@ def main():
             cookies_file=cookies_file,
         )
 
-        # 3) Rafraîchissement des statuts d'inscription + commentaires
-        enrich_statut_all(tournaments, enrich_scraper.session,
-                          delay_s=1.5, cookies_file=cookies_file)
+        # 3) Rafraîchissement des statuts d'inscription + commentaires (cookies requis)
+        if cookies_file:
+            enrich_statut_all(tournaments, enrich_scraper.session,
+                              delay_s=1.5, cookies_file=cookies_file)
 
         # Sauvegarde
         saved["tournaments"] = tournaments
@@ -451,7 +452,8 @@ def main():
         logger.info("Loaded %d tournaments — refreshing inscription status.", len(tournaments))
         cookies_file = args.cookies or os.environ.get("TENUP_COOKIES_FILE")
         enrich_scraper = TenupScraper(config, cookies_file=cookies_file)
-        enrich_statut_all(tournaments, enrich_scraper.session, delay_s=1.5, cookies_file=cookies_file)
+        enrich_statut_all(tournaments, enrich_scraper.session, delay_s=1.5,
+                          cookies_file=cookies_file, min_age_hours=0)
         import json as _json
         saved["tournaments"] = tournaments
         os.makedirs(os.path.dirname(data_file) or ".", exist_ok=True)
