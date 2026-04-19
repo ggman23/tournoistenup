@@ -530,9 +530,13 @@ def main():
         t["_ref_city"] = ref_city
 
     # ── Merge previously enriched data (format, detail_url) ──────────────────
-    # Look in the city-slug file first, then fall back to legacy tournaments.json
-    # so existing enriched data is reused after the rename.
-    candidate_files = [data_file, "data/tournaments.json"]
+    # Look in the city-slug file first, then all same-city files with different
+    # km radius (so changing 300km→1100km reuses existing enriched data),
+    # then fall back to legacy tournaments.json.
+    import glob as _glob
+    city_prefix = re.sub(r"[^a-z0-9]+", "_", config["search"]["ville"].get("label", "").lower()).strip("_")
+    sibling_files = sorted(_glob.glob(os.path.join("data", f"tournaments_{city_prefix}_*.json")))
+    candidate_files = [data_file] + [f for f in sibling_files if f != data_file] + ["data/tournaments.json"]
     enriched_cache: dict = {}
     for cfile in candidate_files:
         if os.path.exists(cfile):
