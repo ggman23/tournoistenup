@@ -177,12 +177,25 @@ def _prompt_km(default_km: int) -> int:
         return default_km
 
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s — %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+def _setup_logging():
+    os.makedirs("logs", exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%Hh%M%S")
+    log_file = os.path.join("logs", f"tenup_{stamp}.log")
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s — %(message)s",
+                            datefmt="%Y-%m-%d %H:%M:%S")
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    ch = logging.StreamHandler()
+    ch.setFormatter(fmt)
+    root.addHandler(ch)
+    fh = logging.FileHandler(log_file, encoding="utf-8")
+    fh.setFormatter(fmt)
+    root.addHandler(fh)
+    return log_file
+
+_log_file = _setup_logging()
 logger = logging.getLogger(__name__)
+logger.info("Log écrit dans : %s", _log_file)
 
 
 def parse_args():
