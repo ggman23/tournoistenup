@@ -446,6 +446,7 @@ def generate_html(
 
     tbody        = "\n".join(tbody_lines)
     total        = len(rows)
+    total_ep     = sum(len(t.get("epreuves", [])) for t in tournaments)
     new_count    = sum(1 for r in rows if r["is_new"])
     fetched_str  = fetched_at or datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
@@ -735,6 +736,7 @@ def generate_html(
   <div class="d-flex align-items-center mb-3 gap-3 flex-wrap">
     <h1 class="mb-0">🎾 {html.escape(title)}</h1>
     <span class="stat-card" style="background:#0d6efd">{total} tournois</span>
+    <span class="stat-card" style="background:#0d6efd;opacity:.75">{total_ep} épreuves</span>
     {'<span class="stat-card" style="background:#dc3545">' + str(new_count) + ' nouveaux</span>' if new_count else ''}
     {'<span class="stat-card" style="background:#8e44ad">⏰ ' + str(_days_to_class) + 'j → classement ' + _next_class_str + '</span>' if _days_to_class is not None else ''}
     <small class="text-muted ms-auto">Mis à jour : {html.escape(fetched_str)}</small>

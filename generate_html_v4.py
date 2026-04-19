@@ -446,6 +446,7 @@ def generate_html(
 
     tbody        = "\n".join(tbody_lines)
     total        = len(rows)
+    total_ep     = sum(len(t.get("epreuves", [])) for t in tournaments)
     new_count    = sum(1 for r in rows if r["is_new"])
     fetched_str  = fetched_at or datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
@@ -983,6 +984,10 @@ def generate_html(
         <div class="stat-card stat-primary">
           <span class="stat-label">Tournois</span>
           <span class="stat-value">{total}</span>
+        </div>
+        <div class="stat-card stat-primary" style="opacity:.75">
+          <span class="stat-label">Épreuves</span>
+          <span class="stat-value">{total_ep}</span>
         </div>
         {('<div class="stat-card stat-accent"><span class="stat-label">Nouveaux</span><span class="stat-value">' + str(new_count) + '</span></div>') if new_count else ''}
         {('<div class="stat-card" style="border-left-color:#8e44ad"><span class="stat-label">Prochain classement</span><span class="stat-value" style="color:#8e44ad">' + _next_class_str + '</span><span class="stat-label">' + str(_days_to_class) + ' jours</span></div>') if _days_to_class is not None else ''}
