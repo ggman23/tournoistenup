@@ -409,6 +409,12 @@
           <label class="form-check-label small fw-semibold" for="chk-14j" style="color:#8e44ad">14J</label>
         </div>
         <span class="text-muted small me-1 ms-1">|</span>
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" type="checkbox" id="chk-insc" onchange="applyFilters()">
+          <label class="form-check-label small" for="chk-insc">Inscr. en ligne</label>
+        </div>
+        <br>
+        <span class="text-muted small fw-semibold me-1" style="color:#198754 !important">Début :</span>
         <div class="form-check form-check-inline" title="Débute un Lun">
           <input class="form-check-input" type="checkbox" id="chk-dow-0" onchange="applyFilters()">
           <label class="form-check-label small fw-semibold" for="chk-dow-0" style="color:#198754">Lun</label>
@@ -430,11 +436,6 @@
         </div><div class="form-check form-check-inline" title="Débute un Dim">
           <input class="form-check-input" type="checkbox" id="chk-dow-6" onchange="applyFilters()">
           <label class="form-check-label small fw-semibold" for="chk-dow-6" style="color:#198754">Dim</label>
-        </div>
-        <span class="text-muted small me-1 ms-1">|</span>
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" id="chk-insc" onchange="applyFilters()">
-          <label class="form-check-label small" for="chk-insc">Inscr. en ligne</label>
         </div>
         <select id="sel-paiem" class="form-select form-select-sm d-inline-block ms-1" style="width:auto" onchange="applyFilters()">
           <option value="">Paiement</option>
