@@ -936,6 +936,11 @@ def generate_html(
           <label class="form-check-label small fw-semibold" for="chk-14j" style="color:#8e44ad">14J</label>
         </div>
         <span class="text-muted small me-1 ms-1">|</span>
+        {''.join(f'''<div class="form-check form-check-inline" title="Débute un {lbl}">
+          <input class="form-check-input" type="checkbox" id="chk-dow-{i}" onchange="applyFilters()">
+          <label class="form-check-label small fw-semibold" for="chk-dow-{i}" style="color:#198754">{lbl}</label>
+        </div>''' for i, lbl in enumerate(['Lun','Mar','Mer','Jeu','Ven','Sam','Dim']))}
+        <span class="text-muted small me-1 ms-1">|</span>
         <div class="form-check form-check-inline">
           <input class="form-check-input" type="checkbox" id="chk-insc" onchange="applyFilters()">
           <label class="form-check-label small" for="chk-insc">Inscr. en ligne</label>
@@ -1165,6 +1170,8 @@ $(function() {{
     var onlyFav      = $('#chk-fav').prop('checked');
     var onlyTermines = $('#chk-termines').prop('checked');
     var dureeChecked = ['1','2','3','4','5','6','7','14'].filter(function(n) {{ return $('#chk-'+n+'j').prop('checked'); }});
+    // 0=Lun … 6=Dim (JS getDay() : 0=Dim, 1=Lun … 6=Sam → on convertit)
+    var dowChecked = [0,1,2,3,4,5,6].filter(function(i) {{ return $('#chk-dow-'+i).prop('checked'); }});
 
     // Calculer la date du jour une seule fois
     var d0 = new Date();
@@ -1235,6 +1242,16 @@ $(function() {{
       var d2 = new Date($tr.attr('data-date-fin')   || '');
       var duree = (isNaN(d1) || isNaN(d2)) ? -1 : Math.round((d2 - d1) / 86400000) + 1;
       if (duree < 1 || dureeChecked.indexOf(String(duree)) === -1) return false;
+    }}
+    // ── Filtre jour de la semaine (sur date de début) ─────────────────────
+    if (dowChecked.length > 0) {{
+      var dDebut = new Date($tr.attr('data-date-debut') || '');
+      if (!isNaN(dDebut)) {{
+        // JS : getDay() 0=Dim,1=Lun…6=Sam → convertit en 0=Lun…6=Dim
+        var jsSun0 = dDebut.getDay();
+        var dow = (jsSun0 === 0) ? 6 : jsSun0 - 1;
+        if (dowChecked.indexOf(dow) === -1) return false;
+      }}
     }}
     if (onlyFav) {{
       var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}');
@@ -1674,6 +1691,7 @@ function resetFilters() {{
   $('#chk-new, #chk-tmc, #chk-insc, #chk-fav').prop('checked', false);
   $('#sel-paiem').val('');
   $('#chk-termines, #chk-1j, #chk-2j, #chk-3j, #chk-4j, #chk-5j, #chk-6j, #chk-7j, #chk-14j').prop('checked', false);
+  $('[id^="chk-dow-"]').prop('checked', false);
   $('#filter-rang-bas, #filter-rang-haut').val('');
   $('#chk-hide-vert, #chk-hide-orange').prop('checked', true);  // default = masqué
   $('#chk-hide-past').prop('checked', true);  // remet masquer-terminés coché par défaut
@@ -1697,6 +1715,7 @@ function resetFiltersAll() {{
   $('#chk-new, #chk-tmc, #chk-insc, #chk-fav').prop('checked', false);
   $('#sel-paiem').val('');
   $('#chk-termines, #chk-1j, #chk-2j, #chk-3j, #chk-4j, #chk-5j, #chk-6j, #chk-7j, #chk-14j').prop('checked', false);
+  $('[id^="chk-dow-"]').prop('checked', false);
   $('#filter-rang-bas, #filter-rang-haut').val('');
   $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
   $('#chk-hide-past').prop('checked', false);
