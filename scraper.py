@@ -174,6 +174,18 @@ class TenupScraper:
                                 wait_total, wait_max_s)
                 continue   # retry the GET
 
+            # Detect redirect to a different TenUp page (e.g. last visited tournament)
+            expected = BASE_URL + SEARCH_PAGE
+            if resp.url.rstrip("/") != expected.rstrip("/") and "queue-it.net" not in resp.url:
+                logger.warning(
+                    "Redirigé vers %s au lieu de %s — forçage de l'URL de recherche.",
+                    resp.url, expected,
+                )
+                resp = self.session.get(expected, timeout=30, allow_redirects=False)
+                if resp.status_code in (301, 302, 303, 307, 308):
+                    resp = self.session.get(expected, timeout=30)
+                resp.raise_for_status()
+
             # Not queue-it — we have the real page
             break
 
