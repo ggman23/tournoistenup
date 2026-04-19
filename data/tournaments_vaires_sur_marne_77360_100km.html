@@ -209,6 +209,7 @@
   <div class="d-flex align-items-center mb-3 gap-3 flex-wrap">
     <h1 class="mb-0">🎾 Tournois TenUp</h1>
     <span class="stat-card" style="background:#0d6efd">402 tournois</span>
+    <span class="stat-card" style="background:#0d6efd;opacity:.75">1804 épreuves</span>
     
     <span class="stat-card" style="background:#8e44ad">⏰ 16j → classement 05/05</span>
     <small class="text-muted ms-auto">Mis à jour : 2026-04-18T13:44:01.809916Z</small>
@@ -425,7 +426,10 @@
 
       <div class="col-auto ms-auto align-self-end">
         <button class="btn btn-sm btn-outline-secondary" onclick="resetFilters()">
-          ✕ Réinitialiser
+          ↺ Réinitialiser
+        </button>
+        <button class="btn btn-sm btn-outline-secondary ms-1" onclick="resetFiltersAll()">
+          ✕ Tout vider
         </button>
         <span id="filter-count" class="ms-2 text-muted small"></span>
       </div>
@@ -18075,6 +18079,28 @@ function resetFilters() {
   $('#filter-search').val('');
   $('.ep-chk, .surf-chk, .fmt-chk, .statut-chk, #chk-no-fmt').prop('checked', false);
   $('.ep-chk[value="SM_110"], .ep-chk[value="SM_120"], .ep-chk[value="SM_125"]').prop('checked', true);
+  updateMultiBtn('btn-ep', '.ep-chk', 'Toutes les épreuves');
+  $('#btn-surf').text('Toutes ▾').removeClass('btn-primary').addClass('btn-outline-primary');
+  $('#btn-fmt').text('Tous ▾').removeClass('btn-primary').addClass('btn-outline-primary');
+  $('#btn-statut').text('Tous statuts ▾').removeClass('btn-primary').addClass('btn-outline-primary');
+  applyEpLineFilter();
+  if (dt) { dt.search('').draw(); } else { applyFilters(); }
+}
+
+function resetFiltersAll() {
+  $('#filter-distance, #filter-road-km, #filter-road-min, #filter-exclude').val('');
+  $('#filter-date-start, #filter-date-end').val('');
+  $('#filter-ligue').val('');
+  $('.dept-chk').prop('checked', false);
+  updateDeptBtn();
+  $('#chk-new, #chk-tmc, #chk-insc, #chk-fav').prop('checked', false);
+  $('#sel-paiem').val('');
+  $('#chk-termines, #chk-1j, #chk-2j, #chk-3j, #chk-4j, #chk-5j, #chk-6j, #chk-7j, #chk-14j').prop('checked', false);
+  $('#filter-rang-bas, #filter-rang-haut').val('');
+  $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
+  $('#chk-hide-past').prop('checked', false);
+  $('#filter-search').val('');
+  $('.ep-chk, .surf-chk, .fmt-chk, .statut-chk, #chk-no-fmt').prop('checked', false);
   updateMultiBtn('btn-ep', '.ep-chk', 'Toutes les épreuves');
   $('#btn-surf').text('Toutes ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-fmt').text('Tous ▾').removeClass('btn-primary').addClass('btn-outline-primary');
