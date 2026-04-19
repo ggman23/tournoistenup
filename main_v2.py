@@ -198,6 +198,17 @@ logger = logging.getLogger(__name__)
 logger.info("Log écrit dans : %s", _log_file)
 
 
+def _make_save_callback(saved: dict, tournaments: list, data_file: str):
+    """Retourne une fonction qui sauvegarde le JSON en cours d'enrichissement."""
+    import json as _json
+    def _save():
+        saved["tournaments"] = tournaments
+        os.makedirs(os.path.dirname(data_file) or ".", exist_ok=True)
+        with open(data_file, "w", encoding="utf-8") as f:
+            _json.dump(saved, f, ensure_ascii=False, indent=2)
+    return _save
+
+
 def parse_args():
     p = argparse.ArgumentParser(description="Scrape tenup.fft.fr tournaments")
     p.add_argument("--config", default="config.json", help="Path to config file")
@@ -391,6 +402,7 @@ def main():
             tournaments, enrich_scraper.session,
             delay_s=1.5, max_enrich=args.enrich_max,
             cookies_file=cookies_file,
+            save_callback=_make_save_callback(saved, tournaments, data_file),
         )
 
         # 3) Rafraîchissement des statuts d'inscription + commentaires (cookies requis)
@@ -445,6 +457,7 @@ def main():
             tournaments, enrich_scraper.session,
             delay_s=1.5, max_enrich=args.enrich_max,
             cookies_file=cookies_file,
+            save_callback=_make_save_callback(saved, tournaments, data_file),
         )
         # Save updated data
         import json as _json, datetime as _dt
@@ -594,6 +607,7 @@ def main():
             tournaments, scraper.session,
             delay_s=1.5, max_enrich=args.enrich_max,
             cookies_file=cookies_file,
+            save_callback=_make_save_callback(saved, tournaments, data_file),
         )
         # Refresh inscription statuses (separate pass to avoid overloading TenUp)
         if cookies_file:

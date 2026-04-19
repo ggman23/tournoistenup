@@ -6,10 +6,11 @@ Fetches individual tournament detail pages to extract additional info:
 
 import logging
 import os
+import random
 import re
 import time
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Callable, Optional
 
 import requests
 from bs4 import BeautifulSoup
@@ -411,7 +412,8 @@ def enrich_tournament(
         enriched["commentaire_club"] = statut_data["commentaire_club"]
     enriched["statut_fetched_at"] = datetime.now(timezone.utc).isoformat()
 
-    time.sleep(delay_s)
+    jitter = random.uniform(-0.3 * delay_s, 0.8 * delay_s)
+    time.sleep(max(0.5, delay_s + jitter))
     tournament["enriched"] = enriched
     return tournament
 
@@ -424,6 +426,9 @@ def enrich_all(
     max_rounds: int = 3,
     content_retries: int = 5,
     cookies_file: Optional[str] = None,
+    save_every: int = 50,
+    save_callback: Optional[Callable] = None,
+    long_pause_every: int = 100,
 ) -> list[dict]:
     """
     Enrich tournaments with detail page data.
@@ -479,6 +484,15 @@ def enrich_all(
                 del t["enriched"]["fetch_failed"]
             logger.info("[%d/%d] %s", i, total, t.get("libelle", "?"))
             enrich_tournament(t, session, delay_s=delay_s, cookies_file=cookies_file)
+
+            if save_callback and save_every and i % save_every == 0:
+                logger.info("Sauvegarde intermédiaire (%d/%d)…", i, total)
+                save_callback()
+
+            if long_pause_every and i % long_pause_every == 0 and i < total:
+                pause = random.uniform(20, 45)
+                logger.info("Pause anti-ban %.0fs (%d/%d traités)…", pause, i, total)
+                time.sleep(pause)
 
         still_failed = [t for t in tournaments if _failed(t)]
         if not still_failed:

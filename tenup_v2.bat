@@ -46,6 +46,12 @@ echo       Scrape + Formats + Statuts + Distances routieres.
 echo       Necessite cookies.json
 echo       Demande : ville / rayon (suggestion 100 km) / dates
 echo.
+echo  [8]  Enrichir toute la France  (formats + statuts + commentaires)
+echo       A lancer apres [7] pour completer les infos de tous les tournois.
+echo       Jitter + pauses automatiques pour eviter le ban (~2h).
+echo       Necessite cookies.json
+echo       Demande : meme ville / meme rayon que lors du [7]
+echo.
 echo  [0]  Quitter
 echo.
 echo  =============================================================
@@ -60,6 +66,7 @@ if "%choix%"=="3" goto statuts
 if "%choix%"=="4" goto html
 if "%choix%"=="5" goto geo
 if "%choix%"=="6" goto tout_ville
+if "%choix%"=="8" goto enrichir_france
 if "%choix%"=="0" goto fin
 
 echo.
@@ -155,6 +162,23 @@ echo  Entrez la ville et le rayon souhaites.
 echo  Les formats deja connus (autres villes) ne seront pas re-telecharges.
 echo.
 python main_v2.py --enrich --enrich-geo --km-default 100 --cookies cookies.json --generator v3
+goto fin_action
+
+:: ─────────────────────────────────────────────────────────────────────────────
+:enrichir_france
+cls
+echo.
+echo  [8] Enrichir toute la France  (formats + statuts + commentaires)
+echo  ─────────────────────────────────────────────────────────────
+echo.
+echo  Entrez la meme ville et le meme rayon que lors du [7] (ex: 1100 km).
+echo  Visite chaque page de tournoi pour recuperer formats + statuts.
+echo  Jitter anti-ban : delai aleatoire entre chaque requete.
+echo  Pause de 20-45s toutes les 100 requetes.
+echo  Sauvegarde automatique toutes les 50 requetes.
+echo  Duree estimee : ~2h pour 2700 tournois.
+echo.
+python main_v2.py --enrich-only --km-default 1100 --cookies cookies.json --generator v3
 goto fin_action
 
 :: ─────────────────────────────────────────────────────────────────────────────
