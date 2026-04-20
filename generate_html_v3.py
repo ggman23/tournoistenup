@@ -1401,18 +1401,23 @@ $(function() {{
     }}
 
     // ── Filtre plage de dates ─────────────────────────────────────────────
-    // fStart seul : overlap strict — montre seulement les tournois actifs CE JOUR
-    //   (tStart <= fStart <= tEnd) : masque si terminé avant OU commence après
-    // fStart + fEnd : fenêtre — masque si hors de [fStart, fEnd]
+    // fStart seul   : montre les tournois qui DÉBUTENT exactement ce jour
+    // fStart + fEnd : fenêtre [fStart, fEnd] (overlap + fin dans la plage)
     var fStart = $('#filter-date-start').val();
     var fEnd   = $('#filter-date-end').val();
     if (fStart || fEnd) {{
       var tStart = $tr.attr('data-date-debut') || '';
       var tEnd2  = $tr.attr('data-date-fin')   || '';
-      if (fStart && tEnd2  && tEnd2  < fStart) return false;  // tournoi terminé avant la plage
-      if (fStart && !fEnd  && tStart && tStart > fStart) return false;  // commence après fStart (overlap strict)
-      if (fEnd   && tStart && tStart > fEnd)   return false;  // tournoi commence après la plage
-      if (fEnd   && tEnd2  && tEnd2  > fEnd)   return false;  // tournoi se termine hors plage
+      if (fStart && !fEnd) {{
+        // Date seule : seulement les tournois qui débutent CE JOUR
+        if (tStart && tStart !== fStart) return false;
+      }} else {{
+        // Fenêtre [fStart, fEnd]
+        if (fStart && tEnd2  && tEnd2  < fStart) return false;  // terminé avant la plage
+        if (fEnd   && tStart && tStart > fEnd)   return false;  // commence après la plage
+        if (fEnd   && tEnd2  && tEnd2  > fEnd)   return false;  // se termine hors plage
+      }}
+    }}
     }}
 
     // ── Filtre absent/planning ────────────────────────────────────────────
