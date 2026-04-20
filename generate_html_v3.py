@@ -1401,15 +1401,16 @@ $(function() {{
     }}
 
     // ── Filtre plage de dates ─────────────────────────────────────────────
-    // fStart seul : overlap — masque si le tournoi se termine avant fStart
-    // fEnd défini : strict — masque si le tournoi DÉBUTE après fEnd
-    //               ET masque si le tournoi SE TERMINE après fEnd
+    // fStart seul : overlap strict — montre seulement les tournois actifs CE JOUR
+    //   (tStart <= fStart <= tEnd) : masque si terminé avant OU commence après
+    // fStart + fEnd : fenêtre — masque si hors de [fStart, fEnd]
     var fStart = $('#filter-date-start').val();
     var fEnd   = $('#filter-date-end').val();
     if (fStart || fEnd) {{
       var tStart = $tr.attr('data-date-debut') || '';
       var tEnd2  = $tr.attr('data-date-fin')   || '';
       if (fStart && tEnd2  && tEnd2  < fStart) return false;  // tournoi terminé avant la plage
+      if (fStart && !fEnd  && tStart && tStart > fStart) return false;  // commence après fStart (overlap strict)
       if (fEnd   && tStart && tStart > fEnd)   return false;  // tournoi commence après la plage
       if (fEnd   && tEnd2  && tEnd2  > fEnd)   return false;  // tournoi se termine hors plage
     }}
@@ -2732,12 +2733,13 @@ function renderRates() {{
       cur.setDate(cur.getDate() + 1);
     }}
     blocked.push({{
-      nom:   $link.text().trim(),
-      url:   $link.attr('href') || '',
-      debut: debut, fin: fin, duree: duree,
-      ville: $tr.find('td:eq(6)').contents().first().text().trim(),
-      fmt:   ($tr.attr('data-fmt') || '').split(',')[0] || '',
-      notes: notes.join(', '),
+      nom:    $link.text().trim(),
+      url:    $link.attr('href') || '',
+      debut:  debut, fin: fin, duree: duree,
+      ville:  $tr.find('td:eq(6)').contents().first().text().trim(),
+      fmt:    ($tr.attr('data-fmt') || '').split(',')[0] || '',
+      distKm: parseFloat($tr.attr('data-distance')) || 9999,
+      notes:  notes.join(', '),
     }});
   }});
 
@@ -2751,16 +2753,18 @@ function renderRates() {{
   }} else {{
     html = '<p class="text-muted mb-3"><strong>' + blocked.length + '</strong> tournoi(s) impossible(s) selon vos absences enregistrées.</p>';
     html += '<div class="table-responsive"><table class="table table-sm table-hover align-middle">';
-    html += '<thead class="table-light"><tr><th>Tournoi</th><th>Dates</th><th>Durée</th><th>Ville</th><th>Fmt</th><th>Absence(s)</th></tr></thead><tbody>';
-    blocked.sort(function(a,b) {{ return a.debut.localeCompare(b.debut); }});
+    html += '<thead class="table-light"><tr><th>Tournoi</th><th>Dates</th><th>Durée</th><th>Ville</th><th>Distance</th><th>Fmt</th><th>Absence(s)</th></tr></thead><tbody>';
+    blocked.sort(function(a,b) {{ return a.distKm - b.distKm; }});
     blocked.forEach(function(t) {{
-      var dates = (t.debut === t.fin) ? t.debut : (t.debut + ' → ' + t.fin);
-      var fc    = _FMT_COLORS[t.fmt] || '#6c757d';
+      var dates  = (t.debut === t.fin) ? t.debut : (t.debut + ' → ' + t.fin);
+      var fc     = _FMT_COLORS[t.fmt] || '#6c757d';
+      var distLbl = (t.distKm < 9999) ? t.distKm.toFixed(0) + ' km' : '—';
       html += '<tr>';
       html += '<td><a href="' + t.url + '" target="_blank" rel="noopener">' + t.nom + '</a></td>';
       html += '<td class="text-nowrap small">' + dates + '</td>';
       html += '<td class="text-nowrap small">' + t.duree + ' j</td>';
       html += '<td class="small">' + t.ville + '</td>';
+      html += '<td class="small text-nowrap">' + distLbl + '</td>';
       html += '<td><span class="badge" style="background:' + fc + '">F' + t.fmt + '</span></td>';
       html += '<td class="small text-warning-emphasis">🚫 ' + t.notes + '</td>';
       html += '</tr>';
