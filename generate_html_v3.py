@@ -2744,7 +2744,7 @@ function renderRates() {{
   var html = '';
   if (!Object.keys(planning).length) {{
     html = '<div class="text-center text-muted py-5"><h5>Aucune absence configurée</h5>'
-         + '<p>Ajoutez vos indisponibilités dans l\'onglet <strong>🗓️ Planning</strong>.</p></div>';
+         + '<p>Ajoutez vos indisponibilités dans l\\'onglet <strong>🗓️ Planning</strong>.</p></div>';
   }} else if (!blocked.length) {{
     html = '<div class="text-center text-muted py-5"><h5>Aucun tournoi raté 🎉</h5>'
          + '<p>Aucun conflit entre vos tournois filtrés et vos absences.</p></div>';
