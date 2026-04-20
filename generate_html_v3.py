@@ -390,6 +390,7 @@ def generate_html(
     ref_lat: float = 0.0,
     ref_lng: float = 0.0,
     ref_city: str = "",
+    ref_address: str = "",
     sm_only: bool = False,
 ):
     if sm_only:
@@ -445,14 +446,22 @@ def generate_html(
         tid_esc  = html.escape(str(r['id']))
         has_fmt  = "true" if r["fmt_all"] else "false"
 
-        # Google Maps directions URL (origin = ville de référence, dest = adresse du tournoi)
+        # Google Maps directions URL (origin = adresse précise > lat/lng > ville, dest = tournoi)
         _dest = f"{r['geo_lat']},{r['geo_lng']}" if r.get('geo_lat') and r.get('geo_lng') else urllib.parse.quote(r['adresse'], safe='')
-        _orig = f"{ref_lat},{ref_lng}" if ref_lat and ref_lng else urllib.parse.quote(ref_city, safe='') if ref_city else ''
+        if ref_address:
+            _orig = urllib.parse.quote(ref_address, safe='')
+        elif ref_lat and ref_lng:
+            _orig = f"{ref_lat},{ref_lng}"
+        elif ref_city:
+            _orig = urllib.parse.quote(ref_city, safe='')
+        else:
+            _orig = ''
         if _orig:
             _maps_url = f"https://www.google.com/maps/dir/?api=1&origin={_orig}&destination={_dest}"
         else:
             _maps_url = f"https://www.google.com/maps/search/?api=1&query={_dest}"
-        _maps_title = html.escape(f"Itinéraire depuis {ref_city}" if ref_city else "Voir sur la carte")
+        _origin_label = ref_address or ref_city or "ville de référence"
+        _maps_title = html.escape(f"Itinéraire depuis {_origin_label}")
 
         tbody_lines.append(f"""
         <tr class="{'table-warning' if r['is_new'] else ''}"
@@ -2899,5 +2908,6 @@ def generate_from_file(data_file, output_path, new_ids=None, only_natures=None, 
         ref_lat=data.get("ref_lat", 0.0),
         ref_lng=data.get("ref_lng", 0.0),
         ref_city=data.get("ref_city", ""),
+        ref_address=data.get("ref_address", ""),
         sm_only=sm_only,
     )

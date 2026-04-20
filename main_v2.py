@@ -178,6 +178,15 @@ def _prompt_km(default_km: int) -> int:
         return default_km
 
 
+def _prompt_rue(default_rue: str, ville_label: str) -> str:
+    hint = default_rue if default_rue else f"centre de {ville_label}"
+    try:
+        val = input(f"Rue de départ [{hint}] : ").strip()
+        return val if val else default_rue
+    except (EOFError, KeyboardInterrupt):
+        return default_rue
+
+
 def _setup_logging():
     os.makedirs("logs", exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%Hh%M%S")
@@ -328,6 +337,11 @@ def main():
     elif not args.no_prompt:
         default_km = args.km_default if args.km_default else config["search"]["ville"].get("distance_km", 100)
         config["search"]["ville"]["distance_km"] = _prompt_km(default_km)
+
+    # Rue de départ (pour itinéraire Google Maps précis)
+    if not args.no_prompt:
+        default_rue = config["search"]["ville"].get("rue", "")
+        config["search"]["ville"]["rue"] = _prompt_rue(default_rue, config["search"]["ville"].get("label", ""))
 
     # Dates (only needed for actual scraping)
     if do_scrape:
@@ -658,17 +672,20 @@ def main():
     ref_lat  = config["search"]["ville"].get("lat", 0.0)
     ref_lng  = config["search"]["ville"].get("lng", 0.0)
     ref_city = config["search"]["ville"].get("label", "")
-    # Save ref coords in JSON so generate_from_file / --html-only can use them
-    saved_data["ref_lat"]  = ref_lat
-    saved_data["ref_lng"]  = ref_lng
-    saved_data["ref_city"] = ref_city
+    ref_rue  = config["search"]["ville"].get("rue", "")
+    ref_address = f"{ref_rue}, {ref_city}" if ref_rue else ""
+    # Save ref coords + address in JSON so generate_from_file / --html-only can use them
+    saved_data["ref_lat"]     = ref_lat
+    saved_data["ref_lng"]     = ref_lng
+    saved_data["ref_city"]    = ref_city
+    saved_data["ref_address"] = ref_address
     import json as _json2
     with open(data_file, "w", encoding="utf-8") as _f:
         _json2.dump(saved_data, _f, ensure_ascii=False, indent=2)
 
     _html_kwargs = dict(
         new_ids=new_ids, fetched_at=fetched_at, only_natures=only_natures,
-        ref_lat=ref_lat, ref_lng=ref_lng, ref_city=ref_city,
+        ref_lat=ref_lat, ref_lng=ref_lng, ref_city=ref_city, ref_address=ref_address,
     )
 
     # 1a) Full report (fixed name → toujours le dernier)
