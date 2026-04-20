@@ -1418,7 +1418,6 @@ $(function() {{
         if (fEnd   && tEnd2  && tEnd2  > fEnd)   return false;  // se termine hors plage
       }}
     }}
-    }}
 
     // ── Filtre absent/planning ────────────────────────────────────────────
     if ($('#chk-absent').prop('checked')) {{
