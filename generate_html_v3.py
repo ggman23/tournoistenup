@@ -493,10 +493,10 @@ def generate_html(
         for key in r["epreuves_keys"]:
             if key in sm_counts:
                 sm_counts[key] += 1
-    sm_stats_html = "  ".join(
-        f'<span style="font-size:.8em;color:rgba(255,255,255,.7)">'
-        f'<span style="color:rgba(255,255,255,.45)">{_SM_LABELS[k]}</span> '
-        f'<strong style="color:#fff">{sm_counts[k]}</strong></span>'
+    sm_stats_html = " ".join(
+        f'<span class="stat-card" style="background:#166534;padding:5px 10px">'
+        f'<span style="opacity:.7;font-size:.85em">{_SM_LABELS[k]}</span>'
+        f' <strong>{sm_counts[k]}</strong></span>'
         for k in _SM_ORDER if sm_counts[k] > 0
     )
 
@@ -787,7 +787,7 @@ def generate_html(
     <h1 class="mb-0">🎾 {html.escape(title)}</h1>
     <span class="stat-card" style="background:#0d6efd">{total} tournois</span>
     <span class="stat-card" style="background:#0d6efd;opacity:.75">{total_ep} épreuves</span>
-    <span class="stat-card" style="background:#1a2540;border:1px solid rgba(255,255,255,.15);font-size:.78em">{sm_stats_html}</span>
+    {sm_stats_html}
     {'<span class="stat-card" style="background:#dc3545">' + str(new_count) + ' nouveaux</span>' if new_count else ''}
     {'<span class="stat-card" style="background:#8e44ad">⏰ ' + str(_days_to_class) + 'j → classement ' + _next_class_str + '</span>' if _days_to_class is not None else ''}
     <small class="text-muted ms-auto">Mis à jour : {html.escape(fetched_str)}</small>

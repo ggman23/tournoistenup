@@ -438,9 +438,10 @@ def main():
             logger.error("No data file found at %s — run without --html-only first.", data_file)
             sys.exit(1)
         # Restore NEW badges from the last real scraping run
-        _hist = load_json(history_file)
-        _new_ids = set(_hist.get("last_new_ids", []))
-        generate_from_file(data_file, html_file, new_ids=_new_ids)
+        _hist     = load_json(history_file)
+        _new_ids  = set(_hist.get("last_new_ids", []))
+        _only_nat = config["search"].get("epreuves") or None
+        generate_from_file(data_file, html_file, new_ids=_new_ids, only_natures=_only_nat)
         _auto_push_html(html_file)
         generate_from_file(data_file, html_file_sm, new_ids=_new_ids, sm_only=True)
         _auto_push_html(html_file_sm)
