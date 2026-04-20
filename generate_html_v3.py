@@ -6,6 +6,7 @@ Uses Bootstrap 5 + DataTables (CDN) for sorting, filtering, pagination.
 import json
 import os
 import html
+import urllib.parse
 from datetime import datetime, timezone, timedelta
 
 
@@ -443,6 +444,16 @@ def generate_html(
 
         tid_esc  = html.escape(str(r['id']))
         has_fmt  = "true" if r["fmt_all"] else "false"
+
+        # Google Maps directions URL (origin = ville de référence, dest = adresse du tournoi)
+        _dest = f"{r['geo_lat']},{r['geo_lng']}" if r.get('geo_lat') and r.get('geo_lng') else urllib.parse.quote(r['adresse'], safe='')
+        _orig = f"{ref_lat},{ref_lng}" if ref_lat and ref_lng else urllib.parse.quote(ref_city, safe='') if ref_city else ''
+        if _orig:
+            _maps_url = f"https://www.google.com/maps/dir/?api=1&origin={_orig}&destination={_dest}"
+        else:
+            _maps_url = f"https://www.google.com/maps/search/?api=1&query={_dest}"
+        _maps_title = html.escape(f"Itinéraire depuis {ref_city}" if ref_city else "Voir sur la carte")
+
         tbody_lines.append(f"""
         <tr class="{'table-warning' if r['is_new'] else ''}"
             data-id="{tid_esc}"
@@ -474,7 +485,7 @@ def generate_html(
           <td data-sort="{r['fmt_sort']}">{fmt_badge}</td>
           <td>{r['epreuves']}</td>
           <td>{r['surfaces']}</td>
-          <td>{html.escape(r['ville'])} <small class="text-muted">{html.escape(r['cp'])}</small></td>
+          <td><a href="{_maps_url}" target="_blank" rel="noopener" title="{_maps_title}" class="text-reset" style="border-bottom:1px dotted #6c757d;text-decoration:none">{html.escape(r['ville'])}</a> <small class="text-muted">{html.escape(r['cp'])}</small></td>
           <td data-sort="{r['road_km'] if r['road_km'] is not None else r['distance_km']}">{html.escape(r['distance_raw'])}{f'<br><small class="text-muted">/ {html.escape(r["ref_city"])}</small>' if r.get("ref_city") else ""}{f'<br><small class="text-success">🚗 {r["road_km"]} km · {r["road_min"]} min</small>' if r.get("road_km") is not None else ""}</td>
           <td class="text-center">{insc}</td>
           <td class="text-center">{paiem}</td>
