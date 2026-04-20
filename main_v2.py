@@ -350,6 +350,7 @@ def main():
     data_file    = os.path.join("data", f"tournaments_{slug}.json")
     history_file = os.path.join("data", f"history_{slug}.json")
     html_file    = os.path.join("data", f"tournaments_{slug}.html")
+    html_file_sm = os.path.join("data", f"tournaments_{slug}_SM.html")
     html_dir     = "data"
     output_file  = config["notifications"]["output_file"]
     print_console = config["notifications"]["print_to_console"]
@@ -371,14 +372,15 @@ def main():
             _json.dump(saved, f, ensure_ascii=False, indent=2)
         new_ids = set()  # fix-encoding: no new tournament detection
         only_natures = config["search"].get("epreuves") or None
-        generate_html(
-            tournaments, html_file, new_ids=new_ids,
-            fetched_at=saved.get("fetched_at", ""), only_natures=only_natures,
-            ref_lat=config["search"]["ville"].get("lat", 0.0),
-            ref_lng=config["search"]["ville"].get("lng", 0.0),
-            ref_city=config["search"]["ville"].get("label", ""),
-        )
+        _kw = dict(new_ids=new_ids, fetched_at=saved.get("fetched_at", ""),
+                   only_natures=only_natures,
+                   ref_lat=config["search"]["ville"].get("lat", 0.0),
+                   ref_lng=config["search"]["ville"].get("lng", 0.0),
+                   ref_city=config["search"]["ville"].get("label", ""))
+        generate_html(tournaments, html_file, **_kw)
         _auto_push_html(html_file)
+        generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
+        _auto_push_html(html_file_sm)
         sys.exit(0)
 
     # ── Refresh mode : fix-encoding + enrich (retries) + statuts en une passe ─
@@ -419,14 +421,15 @@ def main():
 
         history = load_json(history_file)
         new_ids = set()   # pas de détection de nouveaux tournois en mode refresh
-        generate_html(
-            tournaments, html_file, new_ids=new_ids,
-            fetched_at=saved.get("fetched_at", ""), only_natures=only_natures,
-            ref_lat=config["search"]["ville"].get("lat", 0.0),
-            ref_lng=config["search"]["ville"].get("lng", 0.0),
-            ref_city=config["search"]["ville"].get("label", ""),
-        )
+        _kw = dict(new_ids=new_ids, fetched_at=saved.get("fetched_at", ""),
+                   only_natures=only_natures,
+                   ref_lat=config["search"]["ville"].get("lat", 0.0),
+                   ref_lng=config["search"]["ville"].get("lng", 0.0),
+                   ref_city=config["search"]["ville"].get("label", ""))
+        generate_html(tournaments, html_file, **_kw)
         _auto_push_html(html_file)
+        generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
+        _auto_push_html(html_file_sm)
         sys.exit(0)
 
     # ── HTML-only mode: just regenerate the report ──────────────────────────
@@ -439,6 +442,8 @@ def main():
         _new_ids = set(_hist.get("last_new_ids", []))
         generate_from_file(data_file, html_file, new_ids=_new_ids)
         _auto_push_html(html_file)
+        generate_from_file(data_file, html_file_sm, new_ids=_new_ids, sm_only=True)
+        _auto_push_html(html_file_sm)
         sys.exit(0)
 
     # ── Enrich-only mode: re-enrich + regenerate without re-scraping ─────────
@@ -467,14 +472,14 @@ def main():
         with open(data_file, "w", encoding="utf-8") as f:
             _json.dump(saved, f, ensure_ascii=False, indent=2)
         new_ids = set()  # enrich-only: no new tournament detection
-        generate_html(
-            tournaments, html_file, new_ids=new_ids,
-            fetched_at=saved.get("fetched_at", ""),
-            ref_lat=config["search"]["ville"].get("lat", 0.0),
-            ref_lng=config["search"]["ville"].get("lng", 0.0),
-            ref_city=config["search"]["ville"].get("label", ""),
-        )
+        _kw = dict(new_ids=new_ids, fetched_at=saved.get("fetched_at", ""),
+                   ref_lat=config["search"]["ville"].get("lat", 0.0),
+                   ref_lng=config["search"]["ville"].get("lng", 0.0),
+                   ref_city=config["search"]["ville"].get("label", ""))
+        generate_html(tournaments, html_file, **_kw)
         _auto_push_html(html_file)
+        generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
+        _auto_push_html(html_file_sm)
         sys.exit(0)
 
     # ── Enrich-statut-only mode: refresh inscription status only ─────────────
@@ -496,12 +501,15 @@ def main():
             _json.dump(saved, f, ensure_ascii=False, indent=2)
         new_ids      = set()  # statut-only: no new tournament detection, don't show stale NEW badges
         only_natures = config["search"].get("epreuves") or None
-        generate_html(tournaments, html_file, new_ids=new_ids,
-                      fetched_at=saved.get("fetched_at", ""), only_natures=only_natures,
-                      ref_lat=config["search"]["ville"].get("lat", 0.0),
-                      ref_lng=config["search"]["ville"].get("lng", 0.0),
-                      ref_city=config["search"]["ville"].get("label", ""))
+        _kw = dict(new_ids=new_ids, fetched_at=saved.get("fetched_at", ""),
+                   only_natures=only_natures,
+                   ref_lat=config["search"]["ville"].get("lat", 0.0),
+                   ref_lng=config["search"]["ville"].get("lng", 0.0),
+                   ref_city=config["search"]["ville"].get("label", ""))
+        generate_html(tournaments, html_file, **_kw)
         _auto_push_html(html_file)
+        generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
+        _auto_push_html(html_file_sm)
         sys.exit(0)
 
     # ── Enrich-geo-only mode: geocode + road distances without re-scraping ───
@@ -524,11 +532,13 @@ def main():
             _json.dump(saved, f, ensure_ascii=False, indent=2)
         new_ids = set()  # enrich-geo-only: no new tournament detection
         only_natures = config["search"].get("epreuves") or None
-        generate_html(tournaments, html_file, new_ids=new_ids,
-                      fetched_at=saved.get("fetched_at", ""), only_natures=only_natures,
-                      ref_lat=ref_lat, ref_lng=ref_lng,
-                      ref_city=config["search"]["ville"].get("label", ""))
+        _kw = dict(new_ids=new_ids, fetched_at=saved.get("fetched_at", ""),
+                   only_natures=only_natures, ref_lat=ref_lat, ref_lng=ref_lng,
+                   ref_city=config["search"]["ville"].get("label", ""))
+        generate_html(tournaments, html_file, **_kw)
         _auto_push_html(html_file)
+        generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
+        _auto_push_html(html_file_sm)
         sys.exit(0)
 
     # ── Reset history ────────────────────────────────────────────────────────
@@ -659,9 +669,14 @@ def main():
         ref_lat=ref_lat, ref_lng=ref_lng, ref_city=ref_city,
     )
 
-    # 1) Full report (fixed name → toujours le dernier)
+    # 1a) Full report (fixed name → toujours le dernier)
     generate_html(tournaments, html_file, **_html_kwargs)
     _auto_push_html(html_file)
+
+    # 1b) Light SM-only report (fixed name)
+    generate_html(tournaments, html_file_sm, **_html_kwargs, sm_only=True)
+    logger.info("Rapport SM 11-14 : %s", html_file_sm)
+    _auto_push_html(html_file_sm)
 
     # 2) Full report horodaté
     all_stamped  = os.path.join(html_dir, f"tournois_{stamp}.html")

@@ -341,13 +341,15 @@ def _tournament_to_row(t, only_natures=None):
     }
 
 
-def _collect_epreuve_options(rows):
+def _collect_epreuve_options(rows, only_keys=None):
     """Build sorted list of (key, label) for the épreuve filter dropdown."""
     seen = {}
     nature_labels = {"SM": "Simple Messieurs", "SD": "Simple Dames",
                      "DM": "Double Messieurs", "DD": "Double Dames", "DX": "Double Mixte"}
     for r in rows:
         for key in r["epreuves_keys"]:
+            if only_keys and key not in only_keys:
+                continue
             if key not in seen:
                 parts = key.split("_")
                 if len(parts) == 2:
@@ -379,14 +381,19 @@ def generate_html(
     ref_lat: float = 0.0,
     ref_lng: float = 0.0,
     ref_city: str = "",
+    sm_only: bool = False,
 ):
+    if sm_only:
+        only_natures = ["SM"]
+        title = title.rstrip() + " — SM 11-14"
+
     new_ids = new_ids or set()
     for t in tournaments:
         tid = t.get("originalId") or t.get("id", "")
         t["_is_new"] = tid in new_ids
 
     rows = [_tournament_to_row(t, only_natures=only_natures) for t in tournaments]
-    epreuve_options = _collect_epreuve_options(rows)
+    epreuve_options = _collect_epreuve_options(rows, only_keys=SM_TARGET_KEYS if sm_only else None)
 
     tbody_lines = []
     for r in rows:
@@ -423,7 +430,7 @@ def generate_html(
         paiem = "✅" if r["paiement"]    else "❌"
 
         ep_keys_json   = json.dumps(r["epreuves_keys"])
-        statuts_json   = json.dumps(r["statuts_set"])
+        statuts_json   = json.dumps(r["statuts_sm_set"] if sm_only else r["statuts_set"])
 
         tid_esc  = html.escape(str(r['id']))
         has_fmt  = "true" if r["fmt_all"] else "false"
@@ -470,7 +477,14 @@ def generate_html(
 
     tbody        = "\n".join(tbody_lines)
     total        = len(rows)
-    total_ep     = sum(len(t.get("epreuves", [])) for t in tournaments)
+    if sm_only:
+        total_ep = sum(
+            sum(1 for ep in t.get("epreuves", [])
+                if f"{ep.get('natureEpreuve',{}).get('code','')}_{ep.get('categorieAge',{}).get('id',0)}" in SM_TARGET_KEYS)
+            for t in tournaments
+        )
+    else:
+        total_ep = sum(len(t.get("epreuves", [])) for t in tournaments)
     new_count    = sum(1 for r in rows if r["is_new"])
     fetched_str  = fetched_at or datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
@@ -2621,7 +2635,7 @@ function renderMap() {{
     print(f"Rapport HTML genere : {os.path.abspath(output_path)}")
 
 
-def generate_from_file(data_file, output_path, new_ids=None, only_natures=None):
+def generate_from_file(data_file, output_path, new_ids=None, only_natures=None, sm_only=False):
     with open(data_file, encoding="utf-8") as f:
         data = json.load(f)
     generate_html(
@@ -2633,4 +2647,5 @@ def generate_from_file(data_file, output_path, new_ids=None, only_natures=None):
         ref_lat=data.get("ref_lat", 0.0),
         ref_lng=data.get("ref_lng", 0.0),
         ref_city=data.get("ref_city", ""),
+        sm_only=sm_only,
     )
