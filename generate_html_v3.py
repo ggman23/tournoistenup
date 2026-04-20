@@ -2084,8 +2084,10 @@ function showDayPanel(dateStr) {{
   var panel = $('#cal-day-panel');
   if (!ts.length) {{ panel.html('').hide(); return; }}
 
-  var d = new Date(dateStr + 'T12:00:00');
+  var d     = new Date(dateStr + 'T12:00:00');
   var title = _DAY_NAMES[d.getDay()] + ' ' + d.getDate() + ' ' + _MONTH_NAMES[d.getMonth()].toLowerCase() + ' ' + d.getFullYear();
+  var favs  = {{}};
+  try {{ favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}'); }} catch(e) {{}}
 
   var html = '<div class="cal-panel">';
   html += '<div class="d-flex align-items-center mb-2 gap-2">';
@@ -2094,19 +2096,33 @@ function showDayPanel(dateStr) {{
   html += '<button class="btn btn-sm btn-close ms-auto" onclick="$(\\\'#cal-day-panel\\\').html(\\\'\\\')" ></button>';
   html += '</div><div class="row g-2">';
   ts.forEach(function(t) {{
-    var color   = _FMT_COLORS[t.fmt] || '#aaa';
-    var statuts = [];
-    try {{ statuts = JSON.parse(t.statuts); }} catch(e) {{}}
-    var statutsHtml = statuts.map(function(s) {{
-      var cfg = _STATUT_CFG[s] || ['#bdc3c7', s];
-      return '<span class="badge" style="background:' + cfg[0] + ';font-size:.68em">' + cfg[1] + '</span>';
-    }}).join(' ');
+    var color  = _FMT_COLORS[t.fmt] || '#aaa';
+    var isFav  = !!favs[t.id];
+    // Statuts filtered by active épreuve filter (t.epreuves already filtered by getFilteredData)
+    var epHtml = '';
+    if (t.epreuves && t.epreuves.length) {{
+      epHtml = t.epreuves.map(function(ep) {{
+        var sCfg  = ep.statut ? (_STATUT_CFG[ep.statut] || ['#bdc3c7', ep.statut]) : null;
+        var badge = sCfg ? ' <span class="badge" style="background:' + sCfg[0] + ';font-size:.65em">' + sCfg[1] + '</span>' : '';
+        return '<div style="font-size:.75em;margin-top:2px"><span class="text-muted">' + ep.text + '</span>' + badge + '</div>';
+      }}).join('');
+    }} else {{
+      var statuts = [];
+      try {{ statuts = JSON.parse(t.statuts); }} catch(e) {{}}
+      epHtml = statuts.map(function(s) {{
+        var cfg = _STATUT_CFG[s] || ['#bdc3c7', s];
+        return '<span class="badge" style="background:' + cfg[0] + ';font-size:.68em">' + cfg[1] + '</span>';
+      }}).join(' ');
+    }}
     html += '<div class="col-xl-3 col-lg-4 col-md-6">';
     html += '<div class="border rounded p-2 h-100" style="border-left:4px solid ' + color + ' !important">';
-    html += '<div><a href="' + t.url + '" target="_blank" class="fw-semibold text-decoration-none" style="font-size:.85em">' + t.nom.replace(/</g,'&lt;') + '</a></div>';
+    html += '<div class="d-flex align-items-start gap-1">';
+    html += '<a href="' + t.url + '" target="_blank" class="fw-semibold text-decoration-none flex-grow-1" style="font-size:.85em">' + t.nom.replace(/</g,'&lt;') + '</a>';
+    html += '<button class="fav-btn' + (isFav ? ' fav-active' : '') + '" data-id="' + t.id + '" onclick="toggleFav(this)">' + (isFav ? '\u2605' : '\u2606') + '</button>';
+    html += '</div>';
     html += '<div class="text-muted" style="font-size:.78em">' + t.ville + '</div>';
-    if (t.fmt) html += '<span class="badge mt-1" style="background:' + color + ';font-size:.68em">F' + t.fmt + '</span> ';
-    html += statutsHtml;
+    if (t.fmt) html += '<span class="badge mt-1" style="background:' + color + ';font-size:.68em">F' + t.fmt + '</span>';
+    html += epHtml;
     html += '</div></div>';
   }});
   html += '</div></div>';
