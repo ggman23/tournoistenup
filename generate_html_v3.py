@@ -446,8 +446,10 @@ def generate_html(
         tid_esc  = html.escape(str(r['id']))
         has_fmt  = "true" if r["fmt_all"] else "false"
 
-        # Google Maps directions URL (origin = adresse précise > lat/lng > ville, dest = tournoi)
-        _dest = f"{r['geo_lat']},{r['geo_lng']}" if r.get('geo_lat') and r.get('geo_lng') else urllib.parse.quote(r['adresse'], safe='')
+        # Google Maps directions URL (origin = adresse précise > lat/lng > ville, dest = adresse texte)
+        # On préfère l'adresse texte en destination : les coords geocodées sont parfois décalées
+        # et Google Maps affiche alors une rue voisine au lieu de l'adresse exacte du club.
+        _dest = urllib.parse.quote(r['adresse'], safe='')
         if ref_address:
             _orig = urllib.parse.quote(ref_address, safe='')
         elif ref_lat and ref_lng:

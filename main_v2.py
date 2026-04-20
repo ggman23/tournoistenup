@@ -456,6 +456,14 @@ def main():
         _hist     = load_json(history_file)
         _new_ids  = set(_hist.get("last_new_ids", []))
         _only_nat = config["search"].get("epreuves") or None
+        # Update ref_address in JSON with the rue entered at prompt
+        _rue_now = config["search"]["ville"].get("rue", "")
+        _ref_addr = f"{_rue_now}, {config['search']['ville'].get('label','')}" if _rue_now else ""
+        import json as _json_ho
+        _data_ho = load_json(data_file)
+        _data_ho["ref_address"] = _ref_addr
+        with open(data_file, "w", encoding="utf-8") as _fho:
+            _json_ho.dump(_data_ho, _fho, ensure_ascii=False, indent=2)
         generate_from_file(data_file, html_file, new_ids=_new_ids, only_natures=_only_nat)
         _auto_push_html(html_file)
         generate_from_file(data_file, html_file_sm, new_ids=_new_ids, sm_only=True)
