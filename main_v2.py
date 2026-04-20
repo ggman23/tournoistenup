@@ -89,10 +89,11 @@ def _auto_push_html(html_file: str):
         r = subprocess.run(["git", "commit", "-m", f"auto: rapport HTML — {stamp}"],
                            capture_output=True, text=True)
         if r.returncode != 0:
-            if "nothing to commit" in r.stdout + r.stderr:
+            combined = r.stdout + r.stderr
+            if any(s in combined for s in ("nothing to commit", "rien à valider", "nothing added to commit")):
                 logger.info("HTML inchangé — pas de commit git.")
             else:
-                logger.warning("git commit HTML échoué : %s", r.stderr.strip())
+                logger.warning("git commit HTML échoué : %s", (r.stderr or r.stdout).strip())
             return
         # Synchronise avec le remote avant de pousser (la branche peut avoir avancé)
         r = subprocess.run(["git", "pull", "--rebase"], capture_output=True, text=True)
