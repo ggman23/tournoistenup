@@ -56,6 +56,11 @@ AGE_LABELS = {
     160: "15/16 ans", 180: "17/18 ans", 200: "Adulte",
 }
 
+SM_TARGET_KEYS = frozenset({"SM_110", "SM_120", "SM_125", "SM_130", "SM_140", "SM_145"})
+_SM_ORDER      = ["SM_110", "SM_120", "SM_125", "SM_130", "SM_140", "SM_145"]
+_SM_LABELS     = {"SM_110": "SM 11", "SM_120": "SM 11/12", "SM_125": "SM 12",
+                  "SM_130": "SM 13", "SM_140": "SM 13/14", "SM_145": "SM 14"}
+
 
 def _fmt_date(date_obj, short=False):
     if not date_obj:
@@ -236,6 +241,18 @@ def _tournament_to_row(t, only_natures=None):
                 seen_codes.add(c)
                 statuts_set.append(c)
 
+    # SM-only statut codes (only for SM 11-14 épreuves)
+    statuts_sm_set: list[str] = []
+    if statuts_inscription:
+        seen_sm: set[str] = set()
+        for key, v in statuts_inscription.items():
+            if key not in SM_TARGET_KEYS:
+                continue
+            c = v.get("statut", "")
+            if c and c not in seen_sm:
+                seen_sm.add(c)
+                statuts_sm_set.append(c)
+
     # Freshness: warn if statut_fetched_at is older than 24h
     statut_stale = False
     if statut_fetched_at:
@@ -246,6 +263,9 @@ def _tournament_to_row(t, only_natures=None):
             statut_stale = (datetime.now(timezone.utc) - fetched_dt) > timedelta(hours=24)
         except Exception:
             pass
+
+    epreuves_keys_list = _epreuves_data(t.get("epreuves", []))
+    has_sm_cat = any(k in SM_TARGET_KEYS for k in epreuves_keys_list)
 
     ep_html = _epreuves_html(
         t.get("epreuves", []),
@@ -294,8 +314,10 @@ def _tournament_to_row(t, only_natures=None):
         "geo_lng":      enriched.get("geo_lng"),
         "surfaces":     _surfaces(t.get("naturesTerrains", [])),
         "epreuves":     ep_html,
-        "epreuves_keys": _epreuves_data(t.get("epreuves", [])),
+        "epreuves_keys": epreuves_keys_list,
+        "has_sm_cat":   has_sm_cat,
         "statuts_set":  statuts_set,
+        "statuts_sm_set": statuts_sm_set,
         "inscription":  t.get("inscriptionEnLigne", False),
         "paiement":     t.get("paiementEnLigne", False),
         "juge_nom":     f"{juge.get('prenom', '')} {juge.get('nom', '')}".strip(),
@@ -425,7 +447,9 @@ def generate_html(
             data-lat="{r['geo_lat'] if r['geo_lat'] is not None else ''}"
             data-lng="{r['geo_lng'] if r['geo_lng'] is not None else ''}"
             data-classements='{json.dumps(r["classements_ep"])}'
-            data-paiement="{str(r['paiement']).lower()}">
+            data-paiement="{str(r['paiement']).lower()}"
+            data-sm-cat="{1 if r['has_sm_cat'] else 0}"
+            data-sm-statuts='{json.dumps(r["statuts_sm_set"])}'>
 
           <td data-sort="{html.escape(r['date_debut_sort'])}">{html.escape(r['dates'])}</td>
           <td class="col-first-seen">{html.escape(r.get('first_seen', ''))}</td>
@@ -449,6 +473,18 @@ def generate_html(
     total_ep     = sum(len(t.get("epreuves", [])) for t in tournaments)
     new_count    = sum(1 for r in rows if r["is_new"])
     fetched_str  = fetched_at or datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+    sm_counts = {k: 0 for k in _SM_ORDER}
+    for r in rows:
+        for key in r["epreuves_keys"]:
+            if key in sm_counts:
+                sm_counts[key] += 1
+    sm_stats_html = "  ".join(
+        f'<span style="font-size:.8em;color:rgba(255,255,255,.7)">'
+        f'<span style="color:rgba(255,255,255,.45)">{_SM_LABELS[k]}</span> '
+        f'<strong style="color:#fff">{sm_counts[k]}</strong></span>'
+        for k in _SM_ORDER if sm_counts[k] > 0
+    )
 
     ep_options_html = '<option value="">Toutes les épreuves</option>\n'
     for key, lbl in epreuve_options:
@@ -737,6 +773,7 @@ def generate_html(
     <h1 class="mb-0">🎾 {html.escape(title)}</h1>
     <span class="stat-card" style="background:#0d6efd">{total} tournois</span>
     <span class="stat-card" style="background:#0d6efd;opacity:.75">{total_ep} épreuves</span>
+    <span class="stat-card" style="background:#1a2540;border:1px solid rgba(255,255,255,.15);font-size:.78em">{sm_stats_html}</span>
     {'<span class="stat-card" style="background:#dc3545">' + str(new_count) + ' nouveaux</span>' if new_count else ''}
     {'<span class="stat-card" style="background:#8e44ad">⏰ ' + str(_days_to_class) + 'j → classement ' + _next_class_str + '</span>' if _days_to_class is not None else ''}
     <small class="text-muted ms-auto">Mis à jour : {html.escape(fetched_str)}</small>
@@ -886,6 +923,11 @@ def generate_html(
 
       <div class="col-auto">
         <label class="form-label mb-1 fw-semibold small">&nbsp;</label><br>
+        <div class="form-check form-check-inline me-1" title="Masque tout sauf SM 11 à 14 ans — améliore les performances">
+          <input class="form-check-input" type="checkbox" id="chk-sm-only" checked onchange="onSmOnlyChange()">
+          <label class="form-check-label small fw-semibold" for="chk-sm-only" style="color:#0dcaf0">🎯 SM only</label>
+        </div>
+        <span class="text-muted small me-1 ms-1" style="opacity:.4">|</span>
         <div class="form-check form-check-inline">
           <input class="form-check-input" type="checkbox" id="chk-hide-past" checked onchange="onChkHidePastChange()">
           <label class="form-check-label small fw-semibold" for="chk-hide-past" style="color:#6c757d">Masquer terminés</label>
@@ -1178,6 +1220,11 @@ $(function() {{
     var d0 = new Date();
     var todayStr = d0.getFullYear() + '-' + String(d0.getMonth()+1).padStart(2,'0') + '-' + String(d0.getDate()).padStart(2,'0');
 
+    // ── Filtre SM uniquement ─────────────────────────────────────────────────
+    if ($('#chk-sm-only').prop('checked')) {{
+      if ($tr.attr('data-sm-cat') !== '1') return false;
+    }}
+
     // ── Filtre comités/départements ───────────────────────────────────────────
     var checkedDepts = $('.dept-chk:checked').map(function() {{ return $(this).val(); }}).get();
     if (checkedDepts.length > 0) {{
@@ -1185,10 +1232,15 @@ $(function() {{
       if (checkedDepts.indexOf(dept) === -1) return false;
     }}
 
-    if (checkedEpreuves.length > 0) {{
+    var effectiveEpreuves = checkedEpreuves;
+    if ($('#chk-sm-only').prop('checked')) {{
+      var _smKeys = ['SM_110','SM_120','SM_125','SM_130','SM_140','SM_145'];
+      effectiveEpreuves = checkedEpreuves.filter(function(k) {{ return _smKeys.indexOf(k) !== -1; }});
+    }}
+    if (effectiveEpreuves.length > 0) {{
       var keys = JSON.parse($tr.attr('data-ep-keys') || '[]');
       if (keys.length === 0) return false; // Épreuves non enrichies → on masque quand filtre actif
-      if (!checkedEpreuves.some(function(e) {{ return keys.indexOf(e) !== -1; }})) return false;
+      if (!effectiveEpreuves.some(function(e) {{ return keys.indexOf(e) !== -1; }})) return false;
     }}
     if (maxDist !== null && (parseFloat($tr.attr('data-distance')) || 0) > maxDist) return false;
 
@@ -1227,7 +1279,8 @@ $(function() {{
 
     var checkedStatuts = $('.statut-chk:checked').map(function() {{ return $(this).val(); }}).get();
     if (checkedStatuts.length > 0) {{
-      var statuts = JSON.parse($tr.attr('data-statuts') || '[]');
+      var statAttr = $('#chk-sm-only').prop('checked') ? 'data-sm-statuts' : 'data-statuts';
+      var statuts = JSON.parse($tr.attr(statAttr) || '[]');
       if (!checkedStatuts.some(function(s) {{ return statuts.indexOf(s) !== -1; }})) return false;
     }}
 
@@ -1394,6 +1447,7 @@ function pdfCustomize(doc) {{
 
   dt = $('#t').DataTable({{
     pageLength: 25,
+    deferRender: true,
     lengthMenu: [[25, 50, 100, -1], [25, 50, 100, "Tout"]],
     order: [[8, 'asc']],
     language: {{ url: 'https://cdn.datatables.net/plug-ins/2.0.5/i18n/fr-FR.json' }},
@@ -1605,8 +1659,20 @@ function updateDeptBtn() {{
 function applyEpLineFilter() {{
   var checked     = $('.ep-chk:checked').map(function() {{ return $(this).val(); }}).get();
   var checkedFmts = $('.fmt-chk:checked').map(function() {{ return $(this).val(); }}).get();
+  var smOnly = $('#chk-sm-only').prop('checked');
   $('#ep-line-filter-style').remove();
   var css = '';
+  // SM-only layer: hide all ep-lines not in SM 11-14
+  if (smOnly) {{
+    css += '.ep-line:not([data-ep-key="SM_110"]):not([data-ep-key="SM_120"])'
+         + ':not([data-ep-key="SM_125"]):not([data-ep-key="SM_130"])'
+         + ':not([data-ep-key="SM_140"]):not([data-ep-key="SM_145"])'
+         + ' {{ display:none !important; }}';
+    // Dim non-SM chips in the épreuve panel
+    $('body').addClass('sm-only-active');
+  }} else {{
+    $('body').removeClass('sm-only-active');
+  }}
   if (checked.length > 0) {{
     var notSel = checked.map(function(k) {{ return ':not([data-ep-key="' + k + '"])'; }}).join('');
     css += '.ep-line' + notSel + ' {{ display:none !important; }}';
@@ -1618,6 +1684,11 @@ function applyEpLineFilter() {{
     css += ' .fmt-badge' + fmtNotSel + ' {{ display:none !important; }}';
   }}
   if (css) {{ $('<style id="ep-line-filter-style">').text(css).appendTo('head'); }}
+}}
+
+function onSmOnlyChange() {{
+  applyEpLineFilter();
+  applyFilters();
 }}
 
 // ── Favorites (stored in localStorage) ───────────────────────────────────────
