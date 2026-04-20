@@ -84,13 +84,15 @@ def _surfaces(terrains):
     return " ".join(parts)
 
 
-def _epreuves_html(epreuves, formats_list=None, statuts=None, only_natures=None):
+def _epreuves_html(epreuves, formats_list=None, statuts=None, only_natures=None, only_ep_keys=None):
     """
     Render one line per épreuve.  If formats_list is provided, attach a format badge.
     If statuts (dict from enriched["statuts_inscription"]) is provided, attach a statut badge.
 
     only_natures: if set (e.g. ["SM"]), only render épreuves whose natureEpreuve.code
                   is in the list. Others are silently skipped.
+    only_ep_keys: if set (e.g. SM_TARGET_KEYS), only render épreuves whose
+                  "{nat_code}_{age_id}" key is in the set (stricter than only_natures).
 
     Matching strategy (best-effort):
       1. By epreuve_key: match "NATURE_ageid" stored during enrichment.
@@ -128,6 +130,9 @@ def _epreuves_html(epreuves, formats_list=None, statuts=None, only_natures=None)
         abbr_nat = _NAT_ABBR.get(nature, nature)
         abbr_age = age.replace(" ans", "").replace(" Ans", "").strip()
         ep_key   = f"{nat_code}_{age_id}" if nat_code and age_id else ""
+
+        if only_ep_keys and ep_key and ep_key not in only_ep_keys:
+            continue
 
         fmt_entry = None
         if ep_key and ep_key in key_to_fmt:
@@ -194,7 +199,7 @@ def _parse_distance_km(raw: str) -> float:
         return 0.0
 
 
-def _tournament_to_row(t, only_natures=None):
+def _tournament_to_row(t, only_natures=None, only_ep_keys=None):
     install  = t.get("installation", {})
     juge     = t.get("jugeArbitre", {})
     enriched = t.get("enriched", {})
@@ -265,6 +270,8 @@ def _tournament_to_row(t, only_natures=None):
             pass
 
     epreuves_keys_list = _epreuves_data(t.get("epreuves", []))
+    if only_ep_keys:
+        epreuves_keys_list = [k for k in epreuves_keys_list if k in only_ep_keys]
     has_sm_cat = any(k in SM_TARGET_KEYS for k in epreuves_keys_list)
 
     ep_html = _epreuves_html(
@@ -272,6 +279,7 @@ def _tournament_to_row(t, only_natures=None):
         enriched.get("formats_list"),
         statuts=statuts_inscription,
         only_natures=only_natures,
+        only_ep_keys=only_ep_keys,
     )
     if commentaire_club:
         short = commentaire_club[:100] + ("…" if len(commentaire_club) > 100 else "")
@@ -392,7 +400,8 @@ def generate_html(
         tid = t.get("originalId") or t.get("id", "")
         t["_is_new"] = tid in new_ids
 
-    rows = [_tournament_to_row(t, only_natures=only_natures) for t in tournaments]
+    _only_ep_keys = SM_TARGET_KEYS if sm_only else None
+    rows = [_tournament_to_row(t, only_natures=only_natures, only_ep_keys=_only_ep_keys) for t in tournaments]
     epreuve_options = _collect_epreuve_options(rows, only_keys=SM_TARGET_KEYS if sm_only else None)
 
     tbody_lines = []
