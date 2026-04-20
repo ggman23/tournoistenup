@@ -732,6 +732,10 @@ def generate_html(
     .cal-chip-more {{ font-size:.67em; color:#6c757d; margin-top:1px; }}
     .cal-panel  {{ border:1px solid #dee2e6; border-radius:6px; padding:14px 16px;
                   background:#f8f9fa; margin-top:10px; }}
+    .cal-absent {{ background:#fff3e0 !important; border-color:#fd7e14 !important; }}
+    .cal-absent .cal-day-num {{ color:#e65100 !important; }}
+    .plan-note-chip {{ font-size:.65em; background:#fd7e14; color:#fff; border-radius:3px;
+                       padding:1px 4px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
     /* ── Gantt ────────────────────────────────────────────────────────────── */
     .gantt-row   {{ display:flex; align-items:center; border-bottom:1px solid #f0f0f0; min-height:26px; }}
     .gantt-row:hover {{ background:#f8f9fa; }}
@@ -1020,6 +1024,10 @@ def generate_html(
           <input class="form-check-input" type="checkbox" id="chk-fav" onchange="applyFilters()">
           <label class="form-check-label small" for="chk-fav">⭐ Favoris</label>
         </div>
+        <div class="form-check form-check-inline" title="Masquer les tournois qui tombent pendant une absence (configurer dans onglet Planning)">
+          <input class="form-check-input" type="checkbox" id="chk-absent" onchange="applyFilters()">
+          <label class="form-check-label small fw-semibold" for="chk-absent" style="color:#e65100">🚫 Absent</label>
+        </div>
       </div>
 
       <div class="col-auto ms-auto align-self-end">
@@ -1113,6 +1121,10 @@ def generate_html(
             onclick="showView('inscrit')">✅ Inscrit</button>
     <button class="btn btn-sm btn-outline-info view-tab" id="tab-classements"
             onclick="showView('classements')">📆 Classements</button>
+    <button class="btn btn-sm btn-outline-warning view-tab" id="tab-planning"
+            onclick="showView('planning')">🗓️ Planning</button>
+    <button class="btn btn-sm btn-outline-danger view-tab" id="tab-rates"
+            onclick="showView('rates')">❌ Ratés</button>
     <small class="text-muted ms-2" id="view-info"></small>
   </div>
 
@@ -1121,6 +1133,12 @@ def generate_html(
 
   <!-- Vue Classements -->
   <div id="view-classements" style="display:none" class="bg-white rounded shadow-sm p-3"></div>
+
+  <!-- Vue Planning -->
+  <div id="view-planning" style="display:none" class="bg-white rounded shadow-sm p-3"></div>
+
+  <!-- Vue Ratés -->
+  <div id="view-rates" style="display:none" class="bg-white rounded shadow-sm p-3"></div>
 
   <!-- Vue Calendrier -->
   <div id="view-calendar" style="display:none" class="bg-white rounded shadow-sm p-3"></div>
@@ -1394,6 +1412,16 @@ $(function() {{
       if (fStart && tEnd2  && tEnd2  < fStart) return false;  // tournoi terminé avant la plage
       if (fEnd   && tStart && tStart > fEnd)   return false;  // tournoi commence après la plage
       if (fEnd   && tEnd2  && tEnd2  > fEnd)   return false;  // tournoi se termine hors plage
+    }}
+
+    // ── Filtre absent/planning ────────────────────────────────────────────
+    if ($('#chk-absent').prop('checked')) {{
+      var _planning = getPlanningData();
+      if (Object.keys(_planning).length > 0) {{
+        var _debut = $tr.attr('data-date-debut') || '';
+        var _fin   = $tr.attr('data-date-fin')   || '';
+        if (isTournamentBlocked(_debut, _fin, _planning)) return false;
+      }}
     }}
 
     return true;
@@ -1873,8 +1901,10 @@ function showView(view) {{
   $('#view-map-wrap').toggle(tableView === 'map');
   $('#view-inscrit').toggle(tableView === 'inscrit');
   $('#view-classements').toggle(tableView === 'classements');
-  $('.view-tab').removeClass('btn-primary btn-warning btn-success btn-info').addClass('btn-outline-secondary');
-  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements'}}[tableView] || 'tab-table';
+  $('#view-planning').toggle(tableView === 'planning');
+  $('#view-rates').toggle(tableView === 'rates');
+  $('.view-tab').removeClass('btn-primary btn-warning btn-success btn-info btn-danger').addClass('btn-outline-secondary');
+  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements', planning:'tab-planning', rates:'tab-rates'}}[tableView] || 'tab-table';
   if (isDerniers) {{
     $('#tab-derniers').removeClass('btn-outline-secondary btn-outline-warning').addClass('btn-warning');
     dt.column('.col-first-seen').visible(true);
@@ -1882,8 +1912,8 @@ function showView(view) {{
     dt.order([[dt.column('.col-first-seen').index(), 'desc']]).draw();
   }} else {{
     if (tableView !== 'inscrit' && tableView !== 'classements') dt.column('.col-first-seen').visible(false);
-    var actCls = {{inscrit:'btn-success', classements:'btn-info'}}[tableView] || 'btn-primary';
-    $('#' + tabId).removeClass('btn-outline-secondary btn-outline-success btn-outline-info').addClass(actCls);
+    var actCls = {{inscrit:'btn-success', classements:'btn-info', planning:'btn-warning', rates:'btn-danger'}}[tableView] || 'btn-primary';
+    $('#' + tabId).removeClass('btn-outline-secondary btn-outline-success btn-outline-info btn-outline-warning btn-outline-danger').addClass(actCls);
   }}
   if (tableView === 'calendar')    {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
   if (tableView === 'gantt')       renderGantt();
@@ -1891,6 +1921,8 @@ function showView(view) {{
   if (tableView === 'map')         renderMap();
   if (tableView === 'inscrit')     renderInscrit();
   if (tableView === 'classements') renderClassements();
+  if (tableView === 'planning')    {{ planYear = undefined; planMonth = undefined; renderPlanning(); }}
+  if (tableView === 'rates')       renderRates();
 }}
 
 // ── Extraction des données filtrées depuis DataTables ────────────────────────
@@ -2142,21 +2174,24 @@ function renderCalendar() {{
   }});
   for (var i = 0; i < startDow; i++) html += '<div class="cal-cell cal-empty"></div>';
 
+  var _calPlanning = getPlanningData();
   for (var d = 1; d <= daysInMonth; d++) {{
     var ds = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     var ts = byDate[ds] || [];
     var isToday = ds === todayStr;
-    var cls = 'cal-cell' + (isToday ? ' cal-today' : '') + (ts.length ? ' cal-has-events' : '');
+    var planNote = _calPlanning[ds] || '';
+    var cls = 'cal-cell' + (isToday ? ' cal-today' : '') + (ts.length ? ' cal-has-events' : '') + (planNote ? ' cal-absent' : '');
     html += '<div class="' + cls + '" onclick="showDayPanel(\\'' + ds + '\\')">';
     html += '<div class="cal-day-num">' + d + '</div>';
+    if (planNote) html += '<div class="plan-note-chip">🚫 ' + planNote.substring(0,15) + '</div>';
     if (ts.length) {{
       html += '<div class="cal-count">' + ts.length + ' 🎾</div>';
-      ts.slice(0, 3).forEach(function(t) {{
+      ts.slice(0, 2).forEach(function(t) {{
         var color = _FMT_COLORS[t.fmt] || '#999';
         var nomCourt = t.nom.length > 20 ? t.nom.substring(0,19)+'…' : t.nom;
         html += '<div class="cal-chip" style="background:' + color + '22;border-left:3px solid ' + color + '">' + nomCourt + '</div>';
       }});
-      if (ts.length > 3) html += '<div class="cal-chip-more">+' + (ts.length-3) + ' autres</div>';
+      if (ts.length > 2) html += '<div class="cal-chip-more">+' + (ts.length-2) + ' autres</div>';
     }}
     html += '</div>';
   }}
@@ -2563,6 +2598,178 @@ function updateIsochrone() {{
   _refreshIsochrones();
 }}
 
+// ── Planning (absences) ──────────────────────────────────────────────────────
+function getPlanningData() {{
+  try {{ return JSON.parse(localStorage.getItem('tenup_planning') || '{{}}'); }} catch(e) {{ return {{}}; }}
+}}
+function savePlanningData(data) {{
+  localStorage.setItem('tenup_planning', JSON.stringify(data));
+}}
+
+function isTournamentBlocked(debut, fin, planning) {{
+  if (!debut || !Object.keys(planning).length) return false;
+  var d1 = new Date(debut + 'T12:00:00');
+  var d2 = new Date((fin || debut) + 'T12:00:00');
+  var duration = Math.round((d2 - d1) / 86400000) + 1;
+  var overlap = 0;
+  var cur = new Date(d1);
+  while (cur <= d2) {{
+    var ds = cur.getFullYear() + '-' + String(cur.getMonth()+1).padStart(2,'0') + '-' + String(cur.getDate()).padStart(2,'0');
+    if (planning[ds]) overlap++;
+    cur.setDate(cur.getDate() + 1);
+  }}
+  if (!overlap) return false;
+  if (duration <= 4)  return true;                        // TMC court : toute absence = impossible
+  if (duration <= 14) return overlap / duration >= 0.4;  // 1 semaine : ≥40% absent = impossible
+  return overlap / duration >= 0.6;                      // Long ouvert : ≥60% absent = impossible
+}}
+
+var planYear, planMonth;
+
+function renderPlanning() {{
+  var planning = getPlanningData();
+  if (planYear === undefined) {{
+    var now = new Date();
+    planYear  = now.getFullYear();
+    planMonth = now.getMonth();
+  }}
+  var firstDay    = new Date(planYear, planMonth, 1);
+  var daysInMonth = new Date(planYear, planMonth+1, 0).getDate();
+  var startDow    = (firstDay.getDay() + 6) % 7;
+  var todayStr    = new Date().toISOString().slice(0,10);
+
+  var html = '<div class="d-flex align-items-center gap-3 mb-3">';
+  html += '<button class="btn btn-sm btn-outline-secondary" onclick="planNav(-1)">‹ Préc</button>';
+  html += '<h5 class="mb-0 fw-bold" style="min-width:220px;text-align:center">' + _MONTH_NAMES[planMonth] + ' ' + planYear + '</h5>';
+  html += '<button class="btn btn-sm btn-outline-secondary" onclick="planNav(1)">Suiv ›</button>';
+  html += '<small class="text-muted ms-3">Cliquez sur un jour pour marquer une absence</small>';
+  html += '</div>';
+
+  html += '<div class="cal-grid mb-2">';
+  ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].forEach(function(d3) {{
+    html += '<div class="cal-dow">' + d3 + '</div>';
+  }});
+  for (var i = 0; i < startDow; i++) html += '<div class="cal-cell cal-empty"></div>';
+  for (var d = 1; d <= daysInMonth; d++) {{
+    var ds = planYear + '-' + String(planMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    var note    = planning[ds] || '';
+    var isToday = ds === todayStr;
+    var cls = 'cal-cell' + (isToday ? ' cal-today' : '') + (note ? ' cal-absent' : '');
+    html += '<div class="' + cls + '" onclick="planClickDay(\\'' + ds + '\\')" style="cursor:pointer">';
+    html += '<div class="cal-day-num">' + d + '</div>';
+    if (note) html += '<div class="plan-note-chip">🚫 ' + note.substring(0,18) + '</div>';
+    html += '</div>';
+  }}
+  html += '</div>';
+
+  var entries = Object.keys(planning).sort();
+  if (entries.length > 0) {{
+    html += '<hr><h6 class="fw-semibold">Absences enregistrées (' + entries.length + ' jour(s))</h6>';
+    html += '<div class="d-flex flex-wrap gap-2 mb-3">';
+    entries.forEach(function(ds2) {{
+      var d4 = new Date(ds2 + 'T12:00:00');
+      var lbl = _DAY_NAMES[d4.getDay()] + ' ' + d4.getDate() + ' ' + _MONTH_NAMES[d4.getMonth()].slice(0,4) + ' ' + d4.getFullYear();
+      html += '<span class="badge" style="background:#e65100;font-size:.82em;cursor:pointer;padding:5px 8px" onclick="planClickDay(\\'' + ds2 + '\\')" title="Cliquer pour modifier/supprimer">';
+      html += '🚫 ' + lbl + ' — ' + planning[ds2] + '</span>';
+    }});
+    html += '</div>';
+    html += '<button class="btn btn-sm btn-outline-danger" onclick="planClearAll()">🗑️ Tout effacer</button>';
+  }} else {{
+    html += '<p class="text-muted mt-3"><em>Aucune absence enregistrée.</em> Cliquez sur un jour du calendrier pour en ajouter.</p>';
+  }}
+  $('#view-planning').html(html);
+}}
+
+function planNav(dir) {{
+  planMonth += dir;
+  if (planMonth < 0)  {{ planMonth = 11; planYear--; }}
+  if (planMonth > 11) {{ planMonth = 0;  planYear++; }}
+  renderPlanning();
+}}
+
+function planClickDay(ds) {{
+  var planning = getPlanningData();
+  var current  = planning[ds] || '';
+  var d4 = new Date(ds + 'T12:00:00');
+  var lbl = _DAY_NAMES[d4.getDay()] + ' ' + d4.getDate() + ' ' + _MONTH_NAMES[d4.getMonth()].toLowerCase() + ' ' + d4.getFullYear();
+  var note = window.prompt('Absence le ' + lbl + ' :\\n(Laisser vide pour supprimer l\\'absence)', current);
+  if (note === null) return;
+  note = note.trim();
+  if (note) {{ planning[ds] = note; }} else {{ delete planning[ds]; }}
+  savePlanningData(planning);
+  renderPlanning();
+  if (currentView === 'rates') renderRates();
+  applyFilters();
+}}
+
+function planClearAll() {{
+  if (!confirm('Effacer toutes les absences ?')) return;
+  savePlanningData({{}});
+  renderPlanning();
+  if (currentView === 'rates') renderRates();
+  applyFilters();
+}}
+
+// ── Ratés / Impossible ───────────────────────────────────────────────────────
+function renderRates() {{
+  var planning = getPlanningData();
+  var blocked  = [];
+  dt.rows().nodes().each(function(node) {{
+    var $tr    = $(node);
+    var debut  = $tr.attr('data-date-debut') || '';
+    var fin    = $tr.attr('data-date-fin')   || '';
+    if (!isTournamentBlocked(debut, fin, planning)) return;
+    var $link  = $tr.find('a.tournament-link').first();
+    var d1     = new Date(debut + 'T12:00:00');
+    var d2     = new Date((fin || debut) + 'T12:00:00');
+    var duree  = Math.round((d2 - d1) / 86400000) + 1;
+    // Collect overlap notes
+    var notes  = [];
+    var cur    = new Date(d1);
+    while (cur <= d2) {{
+      var ds2 = cur.getFullYear() + '-' + String(cur.getMonth()+1).padStart(2,'0') + '-' + String(cur.getDate()).padStart(2,'0');
+      if (planning[ds2] && notes.indexOf(planning[ds2]) === -1) notes.push(planning[ds2]);
+      cur.setDate(cur.getDate() + 1);
+    }}
+    blocked.push({{
+      nom:   $link.text().trim(),
+      url:   $link.attr('href') || '',
+      debut: debut, fin: fin, duree: duree,
+      ville: $tr.find('td:eq(6)').contents().first().text().trim(),
+      fmt:   ($tr.attr('data-fmt') || '').split(',')[0] || '',
+      notes: notes.join(', '),
+    }});
+  }});
+
+  var html = '';
+  if (!Object.keys(planning).length) {{
+    html = '<div class="text-center text-muted py-5"><h5>Aucune absence configurée</h5>'
+         + '<p>Ajoutez vos indisponibilités dans l\'onglet <strong>🗓️ Planning</strong>.</p></div>';
+  }} else if (!blocked.length) {{
+    html = '<div class="text-center text-muted py-5"><h5>Aucun tournoi raté 🎉</h5>'
+         + '<p>Aucun conflit entre vos tournois filtrés et vos absences.</p></div>';
+  }} else {{
+    html = '<p class="text-muted mb-3"><strong>' + blocked.length + '</strong> tournoi(s) impossible(s) selon vos absences enregistrées.</p>';
+    html += '<div class="table-responsive"><table class="table table-sm table-hover align-middle">';
+    html += '<thead class="table-light"><tr><th>Tournoi</th><th>Dates</th><th>Durée</th><th>Ville</th><th>Fmt</th><th>Absence(s)</th></tr></thead><tbody>';
+    blocked.sort(function(a,b) {{ return a.debut.localeCompare(b.debut); }});
+    blocked.forEach(function(t) {{
+      var dates = (t.debut === t.fin) ? t.debut : (t.debut + ' → ' + t.fin);
+      var fc    = _FMT_COLORS[t.fmt] || '#6c757d';
+      html += '<tr>';
+      html += '<td><a href="' + t.url + '" target="_blank" rel="noopener">' + t.nom + '</a></td>';
+      html += '<td class="text-nowrap small">' + dates + '</td>';
+      html += '<td class="text-nowrap small">' + t.duree + ' j</td>';
+      html += '<td class="small">' + t.ville + '</td>';
+      html += '<td><span class="badge" style="background:' + fc + '">F' + t.fmt + '</span></td>';
+      html += '<td class="small text-warning-emphasis">🚫 ' + t.notes + '</td>';
+      html += '</tr>';
+    }});
+    html += '</tbody></table></div>';
+  }}
+  $('#view-rates').html(html);
+}}
+
 function renderMap() {{
   // Collect tournaments that have coordinates
   var data = getFilteredData().filter(function(t) {{ return t.lat && t.lng; }});
@@ -2600,29 +2807,46 @@ function renderMap() {{
 
   if (data.length === 0) return;
 
-  // Tournament markers
+  // Group tournaments by location (round coords to ~100m precision)
   var bounds = [];
   var activeFmts = $('.fmt-chk:checked').map(function() {{ return $(this).val(); }}).get();
+  var locGroups = {{}};
   data.forEach(function(t) {{
-    // Use the first format that matches the active filter (not necessarily the primary format)
-    var displayFmt = t.fmt;
+    var key = t.lat.toFixed(4) + ',' + t.lng.toFixed(4);
+    if (!locGroups[key]) locGroups[key] = {{ lat: t.lat, lng: t.lng, list: [] }};
+    locGroups[key].list.push(t);
+  }});
+  Object.keys(locGroups).forEach(function(key) {{
+    var g = locGroups[key];
+    var ts = g.list;
+    var t0 = ts[0];
+    var displayFmt = t0.fmt;
     if (activeFmts.length > 0) {{
-      for (var fi = 0; fi < t.fmtAll.length; fi++) {{
-        if (activeFmts.indexOf(t.fmtAll[fi]) !== -1) {{ displayFmt = t.fmtAll[fi]; break; }}
+      for (var fi = 0; fi < t0.fmtAll.length; fi++) {{
+        if (activeFmts.indexOf(t0.fmtAll[fi]) !== -1) {{ displayFmt = t0.fmtAll[fi]; break; }}
       }}
     }}
     var color = _FMT_COLORS[displayFmt] || '#6c757d';
-    var marker = L.circleMarker([t.lat, t.lng], {{
-      radius: 8,
-      color: '#fff',
-      fillColor: color,
-      fillOpacity: 0.85,
-      weight: 1.5
-    }});
-    marker.bindPopup(buildMapPopup(t), {{ maxWidth: 300 }});
+    var marker;
+    if (ts.length === 1) {{
+      marker = L.circleMarker([g.lat, g.lng], {{
+        radius: 8, color: '#fff', fillColor: color, fillOpacity: 0.85, weight: 1.5
+      }});
+      marker.bindPopup(buildMapPopup(t0), {{ maxWidth: 300 }});
+    }} else {{
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
+        + '<circle cx="16" cy="16" r="14" fill="' + color + '" stroke="#fff" stroke-width="2.5"/>'
+        + '<text x="16" y="21" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold" font-family="Arial,sans-serif">' + ts.length + '</text>'
+        + '</svg>';
+      var icon = L.divIcon({{ className: '', html: svg, iconSize: [32, 32], iconAnchor: [16, 16] }});
+      var popHtml = '<b style="font-size:.95em">' + t0.ville + ' — ' + ts.length + ' tournois</b>';
+      ts.forEach(function(tt) {{ popHtml += '<hr style="margin:5px 0">' + buildMapPopup(tt); }});
+      marker = L.marker([g.lat, g.lng], {{ icon: icon }});
+      marker.bindPopup(popHtml, {{ maxWidth: 360, maxHeight: 450 }});
+    }}
     marker.on('mouseover', function() {{ this.openPopup(); }});
     marker.addTo(_mapMarkers);
-    bounds.push([t.lat, t.lng]);
+    bounds.push([g.lat, g.lng]);
   }});
 
   // Fit map to all markers (include ref city)
