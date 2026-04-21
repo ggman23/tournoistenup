@@ -187,6 +187,20 @@ def _prompt_rue(default_rue: str, ville_label: str) -> str:
         return default_rue
 
 
+def _gen_mobile(tournaments_or_file, out_path, from_file=False, **kwargs):
+    """Generate mobile HTML if generator supports it; silently skips otherwise."""
+    if generate_html_mobile is None:
+        return
+    try:
+        if from_file:
+            generate_mobile_from_file(tournaments_or_file, out_path, **kwargs)
+        else:
+            generate_html_mobile(tournaments_or_file, out_path, **kwargs)
+        _auto_push_html(out_path)
+    except Exception as e:
+        logger.warning("Génération HTML mobile échouée : %s", e)
+
+
 def _setup_logging():
     os.makedirs("logs", exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%Hh%M%S")
@@ -281,11 +295,14 @@ def main():
         _ensure_cookie_server()
 
     # Sélection du générateur HTML
-    global generate_html, generate_from_file
+    global generate_html, generate_from_file, generate_html_mobile, generate_mobile_from_file
+    generate_html_mobile = None
+    generate_mobile_from_file = None
     if args.generator == "v2":
         from generate_html_v2 import generate_html, generate_from_file
     elif args.generator == "v3":
         from generate_html_v3 import generate_html, generate_from_file
+        from generate_html_v3 import generate_html_mobile, generate_mobile_from_file
     elif args.generator == "v4":
         from generate_html_v4 import generate_html, generate_from_file
     elif args.generator == "v5":
@@ -365,7 +382,8 @@ def main():
     data_file    = os.path.join("data", f"tournaments_{slug}.json")
     history_file = os.path.join("data", f"history_{slug}.json")
     html_file    = os.path.join("data", f"tournaments_{slug}.html")
-    html_file_sm = os.path.join("data", f"tournaments_{slug}_SM.html")
+    html_file_sm     = os.path.join("data", f"tournaments_{slug}_SM.html")
+    html_file_mobile = os.path.join("data", f"tournaments_{slug}_mobile.html")
     html_dir     = "data"
     output_file  = config["notifications"]["output_file"]
     print_console = config["notifications"]["print_to_console"]
@@ -445,6 +463,7 @@ def main():
         _auto_push_html(html_file)
         generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
         _auto_push_html(html_file_sm)
+        _gen_mobile(tournaments, html_file_mobile, **_kw)
         sys.exit(0)
 
     # ── HTML-only mode: just regenerate the report ──────────────────────────
@@ -468,6 +487,7 @@ def main():
         _auto_push_html(html_file)
         generate_from_file(data_file, html_file_sm, new_ids=_new_ids, sm_only=True)
         _auto_push_html(html_file_sm)
+        _gen_mobile(data_file, html_file_mobile, from_file=True, new_ids=_new_ids)
         sys.exit(0)
 
     # ── Enrich-only mode: re-enrich + regenerate without re-scraping ─────────
@@ -504,6 +524,7 @@ def main():
         _auto_push_html(html_file)
         generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
         _auto_push_html(html_file_sm)
+        _gen_mobile(tournaments, html_file_mobile, **_kw)
         sys.exit(0)
 
     # ── Enrich-statut-only mode: refresh inscription status only ─────────────
@@ -534,6 +555,7 @@ def main():
         _auto_push_html(html_file)
         generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
         _auto_push_html(html_file_sm)
+        _gen_mobile(tournaments, html_file_mobile, **_kw)
         sys.exit(0)
 
     # ── Enrich-geo-only mode: geocode + road distances without re-scraping ───
@@ -563,6 +585,7 @@ def main():
         _auto_push_html(html_file)
         generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
         _auto_push_html(html_file_sm)
+        _gen_mobile(tournaments, html_file_mobile, **_kw)
         sys.exit(0)
 
     # ── Reset history ────────────────────────────────────────────────────────
@@ -705,6 +728,10 @@ def main():
     generate_html(tournaments, html_file_sm, **_html_kwargs, sm_only=True)
     logger.info("Rapport SM 11-14 : %s", html_file_sm)
     _auto_push_html(html_file_sm)
+
+    # 1c) Mobile report (fixed name)
+    _gen_mobile(tournaments, html_file_mobile, **_html_kwargs)
+    logger.info("Rapport mobile : %s", html_file_mobile)
 
     # 2) Full report horodaté
     all_stamped  = os.path.join(html_dir, f"tournois_{stamp}.html")

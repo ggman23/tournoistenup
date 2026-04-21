@@ -2913,3 +2913,412 @@ def generate_from_file(data_file, output_path, new_ids=None, only_natures=None, 
         ref_address=data.get("ref_address", ""),
         sm_only=sm_only,
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Mobile HTML generator — fichier séparé, vue carte optimisée téléphone
+# ─────────────────────────────────────────────────────────────────────────────
+
+def generate_html_mobile(
+    tournaments, output_path, new_ids=None, title="Tournois TenUp",
+    fetched_at="", only_natures=None, ref_lat=0.0, ref_lng=0.0,
+    ref_city="", ref_address="", sm_only=False,
+):
+    if sm_only:
+        only_natures = ["SM"]
+        title = title.rstrip() + " — SM 11-14"
+
+    new_ids = new_ids or set()
+    for t in tournaments:
+        tid = t.get("originalId") or t.get("id", "")
+        t["_is_new"] = tid in new_ids
+
+    _only_ep_keys = SM_TARGET_KEYS if sm_only else None
+
+    # Build JS data objects
+    mob_data = []
+    for t in tournaments:
+        r = _tournament_to_row(t, only_natures=only_natures, only_ep_keys=_only_ep_keys)
+        if sm_only and not r["has_sm_cat"]:
+            continue
+
+        _dest = urllib.parse.quote(r["adresse"], safe="")
+        if ref_address:
+            _orig = urllib.parse.quote(ref_address, safe="")
+        elif ref_lat and ref_lng:
+            _orig = f"{ref_lat},{ref_lng}"
+        elif ref_city:
+            _orig = urllib.parse.quote(ref_city, safe="")
+        else:
+            _orig = ""
+        maps_url = (
+            f"https://www.google.com/maps/dir/?api=1&origin={_orig}&destination={_dest}"
+            if _orig else
+            f"https://www.google.com/maps/search/?api=1&query={_dest}"
+        )
+
+        enriched = t.get("enriched", {})
+        statuts_inscr = enriched.get("statuts_inscription", {})
+        formats_list  = enriched.get("formats_list", [])
+        key_to_fmt    = {f.get("epreuve_key"): f for f in formats_list if f.get("epreuve_key")}
+        _NAT_ABBR     = {"Simple Messieurs": "SM", "Simple Dames": "SD",
+                         "Double Messieurs": "DM", "Double Dames": "DD", "Double Mixte": "DX"}
+
+        ep_list = []
+        for ep in t.get("epreuves", []):
+            nat_code = ep.get("natureEpreuve", {}).get("code", "")
+            age_id   = ep.get("categorieAge",  {}).get("id",  0)
+            ep_key   = f"{nat_code}_{age_id}" if nat_code and age_id else ""
+            if only_natures and nat_code and nat_code not in only_natures:
+                continue
+            if _only_ep_keys and ep_key and ep_key not in _only_ep_keys:
+                continue
+            nature   = ep.get("natureEpreuve", {}).get("libelle", "")
+            age      = ep.get("categorieAge",  {}).get("libelle", "")
+            bas      = ep.get("classementBas",  {}).get("libelle", "?").strip()
+            haut     = ep.get("classementHaut", {}).get("libelle", "?").strip()
+            fmt_entry = key_to_fmt.get(ep_key)
+            s_entry   = statuts_inscr.get(ep_key) or statuts_inscr.get(nat_code)
+            ep_list.append({
+                "key":        ep_key,
+                "nature":     _NAT_ABBR.get(nature, nature),
+                "age":        age.replace(" ans", "").replace(" Ans", "").strip(),
+                "bas":        bas,
+                "haut":       haut,
+                "fmtNum":     fmt_entry.get("num", "") if fmt_entry else "",
+                "statutCode": s_entry["statut"] if s_entry else "",
+            })
+
+        comment = enriched.get("commentaire_club", "")
+        mob_data.append({
+            "id":       r["id"],
+            "libelle":  r["libelle"],
+            "nomClub":  r["nom_club"],
+            "dates":    r["dates"],
+            "dateDebut": r["date_debut_iso"],
+            "dateFin":   r["date_fin_iso"],
+            "ville":    r["ville"],
+            "cp":       r["cp"],
+            "dept":     r["dept"],
+            "distKm":   r["distance_km"],
+            "roadKm":   r["road_km"],
+            "roadMin":  r["road_min"],
+            "fmtAll":   r["fmt_all"],
+            "epreuves": ep_list,
+            "statuts":  r["statuts_sm_set"] if sm_only else r["statuts_set"],
+            "isNew":    r["is_new"],
+            "isTmc":    r["tmc"],
+            "isInscr":  r["inscription"],
+            "mapsUrl":  maps_url,
+            "tenupUrl": r["detail_url"],
+            "comment":  (comment[:80] + "…") if len(comment) > 80 else comment,
+        })
+
+    rows_all      = [_tournament_to_row(t, only_natures=only_natures, only_ep_keys=_only_ep_keys) for t in tournaments]
+    ep_options    = [{"key": k, "label": l} for k, l in _collect_epreuve_options(rows_all, only_keys=_only_ep_keys)]
+    today_iso     = datetime.now().strftime("%Y-%m-%d")
+    fetched_str   = fetched_at[:16].replace("T", " ") if fetched_at else ""
+    total         = len(mob_data)
+
+    mob_data_js   = json.dumps(mob_data,    ensure_ascii=False)
+    ep_options_js = json.dumps(ep_options,  ensure_ascii=False)
+    fmt_colors_js = json.dumps(FORMAT_COLORS)
+    statut_cfg_js = json.dumps({k: {"color": v[0], "label": v[1]} for k, v in STATUT_CONFIG.items()},
+                               ensure_ascii=False)
+
+    html_out = f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>{html.escape(title)}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<style>
+body{{background:#f0f2f5;font-size:14px;padding-bottom:70px}}
+#topbar{{background:#1a1a2e;z-index:1030}}
+.t-card{{border-radius:10px;border:none}}
+.t-card.is-over{{opacity:.45}}
+.fav-btn{{background:none;border:none;font-size:1.3em;color:#ccc;padding:0 3px;line-height:1;cursor:pointer}}
+.fav-btn.active{{color:#fd7e14}}
+.ep-line{{padding:2px 0;border-bottom:1px solid #f2f2f2;font-size:.82em}}
+.ep-line:last-child{{border-bottom:none}}
+.chip{{display:inline-flex;align-items:center;padding:5px 12px;border-radius:20px;font-size:.8em;
+       border:2px solid #dee2e6;cursor:pointer;user-select:none;background:#fff;margin:3px;transition:.15s}}
+.chip.active{{background:#0d6efd;color:#fff;border-color:#0d6efd}}
+#mob-dist-max{{accent-color:#0d6efd}}
+.offcanvas-bottom{{border-radius:16px 16px 0 0}}
+#mob-more-btn{{border-radius:20px;padding:8px 32px}}
+</style>
+</head>
+<body>
+
+<div class="sticky-top py-2 px-2" id="topbar">
+  <div class="d-flex gap-2 align-items-center">
+    <input type="search" id="mob-search" class="form-control form-control-sm"
+           placeholder="🔍 Rechercher..." oninput="mobFilter()">
+    <button class="btn btn-sm btn-outline-light text-nowrap"
+            data-bs-toggle="offcanvas" data-bs-target="#filterDrawer">⚙️ Filtres</button>
+  </div>
+  <div class="d-flex gap-2 mt-1 align-items-center">
+    <small class="flex-grow-1" id="mob-count" style="color:#adb5bd"></small>
+    <label class="text-secondary small me-1">Tri :</label>
+    <select id="mob-sort" class="form-select form-select-sm"
+            style="width:auto;background:#2a2a3e;color:#fff;border-color:#444" onchange="mobFilter()">
+      <option value="dist">Distance</option>
+      <option value="date">Date début</option>
+      <option value="name">Nom</option>
+    </select>
+  </div>
+</div>
+
+<div class="offcanvas offcanvas-bottom" tabindex="-1" id="filterDrawer" style="height:82vh">
+  <div class="offcanvas-header pb-1">
+    <h6 class="offcanvas-title fw-bold">Filtres</h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body pt-1 overflow-auto">
+
+    <div class="mb-3 p-2 bg-light rounded">
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" id="mob-hide-done" checked onchange="mobFilter()">
+        <label class="form-check-label small" for="mob-hide-done">Masquer tournois terminés</label>
+      </div>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" id="mob-absent" onchange="mobFilter()">
+        <label class="form-check-label small" for="mob-absent">🚫 Masquer si absent (Planning)</label>
+      </div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="mob-fav-only" onchange="mobFilter()">
+        <label class="form-check-label small" for="mob-fav-only">★ Favoris seulement</label>
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label class="small fw-bold">Distance max (vol d'oiseau) :
+        <span id="mob-dist-val" class="text-primary">600 km</span></label>
+      <input type="range" id="mob-dist-max" class="form-range mt-1"
+             min="10" max="600" step="10" value="600"
+             oninput="document.getElementById('mob-dist-val').textContent=this.value+' km';mobFilter()">
+    </div>
+
+    <div class="mb-3">
+      <div class="small fw-bold mb-1">Épreuves</div>
+      <div id="mob-ep-chips" class="d-flex flex-wrap"></div>
+    </div>
+
+    <div class="mb-3">
+      <div class="small fw-bold mb-1">Statut inscription</div>
+      <div id="mob-statut-chips" class="d-flex flex-wrap"></div>
+    </div>
+
+    <div class="d-flex gap-2 mt-3 pb-2">
+      <button class="btn btn-sm btn-outline-secondary flex-fill" onclick="mobReset()">↺ Réinitialiser</button>
+      <button class="btn btn-sm btn-primary flex-fill" data-bs-dismiss="offcanvas">✓ Appliquer</button>
+    </div>
+  </div>
+</div>
+
+<div class="px-2 pt-2" id="mob-cards"></div>
+<div class="text-center pb-3 mt-1" id="mob-more-wrap" style="display:none">
+  <button class="btn btn-outline-secondary" id="mob-more-btn" onclick="mobMore()">Afficher plus</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+var _DATA       = {mob_data_js};
+var _EP_OPTIONS = {ep_options_js};
+var _FMT_COLORS = {fmt_colors_js};
+var _STATUT_CFG = {statut_cfg_js};
+var _TODAY      = '{today_iso}';
+var _TOTAL      = {total};
+var _SHOWN      = 30;
+var _filtered   = [];
+var _favs       = new Set(JSON.parse(localStorage.getItem('tenup_favs') || '[]'));
+
+function toggleFav(id) {{
+  if (_favs.has(id)) _favs.delete(id); else _favs.add(id);
+  localStorage.setItem('tenup_favs', JSON.stringify(Array.from(_favs)));
+  var btn = document.querySelector('[data-id="' + id + '"] .fav-btn');
+  if (btn) {{ btn.textContent = _favs.has(id) ? '★' : '☆'; btn.classList.toggle('active', _favs.has(id)); }}
+  if (document.getElementById('mob-fav-only').checked) mobFilter();
+}}
+
+function getPlanningData() {{
+  try {{ return JSON.parse(localStorage.getItem('tenup_planning') || '{{}}'); }} catch(e) {{ return {{}}; }}
+}}
+function isTournamentBlocked(debut, fin, planning) {{
+  if (!debut || !Object.keys(planning).length) return false;
+  var d1 = new Date(debut + 'T12:00:00'), d2 = new Date((fin || debut) + 'T12:00:00');
+  var duration = Math.round((d2 - d1) / 86400000) + 1, overlap = 0, cur = new Date(d1);
+  while (cur <= d2) {{
+    var ds = cur.getFullYear() + '-' + String(cur.getMonth()+1).padStart(2,'0') + '-' + String(cur.getDate()).padStart(2,'0');
+    if (planning[ds]) overlap++;
+    cur.setDate(cur.getDate() + 1);
+  }}
+  if (!overlap) return false;
+  if (duration <= 4) return true;
+  if (duration <= 14) return overlap / duration >= 0.4;
+  return overlap / duration >= 0.6;
+}}
+
+function buildCard(t) {{
+  var isOver = t.dateFin && t.dateFin < _TODAY;
+  var fmtBadges = t.fmtAll.map(function(fn) {{
+    return '<span class="badge me-1" style="background:' + (_FMT_COLORS[fn]||'#6c757d') + '">F' + fn + '</span>';
+  }}).join('');
+  var distStr = '';
+  if (t.roadKm) distStr = ' <span class="text-muted small">🚗 ' + Math.round(t.roadKm) + ' km</span>';
+  else if (t.distKm) distStr = ' <span class="text-muted small">📍 ' + Math.round(t.distKm) + ' km</span>';
+  var newBadge = t.isNew ? '<span class="badge bg-danger ms-1" style="font-size:.65em">NEW</span>' : '';
+  var tmcBadge = t.isTmc ? '<span class="badge bg-warning text-dark ms-1" style="font-size:.65em">TMC</span>' : '';
+  var favIcon  = _favs.has(t.id) ? '★' : '☆';
+  var favCls   = 'fav-btn' + (_favs.has(t.id) ? ' active' : '');
+  var epLines  = t.epreuves.map(function(ep) {{
+    var sb = '', fb = '';
+    if (ep.statutCode) {{
+      var sc = _STATUT_CFG[ep.statutCode] || {{color:'#bdc3c7', label:ep.statutCode}};
+      sb = '<span class="badge ms-1" style="background:' + sc.color + '">' + sc.label + '</span>';
+    }}
+    if (ep.fmtNum) fb = '<span class="badge me-1" style="background:' + (_FMT_COLORS[ep.fmtNum]||'#666') + '">F' + ep.fmtNum + '</span>';
+    return '<div class="ep-line py-1">' + fb + '<b>' + ep.nature + ' ' + ep.age + '</b> <span class="text-muted">' + ep.bas + '→' + ep.haut + '</span>' + sb + '</div>';
+  }}).join('');
+  var inLine  = t.isInscr ? '<span class="badge bg-success ms-1" style="font-size:.65em">Inscr. en ligne</span>' : '';
+  var comment = t.comment ? '<div class="text-muted fst-italic mt-1" style="font-size:.72em">📋 ' + t.comment + '</div>' : '';
+  return '<div class="t-card card mb-2 shadow-sm' + (isOver ? ' is-over' : '') + '" data-id="' + t.id + '">'
+    + '<div class="card-body p-2">'
+    + '<div class="d-flex justify-content-between align-items-start mb-1">'
+    + '<div class="fw-semibold lh-sm" style="font-size:.9em">' + t.libelle + newBadge + tmcBadge + '</div>'
+    + '<button class="' + favCls + '" onclick="toggleFav(\\'' + t.id + '\\')">' + favIcon + '</button>'
+    + '</div>'
+    + '<div class="text-muted small mb-1">' + t.nomClub + ' — ' + t.ville
+    + ' <span class="badge bg-light text-dark">' + t.dept + '</span></div>'
+    + '<div class="d-flex align-items-center gap-1 mb-1 flex-wrap">'
+    + '<span class="small">📅 ' + t.dates + '</span>' + distStr + fmtBadges
+    + '</div>'
+    + '<div class="ep-section mb-2">' + epLines + '</div>'
+    + '<div class="d-flex gap-1">'
+    + '<a href="' + t.mapsUrl + '" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.75em">🗺️ Maps</a>'
+    + '<a href="' + t.tenupUrl + '" target="_blank" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size:.75em">TenUp ↗</a>'
+    + inLine
+    + '</div>'
+    + comment
+    + '</div></div>';
+}}
+
+function mobFilter() {{
+  var q        = document.getElementById('mob-search').value.toLowerCase();
+  var distMax  = parseInt(document.getElementById('mob-dist-max').value);
+  var hideDone = document.getElementById('mob-hide-done').checked;
+  var favOnly  = document.getElementById('mob-fav-only').checked;
+  var absent   = document.getElementById('mob-absent').checked;
+  var checkedEp = Array.from(document.querySelectorAll('#mob-ep-chips .chip.active')).map(function(c){{return c.dataset.key;}});
+  var checkedSt = Array.from(document.querySelectorAll('#mob-statut-chips .chip.active')).map(function(c){{return c.dataset.key;}});
+  var planning  = absent ? getPlanningData() : {{}};
+  var sortBy    = document.getElementById('mob-sort').value;
+
+  _filtered = _DATA.filter(function(t) {{
+    if (hideDone && t.dateFin && t.dateFin < _TODAY) return false;
+    if (favOnly && !_favs.has(t.id)) return false;
+    if (absent && isTournamentBlocked(t.dateDebut, t.dateFin, planning)) return false;
+    if (t.distKm && t.distKm > distMax) return false;
+    if (checkedEp.length > 0) {{
+      var keys = t.epreuves.map(function(e){{return e.key;}});
+      if (!checkedEp.some(function(k){{return keys.indexOf(k)!==-1;}})) return false;
+    }}
+    if (checkedSt.length > 0) {{
+      if (!checkedSt.some(function(s){{return t.statuts.indexOf(s)!==-1;}})) return false;
+    }}
+    if (q) {{
+      var hay = (t.libelle+' '+t.nomClub+' '+t.ville).toLowerCase();
+      if (hay.indexOf(q)===-1) return false;
+    }}
+    return true;
+  }});
+
+  _filtered.sort(function(a,b) {{
+    if (sortBy==='date') return (a.dateDebut||'').localeCompare(b.dateDebut||'');
+    if (sortBy==='name') return a.libelle.localeCompare(b.libelle);
+    var da = a.roadKm||a.distKm||9999, db = b.roadKm||b.distKm||9999;
+    return da - db;
+  }});
+
+  _SHOWN = 30;
+  mobRender();
+}}
+
+function mobRender() {{
+  document.getElementById('mob-cards').innerHTML = _filtered.slice(0,_SHOWN).map(buildCard).join('');
+  var cnt = document.getElementById('mob-count');
+  cnt.textContent = _filtered.length + ' / ' + _TOTAL + ' tournois';
+  cnt.style.color = _filtered.length < _TOTAL ? '#fd7e14' : '#adb5bd';
+  var mw = document.getElementById('mob-more-wrap');
+  if (_filtered.length > _SHOWN) {{
+    mw.style.display = '';
+    document.getElementById('mob-more-btn').textContent =
+      'Afficher plus (' + (_filtered.length - _SHOWN) + ' restants)';
+  }} else {{ mw.style.display = 'none'; }}
+}}
+
+function mobMore() {{ _SHOWN += 30; mobRender(); }}
+
+function mobReset() {{
+  document.getElementById('mob-search').value = '';
+  document.getElementById('mob-hide-done').checked = true;
+  document.getElementById('mob-absent').checked  = false;
+  document.getElementById('mob-fav-only').checked = false;
+  document.getElementById('mob-dist-max').value   = 600;
+  document.getElementById('mob-dist-val').textContent = '600 km';
+  document.querySelectorAll('.chip.active').forEach(function(c){{c.classList.remove('active');}});
+  mobFilter();
+}}
+
+(function() {{
+  var epC = document.getElementById('mob-ep-chips');
+  _EP_OPTIONS.forEach(function(opt) {{
+    var b = document.createElement('button');
+    b.className = 'chip'; b.dataset.key = opt.key; b.textContent = opt.label;
+    b.onclick = function() {{ this.classList.toggle('active'); mobFilter(); }};
+    epC.appendChild(b);
+  }});
+  var statuts = [
+    {{key:'ouvert',label:'Ouvert'}},
+    {{key:'bientot',label:'Bientôt'}},
+    {{key:'attente',label:'Liste d\\'attente'}},
+    {{key:'cloture',label:'Clôturé'}},
+    {{key:'deja_inscrit',label:'Déjà inscrit'}},
+    {{key:'ineligible',label:'Non éligible'}}
+  ];
+  var stC = document.getElementById('mob-statut-chips');
+  statuts.forEach(function(s) {{
+    var b = document.createElement('button');
+    b.className = 'chip'; b.dataset.key = s.key; b.textContent = s.label;
+    b.onclick = function() {{ this.classList.toggle('active'); mobFilter(); }};
+    stC.appendChild(b);
+  }});
+  mobFilter();
+}})();
+</script>
+</body>
+</html>"""
+
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(html_out)
+    print(f"Rapport HTML mobile généré : {os.path.abspath(output_path)}")
+
+
+def generate_mobile_from_file(data_file, output_path, new_ids=None, only_natures=None, sm_only=False):
+    with open(data_file, encoding="utf-8") as f:
+        data = json.load(f)
+    generate_html_mobile(
+        data.get("tournaments", []),
+        output_path,
+        new_ids=new_ids,
+        fetched_at=data.get("fetched_at", ""),
+        only_natures=only_natures,
+        ref_lat=data.get("ref_lat", 0.0),
+        ref_lng=data.get("ref_lng", 0.0),
+        ref_city=data.get("ref_city", ""),
+        ref_address=data.get("ref_address", ""),
+        sm_only=sm_only,
+    )
