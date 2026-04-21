@@ -93,18 +93,31 @@ ou quand un tournoi passe de "Bientôt" à "Ouvert".
 |---|---|---|
 | 1 | Export ICS favoris | Favoris → format iCalendar → import Google Calendar / Apple Calendar. |
 | 2 | Export ICS absences | Planning → iCalendar → import Google Calendar (absences visibles depuis le téléphone). |
-| 3 | Profils de filtres sauvegardés | Sauvegarder un jeu de filtres nommé (ex: "SM 13/14 Île-de-France") en localStorage — rappel en un clic. |
-| 4 | Mode "Prochain week-end" | Bouton one-click qui filtre sur le prochain week-end avec des tournois disponibles. |
-| 5 | Fenêtres disponibles | Depuis le Planning : identifier automatiquement les week-ends sans absence qui ont des tournois. |
-| 6 | Estimation coût déplacement | Colonne calculée : distance × tarif/km configurable + frais d'inscription. |
+| 3 | Profils de filtres sauvegardés | Sauvegarder un jeu de filtres nommé (ex: "SM 13/14 Île-de-France") en localStorage — rappel en un clic depuis un menu déroulant. |
+| 4 | Mode "Prochain week-end" | Bouton one-click qui coche automatiquement les dates du prochain samedi-dimanche. |
+| 5 | Fenêtres disponibles | Croise le Planning et le Calendrier pour lister les week-ends où tu es libre ET où il y a des tournois. |
+| 6 | Estimation coût déplacement | Colonne calculée : distance × tarif/km configurable + frais d'inscription estimés. |
 | 7 | Notifications navigateur | Web Push API pour alertes statut (Bientôt→Ouvert) sans Telegram. |
 | 8 | Comparaison côte-à-côte | Sélectionner 2-3 tournois → tableau comparatif (dates, format, distance, statut, commentaire club). |
-| 9 | Fermeture imminente | Mettre en évidence les tournois dont la clôture d'inscription est dans les 48h. |
+| 9 | Fermeture imminente | Badge orange + filtre dédié pour les tournois dont la clôture est dans les 48-72h. |
 | 10 | Synchronisation Planning | Export/import JSON des absences pour partager entre appareils ou avec un partenaire de double. |
 | 11 | Alertes Telegram changement statut | Notifier : Bientôt→Ouvert, Ouvert→Liste d'attente, Attente→Ouvert. Nécessite Telegram (#1). |
 | 12 | Vue "Inscriptions disponibles" | Onglet dédié : uniquement les tournois avec statut Ouvert dans les catégories filtrées. |
 | 13 | Annotations personnelles | Note libre par tournoi en localStorage. Visible dans tableau, exportable PDF. |
 | 14 | Windows Task Scheduler | Tâche planifiée pour lancer [10] chaque semaine automatiquement (ex: vendredi 23h). |
+| 15 | Filtre par nombre de jours | Curseur 1J / 2J / 3J+ pour filtrer selon la disponibilité du week-end. |
+| 16 | Détection conflits favoris | Badge d'alerte si deux tournois favoris ont des dates qui se chevauchent. |
+| 17 | Dashboard stats | Onglet Stats : répartition par format/surface/statut, histogramme tournois par semaine sur l'année. |
+| 18 | Heatmap carte | Couche de densité sur la carte — visualise les zones géographiques les plus actives. |
+| 19 | Compteur favoris dans en-tête | "X favoris dont Y ouverts, Z bientôt" — sans ouvrir le filtre favoris. |
+| 20 | Rayon ajustable sur la carte | Cercle draggable centré sur la ville de référence → met à jour le filtre distance en temps réel. |
+| 21 | Itinéraire multi-étapes | Sélectionner plusieurs tournois sur la carte → lien Google Maps avec toutes les étapes. |
+| 22 | Score de tournoi | Note automatique basée sur : format connu + statut ouvert + distance courte + inscriptions en ligne. Tri par "meilleur tournoi". |
+| 23 | Historique des statuts | Enregistrer les changements ouvert→attente→ouvert avec horodatage. Détecte les patterns d'ouverture par club. |
+| 24 | Commentaire club en infobulle | Afficher le commentaire du club au survol d'une ligne, sans ouvrir TenUp. |
+| 25 | Partage de vue par URL | Encoder l'état des filtres dans l'URL (#dept=91&fmt=2). Lien partageable qui restaure la même vue. |
+| 26 | Publication HTML automatique | Copier le HTML généré vers NAS (rsync/SMB) ou GitHub Pages à chaque run — accès depuis n'importe où. |
+| 27 | Vue mobile optimisée | Refonte responsive : panneau filtres en drawer, tableau remplacé par cartes verticales sur petit écran. |
 
 ---
 
@@ -117,7 +130,7 @@ ou quand un tournoi passe de "Bientôt" à "Ouvert".
 | 3 | Historique des statuts | Tracker ouvert→attente→ouvert — nécessite stockage historique |
 | 4 | Dotation financière | Info peu disponible sur TenUp |
 | 5 | Historique des éditions passées | Complexe, base de données nécessaire |
-| 6 | Mise sur NAS | Quand l'accès au NAS sera disponible |
+| 6 | Mise sur NAS | Remplacé par proposition #26 (Publication HTML automatique) |
 | 7 | Déduplication avant enrichissement | Non prioritaire maintenant que option 8 existe |
 | 8 | Normalisation noms de clubs | Heuristique difficile à fiabiliser |
 | 9 | QR code dans PDF | Lien TenUp scannable depuis le PDF imprimé |
@@ -146,4 +159,4 @@ qu'il arrive → ~2719 tournois France entière.
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 20/04/2026 (clustering carte, Planning, Absent, Ratés, Maps, rue départ, filtre date, only_ep_keys SM, locale git).*
+*Document créé le 09/04/2026 — mis à jour le 21/04/2026 (clustering carte, Planning, Absent, Ratés, Maps, rue départ, filtre date, only_ep_keys SM, locale git, nouvelles propositions stats/mobile/NAS/filtres).*
