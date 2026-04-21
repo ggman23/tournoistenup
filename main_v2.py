@@ -634,6 +634,7 @@ def main():
         sys.exit(0)
 
     # ── Enrich (format 1-7 + detail URL) ─────────────────────────────────────
+    saved = {}  # will be populated by _make_save_callback intermediate saves
     if args.enrich:
         # Enrichment needs the queue-it bypass cookie — TenUp serves different
         # HTML (without epreuve-detail-format divs) to unauthenticated sessions.

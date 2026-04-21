@@ -68,6 +68,17 @@ Un fichier de log horodaté est créé automatiquement dans `logs/` à chaque la
 | [2] | Scraper + Enrichir une ville | Scraping zone + formats + statuts locaux | variable | Oui |
 | [1] | France entière (scraping seul) | 2700+ tournois sans formats ni distances | ~15 min | Oui |
 
+### Questions posées au démarrage
+
+Lors d'un run qui nécessite une ville de référence, le script pose **trois questions** :
+
+1. **Ville** (ex: `Vaires-sur-Marne`) — mémorisée dans `config.json`
+2. **Rayon en km** (ex: `1100`) — mémorisé dans `config.json`
+3. **Rue de départ** (ex: `6 rue des Loriots`) — mémorisée dans `config.json`
+
+La rue de départ est utilisée pour construire les liens Google Maps dans le rapport HTML.
+Elle est pré-remplie à la valeur précédente — appuie sur Entrée pour la conserver.
+
 ### Workflow recommandé
 
 **Première fois :**
@@ -116,6 +127,12 @@ les tournois enrichis, les éventuelles erreurs.
 | `--generator v1` | Style Bootstrap original |
 | `--generator v2` | Style épuré, filtres repliés |
 | `--generator v3` | Panel de filtres sombre — **recommandé**, utilisé par tenup_v2.bat |
+
+### Fichiers produits
+
+Chaque run produit **deux fichiers HTML** :
+- `tournaments_<ville>_<km>km.html` — rapport complet toutes épreuves
+- `tournaments_<ville>_<km>km_sm.html` — rapport SM 11/12 + 13/14 ans uniquement
 
 ---
 
@@ -174,7 +191,15 @@ python main_v2.py --html-only --generator v3
 | Masquer Vert/Orange | Cache les tournois débutants |
 | Mots à exclure | Ex : `hiver open` → cache les tournois contenant ces mots |
 | Dates | Plage de dates de début/fin |
+| 🚫 Absent | Cache les tournois qui chevauchent tes absences du Planning |
 | Favoris | Sauvegardés dans le navigateur (localStorage) |
+
+### Filtre date — comportement précis
+
+- **"DATES DU 25/04"** (date de début seule, sans date de fin) : affiche uniquement les tournois
+  qui **débutent exactement** le 25/04. Les tournois en cours ce jour mais commencés avant sont cachés.
+- **"DATES DU 25/04 AU 27/04"** (fenêtre) : affiche les tournois dont les dates chevauchent
+  la fenêtre — un tournoi 24→26/04 reste visible car il se déroule pendant la fenêtre.
 
 ### Boutons de réinitialisation
 
@@ -190,14 +215,37 @@ python main_v2.py --html-only --generator v3
 | Vue | Description |
 |---|---|
 | Tableau | Vue par défaut — tableau trié/paginé |
-| Calendrier | Vue mensuelle — nombre de tournois par jour |
+| Calendrier | Vue mensuelle — nombre de tournois par jour. Les jours avec absences Planning apparaissent en orange. |
 | Gantt | Diagramme de Gantt — durée des tournois sur axe temporel |
-| Carte | Carte interactive — marqueurs colorés par format, isochrones 30/60 min routières |
+| Carte | Carte interactive — marqueurs colorés par format, isochrones 30/60 min routières. Plusieurs tournois en même ville → badge numéroté, popup liste tous. |
 | Vacs | Calendrier vacances scolaires Zone C + jours fériés (13 mois) |
 | Derniers | Tableau trié par date d'ajout décroissante + colonne "Ajouté le" |
+| 🗓️ Planning | Calendrier mensuel d'absences — clic sur un jour pour noter une absence (stockée en localStorage) |
+| ❌ Ratés | Liste des tournois bloqués par les absences du Planning, triés par distance depuis la ville de référence |
 
 **Dans l'onglet Carte :** tu peux changer la ville de référence — les isochrones 30/60 min
 se recalculent automatiquement en temps réel via l'API Valhalla (vraies routes).
+
+### Vue Planning — utilisation
+
+1. Clique sur l'onglet **🗓️ Planning**
+2. Clique sur un jour pour saisir une note (ex: "Vacances Bretagne" ou "Mariage")
+3. Le jour s'affiche en orange dans le Planning et dans le Calendrier
+4. Coche le filtre **🚫 Absent** dans les filtres → les tournois qui chevauchent tes absences disparaissent
+5. Va dans **❌ Ratés** pour voir la liste complète des tournois manqués, triés du plus proche au plus loin
+
+### Logique "tournoi bloqué"
+
+Le filtre Absent utilise ces règles selon la durée du tournoi :
+- Tournoi ≤ 4 jours : bloqué si **au moins 1 jour d'absence** chevauche
+- Tournoi 5-14 jours : bloqué si **40 %** des jours ou plus sont absents
+- Tournoi > 14 jours : bloqué si **60 %** des jours ou plus sont absents
+
+### Ville cliquable → Google Maps
+
+Dans le tableau, le nom de la ville est un lien cliquable. Il ouvre Google Maps avec :
+- **Origine** : ta rue de départ (saisie au démarrage du script)
+- **Destination** : l'adresse textuelle complète du club (plus fiable que les coordonnées GPS)
 
 ---
 
@@ -245,10 +293,11 @@ python main_v2.py --enrich-geo-only --reset-geo --generator v3
 | Fichier | Contenu |
 |---|---|
 | `data/tournaments_<ville>_<km>km.json` | Données brutes + enrichies |
+| `data/tournaments_<ville>_<km>km_sm.html` | Rapport HTML SM 11/12 + 13/14 ans uniquement |
 | `data/history_<ville>_<km>km.json` | IDs connus → détection des nouveaux |
-| `data/tournaments_<ville>_<km>km.html` | Rapport HTML interactif |
+| `data/tournaments_<ville>_<km>km.html` | Rapport HTML interactif complet |
 | `logs/tenup_YYYYMMDD_HHhMMSS.log` | Log complet de chaque run |
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 19/04/2026 (tenup_v2.bat options 7-10, logs, jitter, workflow nuit).*
+*Document créé le 09/04/2026 — mis à jour le 20/04/2026 (rue de départ, ville cliquable Maps, Planning, Absent, Ratés, clustering carte, filtre date, HTML SM, vues).*

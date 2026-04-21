@@ -55,6 +55,16 @@
 | Jitter anti-ban | Délai aléatoire 70-200% du délai de base + pause 20-45s toutes les 100 requêtes |
 | Sauvegarde intermédiaire | save_callback dans enrich_all — sauvegarde JSON toutes les 50 requêtes |
 | tenup_v2.bat options 7-10 | [7] France+geo / [8] Enrichir France / [9] France complète / [10] Tout tout tout nuit |
+| Filtre only_ep_keys SM 11-14 | Génère un second HTML ne contenant que SM 11/12, 13/14 ans — `tournaments_*_sm.html` |
+| Clustering carte | Plusieurs tournois en même ville → badge numéroté sur la carte, popup liste tous |
+| Vue Planning | Calendrier mensuel avec notes d'absence en localStorage, cellules oranges, navigation mois |
+| Filtre Absent 🚫 | Masque les tournois qui chevauchent les absences du Planning (`isTournamentBlocked`) |
+| Vue Ratés | Liste des tournois bloqués par les absences, triés par distance depuis la ville de référence |
+| Correction filtre date | `fStart` seul = tournois débutant exactement ce jour (pas de chevauchement) |
+| Ville cliquable → Maps | Clic sur la ville dans le tableau → Google Maps itinéraire depuis la ville de référence |
+| Rue de départ | Prompt `_prompt_rue()` mémorisé dans config — itinéraire depuis l'adresse exacte du joueur |
+| Destination Maps texte | Adresse textuelle du club utilisée (plus fiable que lat/lng géocodé) |
+| Fix locale git française | Détection des messages git FR/EN pour éviter faux "commit HTML échoué" |
 
 ---
 
@@ -81,13 +91,20 @@ ou quand un tournoi passe de "Bientôt" à "Ouvert".
 
 | # | Fonctionnalité | Description |
 |---|---|---|
-| 1 | Changement de ville de référence dans HTML | Saisir une ville → géocodage Nominatim (1 appel) → recalcul vol d'oiseau Haversine en JS → distance routière approx ×1.3 → re-tri tableau. Utile pour les vacances (Saint-Jean-de-Monts…). |
-| 2 | Alertes Telegram changement de statut | Notifier quand : Bientôt→Ouvert, Ouvert→Liste d'attente, Attente→Ouvert (place libérée). Nécessite Telegram (#1). |
-| 3 | Vue "Inscriptions disponibles" | Onglet dédié : uniquement les tournois avec statut Ouvert dans les catégories filtrées. Vue rapide "où peut-on encore s'inscrire ?". |
-| 4 | Annotations personnelles | Note libre par tournoi en localStorage ("Covoiturage avec Martin"). Visible dans tableau, exportable PDF. |
-| 5 | Windows Task Scheduler | Configurer une tâche planifiée pour lancer [10] chaque semaine automatiquement (ex: vendredi 23h). |
-| 6 | Export ICS favoris | Favoris → format iCalendar → import Google Calendar / Apple Calendar. |
-| 7 | Partage de favoris | Export/import JSON des favoris pour coordonner avec un autre parent ou partenaire de double. |
+| 1 | Export ICS favoris | Favoris → format iCalendar → import Google Calendar / Apple Calendar. |
+| 2 | Export ICS absences | Planning → iCalendar → import Google Calendar (absences visibles depuis le téléphone). |
+| 3 | Profils de filtres sauvegardés | Sauvegarder un jeu de filtres nommé (ex: "SM 13/14 Île-de-France") en localStorage — rappel en un clic. |
+| 4 | Mode "Prochain week-end" | Bouton one-click qui filtre sur le prochain week-end avec des tournois disponibles. |
+| 5 | Fenêtres disponibles | Depuis le Planning : identifier automatiquement les week-ends sans absence qui ont des tournois. |
+| 6 | Estimation coût déplacement | Colonne calculée : distance × tarif/km configurable + frais d'inscription. |
+| 7 | Notifications navigateur | Web Push API pour alertes statut (Bientôt→Ouvert) sans Telegram. |
+| 8 | Comparaison côte-à-côte | Sélectionner 2-3 tournois → tableau comparatif (dates, format, distance, statut, commentaire club). |
+| 9 | Fermeture imminente | Mettre en évidence les tournois dont la clôture d'inscription est dans les 48h. |
+| 10 | Synchronisation Planning | Export/import JSON des absences pour partager entre appareils ou avec un partenaire de double. |
+| 11 | Alertes Telegram changement statut | Notifier : Bientôt→Ouvert, Ouvert→Liste d'attente, Attente→Ouvert. Nécessite Telegram (#1). |
+| 12 | Vue "Inscriptions disponibles" | Onglet dédié : uniquement les tournois avec statut Ouvert dans les catégories filtrées. |
+| 13 | Annotations personnelles | Note libre par tournoi en localStorage. Visible dans tableau, exportable PDF. |
+| 14 | Windows Task Scheduler | Tâche planifiée pour lancer [10] chaque semaine automatiquement (ex: vendredi 23h). |
 
 ---
 
@@ -104,6 +121,7 @@ ou quand un tournoi passe de "Bientôt" à "Ouvert".
 | 7 | Déduplication avant enrichissement | Non prioritaire maintenant que option 8 existe |
 | 8 | Normalisation noms de clubs | Heuristique difficile à fiabiliser |
 | 9 | QR code dans PDF | Lien TenUp scannable depuis le PDF imprimé |
+| 10 | Partage de favoris | Export/import JSON des favoris pour coordonner avec un partenaire |
 
 ---
 
@@ -121,6 +139,11 @@ qu'il arrive → ~2719 tournois France entière.
 - En `--html-only` : restaurés depuis `history["last_new_ids"]`
 - En `--enrich-only`, `--enrich-statut-only`, etc. → `new_ids = set()` (aucun badge parasite)
 
+### Fichiers HTML produits
+
+- `tournaments_<ville>_<km>km.html` : rapport complet toutes épreuves
+- `tournaments_<ville>_<km>km_sm.html` : rapport SM 11/12 + 13/14 ans uniquement
+
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 19/04/2026 (v2, force-pages, jitter, options 7-10, nouvelles propositions).*
+*Document créé le 09/04/2026 — mis à jour le 20/04/2026 (clustering carte, Planning, Absent, Ratés, Maps, rue départ, filtre date, only_ep_keys SM, locale git).*
