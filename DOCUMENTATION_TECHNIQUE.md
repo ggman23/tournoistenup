@@ -55,20 +55,15 @@ le fichier de la ville courante + `data/tournaments.json`.
 
 ### v2 (main_v2.py + tenup_v2.bat) — recommandé
 
-Deux différences clés par rapport à v1 :
-
 **1. Cache global d'enrichissement cross-fichiers**
 ```python
-# main_v2.py : cherche dans TOUS les fichiers tournaments_*.json
 all_files = sorted(glob.glob(os.path.join("data", "tournaments_*.json")))
 ```
-Un tournoi enrichi lors d'un run Bordeaux 300km est réutilisé lors d'un run France 1100km
-→ évite de re-visiter les pages déjà connues.
+Un tournoi enrichi lors d'un run Bordeaux 300km est réutilisé lors d'un run France 1100km.
 
 **2. --km-default**
 ```python
 p.add_argument("--km-default", type=int, default=None)
-# Suggère un rayon dans le prompt sans le forcer
 ```
 
 **Nouvelles options bat v2 :**
@@ -92,7 +87,6 @@ TenUp n'a pas d'API publique. La recherche est un formulaire Drupal fonctionnant
 ```python
 def fetch_all(self, max_pages=0, force_pages=0):
     while True:
-        # GET la page de recherche pour des tokens frais
         form_build_id, form_token, ... = self._get_form_tokens()
         items, nb_results, _ = self._post_search(form_build_id, form_token, page, ...)
 ```
@@ -100,25 +94,19 @@ def fetch_all(self, max_pages=0, force_pages=0):
 ### Problème du stop-sur-doublons
 
 Avec un grand rayon (1100km), TenUp retourne des doublons à partir de la page ~61.
-L'ancienne logique s'arrêtait à ~1828 tournois.
 
 **Solution : --force-pages N**
 ```python
-# force_pages=200 : ignore new_on_page==0, balaie N pages quoi qu'il arrive
 if not force_pages:
     if new_on_page == 0 or len(all_items) >= nb_results:
         break
-page += 1
-if effective_max and page >= effective_max:
-    break
 ```
-Résultat : ~2719 tournois France entière (proche des 2720 annoncés TenUp).
+Résultat : ~2719 tournois France entière.
 
 ### Détection queue-it
 
 ```python
 if "queue-it.net" in resp.url:
-    # Attend que TamperMonkey mette à jour cookies.json (polling mtime)
     mtime_before = os.path.getmtime(self.cookies_file)
     while waited < 600:
         time.sleep(15)
@@ -135,35 +123,31 @@ if "queue-it.net" in resp.url:
 
 ```python
 def enrich_tournament(tournament, session, delay_s=1.5, ...):
-    resp = session.get(url)         # 1 seule requête HTTP
+    resp = session.get(url)
     soup = BeautifulSoup(resp.text)
-
-    fmt, fmt_desc, formats_list = _extract_formats(soup)      # formats F1-F7
-    statut_data = _extract_statut_inscription(soup)            # statuts + commentaire
+    fmt, fmt_desc, formats_list = _extract_formats(soup)
+    statut_data = _extract_statut_inscription(soup)
     enriched["statut_fetched_at"] = datetime.now(timezone.utc).isoformat()
 ```
 
-### Jitter anti-ban (ajouté en v2)
+### Jitter anti-ban
 
 ```python
-# Délai aléatoire entre 70% et 200% du délai de base
 jitter = random.uniform(-0.3 * delay_s, 0.8 * delay_s)
 time.sleep(max(0.5, delay_s + jitter))
 ```
 
-### Pauses longues + sauvegarde intermédiaire (enrich_all)
+### Pauses longues + sauvegarde intermédiaire
 
 ```python
 def enrich_all(..., save_every=50, save_callback=None, long_pause_every=100):
     for i, t in enumerate(to_enrich, 1):
         enrich_tournament(t, session, ...)
-
         if save_callback and i % save_every == 0:
-            save_callback()  # sauvegarde JSON toutes les 50 requêtes
-
+            save_callback()
         if i % long_pause_every == 0 and i < total:
             pause = random.uniform(20, 45)
-            time.sleep(pause)  # pause anti-ban 20-45s toutes les 100 requêtes
+            time.sleep(pause)
 ```
 
 ### Trois états possibles après enrichissement
@@ -179,10 +163,6 @@ def enrich_all(..., save_every=50, save_callback=None, long_pause_every=100):
 `ouvert`, `bientot`, `attente`, `inscrit_attente`, `cloture`, `hors_bornes`,
 `impossible`, `deja_inscrit`, `ineligible`, `autre`
 
-**Distinction `attente` vs `inscrit_attente` :**
-- `attente` : le tournoi accepte des inscriptions en liste d'attente (cas général)
-- `inscrit_attente` : le joueur est **déjà inscrit** et se retrouve en attente
-
 ---
 
 ## enrich_geo.py — Distances routières
@@ -190,21 +170,28 @@ def enrich_all(..., save_every=50, save_callback=None, long_pause_every=100):
 ### Étape 1 : Géocodage batch (api-adresse.data.gouv.fr)
 
 1 seule requête CSV pour toutes les adresses. Gratuit, sans clé API.
-Champ envoyé : `"VILLE CP"` combiné (ex: `"BRUNOY 91800"`) — évite les ambiguïtés
-sur les communes courtes (US, If, Eu…).
+Champ envoyé : `"VILLE CP"` combiné (ex: `"BRUNOY 91800"`) — évite les ambiguïtés.
 
 ### Étape 2 : OSRM table (router.project-osrm.org)
-
-Calcule distance + temps depuis la ville de référence vers tous les tournois.
-Batché par 90 pour respecter les limites du serveur public.
 
 ```
 GET /table/v1/driving/REF_LNG,REF_LAT;T1_LNG,T1_LAT;...?sources=0&annotations=duration,distance
 ```
+Batché par 90 pour respecter les limites du serveur public.
 
 ---
 
 ## generate_html_v3.py — Le rapport interactif
+
+### Deux fichiers HTML produits
+
+```python
+generate_html(tournaments, html_file, ...)
+generate_html(tournaments, html_file_sm, ..., sm_only=True)
+```
+
+`sm_only=True` filtre via `SM_TARGET_KEYS = frozenset({"SM_110","SM_120","SM_125","SM_130","SM_140","SM_145"})`.
+Les tournois sans aucune épreuve SM cible sont entièrement exclus du second fichier.
 
 ### Données stockées en data-* sur chaque TR
 
@@ -214,15 +201,63 @@ GET /table/v1/driving/REF_LNG,REF_LAT;T1_LNG,T1_LAT;...?sources=0&annotations=du
     data-classements='[{"key":"SM_140","pair":"NC|15/5"}]' ...>
 ```
 
-Le filtre JS lit ces attributs bruts plutôt que le HTML visible (plus fiable).
-
 ### Filtre classement par épreuve
 
 ```javascript
-// Filtre classement : ne check QUE les épreuves du filtre épreuve actif
 var classementsToCheck = (checkedEpreuves.length > 0)
     ? classementsEp.filter(item => checkedEpreuves.indexOf(item.key) !== -1)
     : classementsEp;
+```
+
+### Filtre date — sémantique exacte
+
+```javascript
+if (fStart && !fEnd) {
+    // Date seule : seulement les tournois qui débutent CE JOUR
+    if (tStart && tStart !== fStart) return false;
+} else {
+    // Fenêtre [fStart, fEnd]
+    if (fStart && tEnd2  && tEnd2  < fStart) return false;
+    if (fEnd   && tStart && tStart > fEnd)   return false;
+    if (fEnd   && tEnd2  && tEnd2  > fEnd)   return false;
+}
+```
+
+### Ville cliquable → Google Maps
+
+```python
+_dest = urllib.parse.quote(r['adresse'], safe='')   # adresse texte du club
+if ref_address:
+    _orig = urllib.parse.quote(ref_address, safe='')
+elif ref_lat and ref_lng:
+    _orig = f"{ref_lat},{ref_lng}"
+else:
+    _orig = urllib.parse.quote(ref_city, safe='')
+_maps_url = f"https://www.google.com/maps/dir/?api=1&origin={_orig}&destination={_dest}"
+```
+
+L'adresse du club (texte brut) est utilisée comme destination — plus fiable que les
+coordonnées GPS géocodées qui peuvent pointer vers une rue approximative.
+
+### Rue de départ (ref_address)
+
+`main_v2.py` pose une troisième question au démarrage : `Rue de départ [...]`.
+La réponse est mémorisée dans `config.json` sous `config["search"]["ville"]["rue"]`
+et combinée avec la ville : `ref_address = f"{rue}, {ville}"`.
+
+En mode `--html-only`, la rue est relue depuis config et sauvegardée dans le JSON
+avant la génération, pour que `generate_from_file()` en dispose.
+
+### Clustering carte
+
+```javascript
+var locGroups = {};
+data.forEach(function(t) {
+    var key = t.lat.toFixed(4) + ',' + t.lng.toFixed(4);
+    if (!locGroups[key]) locGroups[key] = { lat: t.lat, lng: t.lng, list: [] };
+    locGroups[key].list.push(t);
+});
+// N>1 → divIcon SVG avec badge numéroté, popup liste tous les tournois
 ```
 
 ### Isochrones routières (Valhalla)
@@ -232,7 +267,7 @@ fetch('https://valhalla1.openstreetmap.de/isochrone', {
     method: 'POST',
     body: JSON.stringify({
         locations: [{lon: _REF_LNG, lat: _REF_LAT}],
-        costing: 'auto',          // calcul par route, pas à vol d'oiseau
+        costing: 'auto',
         contours: [{time: 30}, {time: 60}],
         polygons: true
     })
@@ -240,14 +275,41 @@ fetch('https://valhalla1.openstreetmap.de/isochrone', {
 // Fallback si API indisponible : cercles à 70km/h
 ```
 
-Les formes irrégulières suivent le réseau routier réel.
-La ville de référence est modifiable dans l'onglet Carte — les isochrones se recalculent.
+### Vue Planning
 
-### Compteur épreuves dans l'en-tête
+Calendrier mensuel stockant les absences en `localStorage` sous la clé `tenup_planning`.
+Format : `{ "2026-07-14": "Vacances", "2026-07-15": "Vacances" }`.
 
-```python
-total_ep = sum(len(t.get("epreuves", [])) for t in tournaments)
-# Affiché dans la stat-card aux côtés du nombre de tournois
+Clic sur un jour → prompt texte → sauvegarde. Clic sur un jour déjà noté → suppression.
+
+### Filtre Absent (🚫) — isTournamentBlocked
+
+```javascript
+function isTournamentBlocked(debut, fin, planning) {
+    var duration = Math.round((d2 - d1) / 86400000) + 1;
+    if (duration <= 4)  return overlap >= 1;
+    if (duration <= 14) return overlap / duration >= 0.4;
+    return overlap / duration >= 0.6;
+}
+```
+
+| Durée tournoi | Seuil de blocage |
+|---|---|
+| ≤ 4 jours | 1 jour d'absence suffit |
+| 5–14 jours | ≥ 40 % des jours absents |
+| > 14 jours | ≥ 60 % des jours absents |
+
+### Vue Ratés
+
+Liste les tournois bloqués par les absences du Planning, triés par distance routière
+(`data-distance` sur chaque TR) depuis la ville de référence.
+
+### Calendrier — overlay absences
+
+```javascript
+var planNote = _calPlanning[ds] || '';
+var cls = 'cal-cell' + (planNote ? ' cal-absent' : '');
+if (planNote) html += '<div class="plan-note-chip">🚫 ' + planNote.substring(0,15) + '</div>';
 ```
 
 ---
@@ -259,12 +321,7 @@ def _setup_logging():
     os.makedirs("logs", exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%Hh%M%S")
     log_file = os.path.join("logs", f"tenup_{stamp}.log")
-    # Ajoute handlers console + fichier sur le root logger
-    # Tous les modules (scraper, enrich, enrich_geo) écrivent dans ce fichier
 ```
-
-Chaque lancement crée `logs/tenup_YYYYMMDD_HHhMMSS.log`.
-Le dossier `logs/` est dans `.gitignore`.
 
 ---
 
@@ -273,18 +330,11 @@ Le dossier `logs/` est dans `.gitignore`.
 ```
 [Navigateur sur tenup.fft.fr]
        │  TamperMonkey toutes les 8 min
-       │  1. Lit document.cookie
-       │  2. POST vers localhost:5057
        ▼
-[cookie_server.py]
-       │  Fusionne avec cookies.json existant
-       │  (préserve les cookies HttpOnly non lisibles en JS)
-       ▼
-[cookies.json mis à jour → mtime change]
+[cookie_server.py]  →  cookies.json mis à jour (mtime change)
        │
-       │  scraper.py / enrich.py détectent le changement (polling mtime)
        ▼
-[Session rechargée, run reprend automatiquement]
+[scraper.py / enrich.py détectent le changement → session rechargée]
 ```
 
 ---
@@ -296,22 +346,19 @@ Le dossier `logs/` est dans `.gitignore`.
 ```json
 {
   "fetched_at": "2026-04-19T20:00:00",
-  "total": 2719,
+  "ref_lat": 48.8733, "ref_lng": 2.6383,
+  "ref_city": "Vaires-sur-Marne",
+  "ref_address": "6 rue des Loriots, Vaires-sur-Marne",
+  "total": 404,
   "tournaments": [{
     "id": "206919",
     "libelle": "TMC TCBVY 13/14 ANS",
-    "distanceEnMetres": "22,2 km",
-    "epreuves": [{"natureEpreuve": {"code": "SM"}, "categorieAge": {"id": 140}}],
+    "adresse": "POLE TENNISTIQUE MAURICE MACHOEL, 6 RUE GUY RABOURDIN, 77500 CHELLES",
     "enriched": {
       "format": "2",
-      "formats_list": [{"num": "2", "epreuve_key": "SM_140"}],
       "geo_lat": 48.6963, "geo_lng": 2.3897,
       "road_km": 28.5, "road_min": 34,
-      "statuts_inscription": {
-        "SM_140": {"statut": "ouvert", "message": ""}
-      },
-      "commentaire_club": "Parking gratuit...",
-      "statut_fetched_at": "2026-04-19T20:00:00+00:00"
+      "statuts_inscription": { "SM_140": {"statut": "ouvert"} }
     }
   }]
 }
@@ -333,7 +380,12 @@ Le dossier `logs/` est dans `.gitignore`.
 | Géocodage 0/368 réussis | Colonnes API mal nommées | Utiliser latitude/longitude (sans préfixe result_) |
 | Communes courtes non géocodées | "US" trop ambigu | Envoyer "VILLE CP" combiné |
 | Scraper redirigé vers mauvaise page | TenUp redirige vers dernière page visitée | Vérification URL après GET + re-fetch si nécessaire |
+| UnboundLocalError sur `saved` | Variable non initialisée dans le flux scrape+enrich | `saved = {}` avant le bloc `args.enrich` |
+| Faux "git commit HTML échoué" | Message git en français non reconnu | Détection FR+EN : "rien à valider" ou "nothing to commit" |
+| Destination Maps imprécise | lat/lng géocodé ne correspond pas à l'adresse réelle | Utiliser `r['adresse']` texte brut comme destination |
+| Origine Maps ignorait la rue | --html-only ne sauvegardait pas ref_address dans JSON | Écrire ref_address dans JSON avant generate_from_file() |
+| Filtre 1J + date 25/04 montrait 29/04 | Logique chevauchement trop permissive | fStart seul → tStart !== fStart → return false |
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 19/04/2026 (v2, force-pages, jitter, sauvegarde intermédiaire, logs).*
+*Document créé le 09/04/2026 — mis à jour le 21/04/2026 (sm_only, clustering carte, Planning, Absent, Ratés, Maps, rue départ, filtre date, ref_address, fix saved).*
