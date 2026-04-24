@@ -3045,6 +3045,14 @@ def generate_html_mobile(
             })
 
         comment = enriched.get("commentaire_club", "")
+        _d1 = r["date_debut_iso"] or ""
+        _d2 = r["date_fin_iso"]   or _d1
+        try:
+            from datetime import date as _date
+            _dur = (_date.fromisoformat(_d2) - _date.fromisoformat(_d1)).days + 1 if _d1 and _d2 else 1
+        except Exception:
+            _dur = 1
+
         mob_data.append({
             "id":       r["id"],
             "libelle":  r["libelle"],
@@ -3052,6 +3060,7 @@ def generate_html_mobile(
             "dates":    r["dates"],
             "dateDebut": r["date_debut_iso"],
             "dateFin":   r["date_fin_iso"],
+            "durationDays": _dur,
             "ville":    r["ville"],
             "cp":       r["cp"],
             "dept":     r["dept"],
@@ -3135,8 +3144,12 @@ body{{background:#f0f2f5;font-size:14px;padding-bottom:70px}}
 
     <div class="mb-3 p-2 bg-light rounded">
       <div class="form-check form-switch mb-2">
-        <input class="form-check-input" type="checkbox" id="mob-hide-done" onchange="mobFilter()">
+        <input class="form-check-input" type="checkbox" id="mob-hide-done" checked onchange="mobFilter()">
         <label class="form-check-label small" for="mob-hide-done">Masquer tournois terminés</label>
+      </div>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" id="mob-hide-green" checked onchange="mobFilter()">
+        <label class="form-check-label small" for="mob-hide-green" style="color:#198754">Masquer Vert / Orange (débutants)</label>
       </div>
       <div class="form-check form-switch mb-2">
         <input class="form-check-input" type="checkbox" id="mob-absent" onchange="mobFilter()">
@@ -3154,6 +3167,33 @@ body{{background:#f0f2f5;font-size:14px;padding-bottom:70px}}
       <input type="range" id="mob-dist-max" class="form-range mt-1"
              min="10" max="600" step="10" value="600"
              oninput="document.getElementById('mob-dist-val').textContent=this.value+' km';mobFilter()">
+    </div>
+
+    <div class="mb-3">
+      <label class="small fw-bold">Trajet max :
+        <span id="mob-time-val" class="text-primary">∞</span></label>
+      <input type="range" id="mob-time-max" class="form-range mt-1"
+             min="15" max="300" step="15" value="300"
+             oninput="var v=parseInt(this.value);document.getElementById('mob-time-val').textContent=(v>=300?'∞':v+' min');mobFilter()">
+    </div>
+
+    <div class="mb-3">
+      <div class="small fw-bold mb-1">Dates</div>
+      <div class="d-flex gap-2 align-items-center">
+        <input type="date" id="mob-date-start" class="form-control form-control-sm" onchange="mobFilter()">
+        <span class="small text-muted">→</span>
+        <input type="date" id="mob-date-end" class="form-control form-control-sm" onchange="mobFilter()">
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <div class="small fw-bold mb-1">Durée max du tournoi</div>
+      <div id="mob-dur-chips" class="d-flex flex-wrap"></div>
+    </div>
+
+    <div class="mb-3">
+      <div class="small fw-bold mb-1">Format</div>
+      <div id="mob-fmt-chips" class="d-flex flex-wrap"></div>
     </div>
 
     <div class="mb-3">
@@ -3261,11 +3301,19 @@ function buildCard(t) {{
 }}
 
 function mobFilter() {{
-  var q        = document.getElementById('mob-search').value.toLowerCase();
-  var distMax  = parseInt(document.getElementById('mob-dist-max').value);
-  var hideDone = document.getElementById('mob-hide-done').checked;
-  var favOnly  = document.getElementById('mob-fav-only').checked;
-  var absent   = document.getElementById('mob-absent').checked;
+  var q         = document.getElementById('mob-search').value.toLowerCase();
+  var distMax   = parseInt(document.getElementById('mob-dist-max').value);
+  var timeMaxV  = parseInt(document.getElementById('mob-time-max').value);
+  var timeMax   = timeMaxV >= 300 ? Infinity : timeMaxV;
+  var hideDone  = document.getElementById('mob-hide-done').checked;
+  var hideGreen = document.getElementById('mob-hide-green').checked;
+  var favOnly   = document.getElementById('mob-fav-only').checked;
+  var absent    = document.getElementById('mob-absent').checked;
+  var dateStart = document.getElementById('mob-date-start').value;
+  var dateEnd   = document.getElementById('mob-date-end').value;
+  var activeDur = document.querySelector('#mob-dur-chips .chip.active');
+  var durMax    = activeDur ? parseInt(activeDur.dataset.key) : Infinity;
+  var checkedFmt = Array.from(document.querySelectorAll('#mob-fmt-chips .chip.active')).map(function(c){{return c.dataset.key;}});
   var checkedEp = Array.from(document.querySelectorAll('#mob-ep-chips .chip.active')).map(function(c){{return c.dataset.key;}});
   var checkedSt = Array.from(document.querySelectorAll('#mob-statut-chips .chip.active')).map(function(c){{return c.dataset.key;}});
   var planning  = absent ? getPlanningData() : {{}};
@@ -3273,9 +3321,28 @@ function mobFilter() {{
 
   _filtered = _DATA.filter(function(t) {{
     if (hideDone && t.dateFin && t.dateFin < _TODAY) return false;
+    if (hideGreen) {{
+      var lbl = t.libelle.toLowerCase();
+      if (lbl.indexOf('vert') !== -1 || lbl.indexOf('orange') !== -1) return false;
+    }}
     if (favOnly && !_favs.has(t.id)) return false;
     if (absent && isTournamentBlocked(t.dateDebut, t.dateFin, planning)) return false;
     if (t.distKm && t.distKm > distMax) return false;
+    if (t.roadMin && t.roadMin > timeMax) return false;
+    if (dateStart) {{
+      if (!dateEnd) {{
+        if (t.dateDebut && t.dateDebut !== dateStart) return false;
+      }} else {{
+        if (t.dateFin  && t.dateFin  < dateStart) return false;
+        if (t.dateDebut && t.dateDebut > dateEnd)  return false;
+      }}
+    }} else if (dateEnd) {{
+      if (t.dateDebut && t.dateDebut > dateEnd) return false;
+    }}
+    if (durMax < Infinity && t.durationDays && t.durationDays > durMax) return false;
+    if (checkedFmt.length > 0) {{
+      if (!checkedFmt.some(function(f){{return t.fmtAll.indexOf(f)!==-1;}})) return false;
+    }}
     if (checkedEp.length > 0) {{
       var keys = t.epreuves.map(function(e){{return e.key;}});
       if (!checkedEp.some(function(k){{return keys.indexOf(k)!==-1;}})) return false;
@@ -3323,16 +3390,44 @@ function mobMore() {{ _SHOWN += 30; mobRender(); }}
 
 function mobReset() {{
   document.getElementById('mob-search').value = '';
-  document.getElementById('mob-hide-done').checked = false;
-  document.getElementById('mob-absent').checked  = false;
-  document.getElementById('mob-fav-only').checked = false;
-  document.getElementById('mob-dist-max').value   = 600;
+  document.getElementById('mob-hide-done').checked  = true;
+  document.getElementById('mob-hide-green').checked = true;
+  document.getElementById('mob-absent').checked     = false;
+  document.getElementById('mob-fav-only').checked   = false;
+  document.getElementById('mob-dist-max').value     = 600;
   document.getElementById('mob-dist-val').textContent = '600 km';
+  document.getElementById('mob-time-max').value     = 300;
+  document.getElementById('mob-time-val').textContent = '∞';
+  document.getElementById('mob-date-start').value   = '';
+  document.getElementById('mob-date-end').value     = '';
   document.querySelectorAll('.chip.active').forEach(function(c){{c.classList.remove('active');}});
   mobFilter();
 }}
 
 (function() {{ try {{
+  // Durée max chips (radio : un seul actif à la fois)
+  var durC = document.getElementById('mob-dur-chips');
+  [{{'k':1,'l':'1j'}},{{'k':2,'l':'2j'}},{{'k':3,'l':'3j'}},{{'k':4,'l':'4j'}},{{'k':5,'l':'5j'}},{{'k':6,'l':'6j'}},{{'k':7,'l':'7j'}},{{'k':14,'l':'14j'}}].forEach(function(d) {{
+    var b = document.createElement('button');
+    b.className = 'chip'; b.dataset.key = d.k; b.textContent = d.l;
+    b.onclick = function() {{
+      var was = this.classList.contains('active');
+      durC.querySelectorAll('.chip').forEach(function(c){{c.classList.remove('active');}});
+      if (!was) this.classList.add('active');
+      mobFilter();
+    }};
+    durC.appendChild(b);
+  }});
+
+  // Format chips
+  var fmtC = document.getElementById('mob-fmt-chips');
+  ['1','2','3','4','5','6','7'].forEach(function(fn) {{
+    var b = document.createElement('button');
+    b.className = 'chip'; b.dataset.key = fn; b.textContent = 'F' + fn;
+    b.onclick = function() {{ this.classList.toggle('active'); mobFilter(); }};
+    fmtC.appendChild(b);
+  }});
+
   var epC = document.getElementById('mob-ep-chips');
   _EP_OPTIONS.forEach(function(opt) {{
     var b = document.createElement('button');
