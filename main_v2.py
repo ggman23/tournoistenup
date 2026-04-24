@@ -382,8 +382,9 @@ def main():
     data_file    = os.path.join("data", f"tournaments_{slug}.json")
     history_file = os.path.join("data", f"history_{slug}.json")
     html_file    = os.path.join("data", f"tournaments_{slug}.html")
-    html_file_sm     = os.path.join("data", f"tournaments_{slug}_SM.html")
-    html_file_mobile = os.path.join("data", f"tournaments_{slug}_mobile.html")
+    html_file_sm        = os.path.join("data", f"tournaments_{slug}_SM.html")
+    html_file_mobile    = os.path.join("data", f"tournaments_{slug}_mobile.html")
+    html_file_mobile_sm = os.path.join("data", f"tournaments_{slug}_mobile_SM.html")
     html_dir     = "data"
     output_file  = config["notifications"]["output_file"]
     print_console = config["notifications"]["print_to_console"]
@@ -464,6 +465,7 @@ def main():
         generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
         _auto_push_html(html_file_sm)
         _gen_mobile(tournaments, html_file_mobile, **_kw)
+        _gen_mobile(tournaments, html_file_mobile_sm, sm_only=True, **_kw)
         sys.exit(0)
 
     # ── HTML-only mode: just regenerate the report ──────────────────────────
@@ -488,6 +490,7 @@ def main():
         generate_from_file(data_file, html_file_sm, new_ids=_new_ids, sm_only=True)
         _auto_push_html(html_file_sm)
         _gen_mobile(data_file, html_file_mobile, from_file=True, new_ids=_new_ids)
+        _gen_mobile(data_file, html_file_mobile_sm, from_file=True, new_ids=_new_ids, sm_only=True)
         sys.exit(0)
 
     # ── Enrich-only mode: re-enrich + regenerate without re-scraping ─────────
@@ -525,6 +528,7 @@ def main():
         generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
         _auto_push_html(html_file_sm)
         _gen_mobile(tournaments, html_file_mobile, **_kw)
+        _gen_mobile(tournaments, html_file_mobile_sm, sm_only=True, **_kw)
         sys.exit(0)
 
     # ── Enrich-statut-only mode: refresh inscription status only ─────────────
@@ -556,6 +560,7 @@ def main():
         generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
         _auto_push_html(html_file_sm)
         _gen_mobile(tournaments, html_file_mobile, **_kw)
+        _gen_mobile(tournaments, html_file_mobile_sm, sm_only=True, **_kw)
         sys.exit(0)
 
     # ── Enrich-geo-only mode: geocode + road distances without re-scraping ───
@@ -586,6 +591,7 @@ def main():
         generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
         _auto_push_html(html_file_sm)
         _gen_mobile(tournaments, html_file_mobile, **_kw)
+        _gen_mobile(tournaments, html_file_mobile_sm, sm_only=True, **_kw)
         sys.exit(0)
 
     # ── Reset history ────────────────────────────────────────────────────────
@@ -729,9 +735,11 @@ def main():
     logger.info("Rapport SM 11-14 : %s", html_file_sm)
     _auto_push_html(html_file_sm)
 
-    # 1c) Mobile report (fixed name)
+    # 1c) Mobile reports (fixed names)
     _gen_mobile(tournaments, html_file_mobile, **_html_kwargs)
     logger.info("Rapport mobile : %s", html_file_mobile)
+    _gen_mobile(tournaments, html_file_mobile_sm, sm_only=True, **_html_kwargs)
+    logger.info("Rapport mobile SM : %s", html_file_mobile_sm)
 
     # 2) Full report horodaté
     all_stamped  = os.path.join(html_dir, f"tournois_{stamp}.html")
