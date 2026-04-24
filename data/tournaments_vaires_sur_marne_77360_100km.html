@@ -19596,19 +19596,34 @@ function planClickDay(ds) {
   var current  = planning[ds] || '';
   var d4 = new Date(ds + 'T12:00:00');
   var lbl = _DAY_NAMES[d4.getDay()] + ' ' + d4.getDate() + ' ' + _MONTH_NAMES[d4.getMonth()].toLowerCase() + ' ' + d4.getFullYear();
-  var note = window.prompt('Absence le ' + lbl + ' :\n(Laisser vide pour supprimer l\'absence)', current);
-  if (note === null) return;
-  note = note.trim();
+  document.getElementById('planModalTitle').textContent = 'Absence — ' + lbl;
+  document.getElementById('planModalInput').value = current;
+  document.getElementById('planModalDs').value = ds;
+  var modal = new bootstrap.Modal(document.getElementById('planModal'));
+  modal.show();
+  setTimeout(function() { document.getElementById('planModalInput').focus(); document.getElementById('planModalInput').select(); }, 300);
+}
+
+function planModalConfirm() {
+  var ds      = document.getElementById('planModalDs').value;
+  var note    = document.getElementById('planModalInput').value.trim();
+  var planning = getPlanningData();
   if (note) { planning[ds] = note; } else { delete planning[ds]; }
   savePlanningData(planning);
+  bootstrap.Modal.getInstance(document.getElementById('planModal')).hide();
   renderPlanning();
   if (currentView === 'rates') renderRates();
   applyFilters();
 }
 
 function planClearAll() {
-  if (!confirm('Effacer toutes les absences ?')) return;
+  var modal = new bootstrap.Modal(document.getElementById('planClearModal'));
+  modal.show();
+}
+
+function planClearConfirm() {
   savePlanningData({});
+  bootstrap.Modal.getInstance(document.getElementById('planClearModal')).hide();
   renderPlanning();
   if (currentView === 'rates') renderRates();
   applyFilters();
@@ -19766,5 +19781,45 @@ function renderMap() {
   setTimeout(function() { _mapObj.invalidateSize(); }, 50);
 }
 </script>
+
+<!-- Modal : saisie absence Planning -->
+<div class="modal fade" id="planModal" tabindex="-1" aria-labelledby="planModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="planModalTitle">Absence</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body">
+        <label for="planModalInput" class="form-label">Note (laisser vide pour supprimer l'absence) :</label>
+        <input type="text" class="form-control" id="planModalInput" placeholder="ex : Vacances, Mariage…"
+               onkeydown="if(event.key==='Enter')planModalConfirm();">
+        <input type="hidden" id="planModalDs">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-primary" onclick="planModalConfirm();">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal : confirmation effacement Planning -->
+<div class="modal fade" id="planClearModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Effacer les absences</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body">Effacer toutes les absences du Planning ?</div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-danger" onclick="planClearConfirm();">Effacer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
