@@ -3020,8 +3020,8 @@ def generate_html_mobile(
     fetched_str   = fetched_at[:16].replace("T", " ") if fetched_at else ""
     total         = len(mob_data)
 
-    mob_data_js   = json.dumps(mob_data,    ensure_ascii=False)
-    ep_options_js = json.dumps(ep_options,  ensure_ascii=False)
+    mob_data_js   = json.dumps(mob_data,    ensure_ascii=False).replace('</', '<\\/')
+    ep_options_js = json.dumps(ep_options,  ensure_ascii=False).replace('</', '<\\/')
     fmt_colors_js = json.dumps(FORMAT_COLORS)
     statut_cfg_js = json.dumps({k: {"color": v[0], "label": v[1]} for k, v in STATUT_CONFIG.items()},
                                ensure_ascii=False)
@@ -3080,7 +3080,7 @@ body{{background:#f0f2f5;font-size:14px;padding-bottom:70px}}
 
     <div class="mb-3 p-2 bg-light rounded">
       <div class="form-check form-switch mb-2">
-        <input class="form-check-input" type="checkbox" id="mob-hide-done" checked onchange="mobFilter()">
+        <input class="form-check-input" type="checkbox" id="mob-hide-done" onchange="mobFilter()">
         <label class="form-check-label small" for="mob-hide-done">Masquer tournois terminés</label>
       </div>
       <div class="form-check form-switch mb-2">
@@ -3247,7 +3247,12 @@ function mobFilter() {{
 }}
 
 function mobRender() {{
-  document.getElementById('mob-cards').innerHTML = _filtered.slice(0,_SHOWN).map(buildCard).join('');
+  var container = document.getElementById('mob-cards');
+  if (_filtered.length === 0) {{
+    container.innerHTML = '<div class="text-center text-muted py-5"><div style="font-size:2em">🎾</div><div class="mt-2">Aucun tournoi pour ces filtres</div></div>';
+  }} else {{
+    container.innerHTML = _filtered.slice(0,_SHOWN).map(buildCard).join('');
+  }}
   var cnt = document.getElementById('mob-count');
   cnt.textContent = _filtered.length + ' / ' + _TOTAL + ' tournois';
   cnt.style.color = _filtered.length < _TOTAL ? '#fd7e14' : '#adb5bd';
@@ -3263,7 +3268,7 @@ function mobMore() {{ _SHOWN += 30; mobRender(); }}
 
 function mobReset() {{
   document.getElementById('mob-search').value = '';
-  document.getElementById('mob-hide-done').checked = true;
+  document.getElementById('mob-hide-done').checked = false;
   document.getElementById('mob-absent').checked  = false;
   document.getElementById('mob-fav-only').checked = false;
   document.getElementById('mob-dist-max').value   = 600;
