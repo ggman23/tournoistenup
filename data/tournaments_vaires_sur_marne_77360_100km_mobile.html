@@ -249,7 +249,7 @@ function mobReset() {
   mobFilter();
 }
 
-(function() {
+(function() { try {
   var epC = document.getElementById('mob-ep-chips');
   _EP_OPTIONS.forEach(function(opt) {
     var b = document.createElement('button');
@@ -273,6 +273,11 @@ function mobReset() {
     stC.appendChild(b);
   });
   mobFilter();
+} catch(err) {
+  document.getElementById('mob-cards').innerHTML =
+    '<div class="alert alert-danger m-3"><b>Erreur JS :</b><br><code>' + err.message + '</code><br><small>' + (err.stack||'').substring(0,300) + '</small></div>';
+  document.getElementById('mob-count').textContent = 'Erreur — voir ci-dessous';
+}
 })();
 </script>
 </body>
