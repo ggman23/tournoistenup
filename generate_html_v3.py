@@ -651,7 +651,7 @@ def generate_html(
     # Chips coefficient
     coeff_chips_html = "".join(
         f'<label class="dept-chip">'
-        f'<input type="checkbox" class="coeff-chk" value="{c}" onchange="applyFilters()"> '
+        f'<input type="checkbox" class="coeff-chk" value="{c}" onchange="onCoeffChange()"> '
         f'<span style="background:#5f3dc4;color:white;border-radius:2px;padding:0 3px;font-size:.8em;margin-right:2px">×{c}</span>'
         f'</label>'
         for c in _ALL_COEFFS
@@ -1224,6 +1224,9 @@ def generate_html(
             onclick="showView('planning')">🗓️ Planning</button>
     <button class="btn btn-sm btn-outline-danger view-tab" id="tab-rates"
             onclick="showView('rates')">❌ Ratés</button>
+    <button class="btn btn-sm view-tab" id="tab-coeff"
+            style="border-color:#5f3dc4;color:#9775fa"
+            onclick="showView('coeff')">× Coefficients</button>
     <small class="text-muted ms-2" id="view-info"></small>
   </div>
 
@@ -1238,6 +1241,48 @@ def generate_html(
 
   <!-- Vue Ratés -->
   <div id="view-rates" style="display:none" class="bg-white rounded shadow-sm p-3"></div>
+
+  <!-- Vue Coefficients -->
+  <div id="view-coeff" style="display:none" class="bg-white rounded shadow-sm p-3">
+    <h5 style="color:#5f3dc4">× Table des coefficients FFT</h5>
+    <p class="text-muted small mb-3">Coefficient appliqué aux points de classement selon le format et la catégorie d'âge (Simple Messieurs). Les vétérans (35 ans et plus) ont le coefficient 1,0.</p>
+    <div class="table-responsive">
+    <table class="table table-bordered table-sm text-center" style="max-width:620px">
+      <thead class="table-dark">
+        <tr>
+          <th>Format</th>
+          <th style="background:#c0392b">F1</th>
+          <th style="background:#e67e22">F2</th>
+          <th style="background:#f39c12">F3</th>
+          <th style="background:#27ae60">F4</th>
+          <th style="background:#2980b9">F5</th>
+          <th style="background:#8e44ad">F6</th>
+          <th style="background:#7f8c8d">F7</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="fw-semibold text-start">SM 11/12 ans</td>
+          <td>0,6</td><td>0,6</td><td>0,4</td><td>0,6</td><td>0,2</td><td>0,4</td><td>0,5</td></tr>
+        <tr><td class="fw-semibold text-start">SM 13/14 ans</td>
+          <td>0,7</td><td>0,7</td><td>0,4</td><td>0,7</td><td>0,3</td><td>0,4</td><td>0,6</td></tr>
+        <tr><td class="fw-semibold text-start">SM 15/16 ans</td>
+          <td>0,8</td><td>0,8</td><td>0,5</td><td>0,8</td><td>0,3</td><td>0,5</td><td>0,6</td></tr>
+        <tr><td class="fw-semibold text-start">SM 17/18 ans</td>
+          <td>0,8</td><td>0,8</td><td>0,5</td><td>0,8</td><td>0,3</td><td>0,5</td><td>0,6</td></tr>
+        <tr class="table-secondary"><td class="fw-semibold text-start">SM Senior (adulte)</td>
+          <td>1,0</td><td>1,0</td><td>0,6</td><td>1,0</td><td>0,4</td><td>0,6</td><td>0,8</td></tr>
+        <tr class="table-secondary"><td class="fw-semibold text-start">SM Vétérans (35-80)</td>
+          <td>1,0</td><td>1,0</td><td>1,0</td><td>1,0</td><td>1,0</td><td>1,0</td><td>1,0</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="mt-3">
+      <p class="small fw-semibold mb-2">Filtrer directement par coefficient :</p>
+      <div class="d-flex flex-wrap gap-2">
+        {''.join(f'<button class="btn btn-sm" style="border-color:#5f3dc4;color:#9775fa" onclick="quickCoeffFilter({c})">×{c}</button>' for c in _ALL_COEFFS)}
+      </div>
+    </div>
+  </div>
 
   <!-- Vue Calendrier -->
   <div id="view-calendar" style="display:none" class="bg-white rounded shadow-sm p-3"></div>
@@ -1845,6 +1890,12 @@ function applyEpLineFilter() {{
     css += ' .ep-line:not([data-fmt=""])' + fmtNotSel + ' {{ display:none !important; }}';
     css += ' .fmt-badge' + fmtNotSel + ' {{ display:none !important; }}';
   }}
+  var checkedCoeffs = $('.coeff-chk:checked').map(function() {{ return $(this).val(); }}).get();
+  if (checkedCoeffs.length > 0) {{
+    // Hide ep-lines whose coefficient doesn't match (but keep ep-lines with no coefficient)
+    var coeffNotSel = checkedCoeffs.map(function(c) {{ return ':not([data-coeff="' + c + '"])'; }}).join('');
+    css += ' .ep-line:not([data-coeff=""])' + coeffNotSel + ' {{ display:none !important; }}';
+  }}
   if (css) {{ $('<style id="ep-line-filter-style">').text(css).appendTo('head'); }}
 }}
 
@@ -1936,7 +1987,7 @@ function resetFilters() {{
   $('#btn-surf').text('Toutes ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-fmt').text('Tous ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-statut').text('Tous statuts ▾').removeClass('btn-primary').addClass('btn-outline-primary');
-  $('#btn-coeff').text('Tous coeff ▾').css('color','#9775fa').removeClass('btn-primary');
+  $('.coeff-chk').prop('checked', false); $('#btn-coeff').text('Tous coeff ▾').css('color','#9775fa').removeClass('btn-primary');
   applyEpLineFilter();
   if (dt) {{ dt.search('').draw(); }} else {{ applyFilters(); }}
 }}
@@ -1960,7 +2011,7 @@ function resetFiltersAll() {{
   $('#btn-surf').text('Toutes ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-fmt').text('Tous ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-statut').text('Tous statuts ▾').removeClass('btn-primary').addClass('btn-outline-primary');
-  $('#btn-coeff').text('Tous coeff ▾').css('color','#9775fa').removeClass('btn-primary');
+  $('.coeff-chk').prop('checked', false); $('#btn-coeff').text('Tous coeff ▾').css('color','#9775fa').removeClass('btn-primary');
   applyEpLineFilter();
   if (dt) {{ dt.search('').draw(); }} else {{ applyFilters(); }}
 }}
@@ -2001,6 +2052,22 @@ function onStatutChange() {{
   applyFilters();
 }}
 
+function onCoeffChange() {{
+  var nb = $('.coeff-chk:checked').length;
+  var lbl = nb > 0 ? nb + ' coeff ▾' : 'Tous coeff ▾';
+  $('#btn-coeff').text(lbl).css('color', nb > 0 ? '#fff' : '#9775fa')
+                .toggleClass('btn-primary', nb > 0);
+  applyEpLineFilter();
+  applyFilters();
+}}
+
+function quickCoeffFilter(c) {{
+  $('.coeff-chk').prop('checked', false);
+  $('.coeff-chk[value="' + c + '"]').prop('checked', true);
+  onCoeffChange();
+  showView('table');
+}}
+
 // ── Gestion des vues (Tableau / Calendrier / Gantt / Vacs / Carte) ──────────
 function showView(view) {{
   // 'derniers' is a special sort on the table view
@@ -2016,8 +2083,9 @@ function showView(view) {{
   $('#view-classements').toggle(tableView === 'classements');
   $('#view-planning').toggle(tableView === 'planning');
   $('#view-rates').toggle(tableView === 'rates');
+  $('#view-coeff').toggle(tableView === 'coeff');
   $('.view-tab').removeClass('btn-primary btn-warning btn-success btn-info btn-danger').addClass('btn-outline-secondary');
-  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements', planning:'tab-planning', rates:'tab-rates'}}[tableView] || 'tab-table';
+  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements', planning:'tab-planning', rates:'tab-rates', coeff:'tab-coeff'}}[tableView] || 'tab-table';
   if (isDerniers) {{
     $('#tab-derniers').removeClass('btn-outline-secondary btn-outline-warning').addClass('btn-warning');
     dt.column('.col-first-seen').visible(true);
@@ -2025,8 +2093,13 @@ function showView(view) {{
     dt.order([[dt.column('.col-first-seen').index(), 'desc']]).draw();
   }} else {{
     if (tableView !== 'inscrit' && tableView !== 'classements') dt.column('.col-first-seen').visible(false);
-    var actCls = {{inscrit:'btn-success', classements:'btn-info', planning:'btn-warning', rates:'btn-danger'}}[tableView] || 'btn-primary';
-    $('#' + tabId).removeClass('btn-outline-secondary btn-outline-success btn-outline-info btn-outline-warning btn-outline-danger').addClass(actCls);
+    var actCls = {{inscrit:'btn-success', classements:'btn-info', planning:'btn-warning', rates:'btn-danger', coeff:'btn-primary'}}[tableView] || 'btn-primary';
+    if (tableView === 'coeff') {{
+      $('#tab-coeff').removeClass('btn-outline-secondary').css({{'background':'#5f3dc4','border-color':'#5f3dc4','color':'#fff'}});
+    }} else {{
+      $('#tab-coeff').css({{'background':'','border-color':'#5f3dc4','color':'#9775fa'}});
+      $('#' + tabId).removeClass('btn-outline-secondary btn-outline-success btn-outline-info btn-outline-warning btn-outline-danger').addClass(actCls);
+    }}
   }}
   if (tableView === 'calendar')    {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
   if (tableView === 'gantt')       renderGantt();
@@ -3324,6 +3397,7 @@ var _TOTAL      = {total};
 var _SHOWN      = 30;
 var _filtered   = [];
 var _favs       = new Set(JSON.parse(localStorage.getItem('tenup_favs') || '[]'));
+var _activeCoeffs = [];
 
 function toggleFav(id) {{
   if (_favs.has(id)) _favs.delete(id); else _favs.add(id);
@@ -3363,7 +3437,10 @@ function buildCard(t) {{
   var tmcBadge = t.isTmc ? '<span class="badge bg-warning text-dark ms-1" style="font-size:.65em">TMC</span>' : '';
   var favIcon  = _favs.has(t.id) ? '★' : '☆';
   var favCls   = 'fav-btn' + (_favs.has(t.id) ? ' active' : '');
-  var epLines  = t.epreuves.map(function(ep) {{
+  var visibleEpreuves = (_activeCoeffs.length > 0)
+    ? t.epreuves.filter(function(ep) {{ return ep.coeff != null && _activeCoeffs.indexOf(ep.coeff) !== -1; }})
+    : t.epreuves;
+  var epLines  = visibleEpreuves.map(function(ep) {{
     var sb = '', fb = '', cb = '';
     if (ep.statutCode) {{
       var sc = _STATUT_CFG[ep.statutCode] || {{color:'#bdc3c7', label:ep.statutCode}};
@@ -3413,6 +3490,7 @@ function mobFilter() {{
   var checkedEp    = Array.from(document.querySelectorAll('#mob-ep-chips .chip.active')).map(function(c){{return c.dataset.key;}});
   var checkedSt    = Array.from(document.querySelectorAll('#mob-statut-chips .chip.active')).map(function(c){{return c.dataset.key;}});
   var checkedCoeff = Array.from(document.querySelectorAll('#mob-coeff-chips .chip.active')).map(function(c){{return parseFloat(c.dataset.key);}});
+  _activeCoeffs = checkedCoeff;
   var planning  = absent ? getPlanningData() : {{}};
   var sortBy    = document.getElementById('mob-sort').value;
 
