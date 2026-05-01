@@ -358,7 +358,15 @@ def main():
     # Rue de départ (pour itinéraire Google Maps précis)
     if not args.no_prompt:
         default_rue = config["search"]["ville"].get("rue", "")
-        config["search"]["ville"]["rue"] = _prompt_rue(default_rue, config["search"]["ville"].get("label", ""))
+        new_rue = _prompt_rue(default_rue, config["search"]["ville"].get("label", ""))
+        config["search"]["ville"]["rue"] = new_rue
+        # Persist the rue in config.json so future runs use it as default
+        if new_rue and new_rue != default_rue:
+            try:
+                with open(args.config, "w", encoding="utf-8") as _cf:
+                    json.dump(config, _cf, ensure_ascii=False, indent=2)
+            except OSError:
+                pass
 
     # Dates (only needed for actual scraping)
     if do_scrape:
