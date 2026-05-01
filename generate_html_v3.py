@@ -62,6 +62,35 @@ _SM_ORDER      = ["SM_110", "SM_120", "SM_125", "SM_130", "SM_140", "SM_145"]
 _SM_LABELS     = {"SM_110": "SM 11", "SM_120": "SM 11/12", "SM_125": "SM 12",
                   "SM_130": "SM 13", "SM_140": "SM 13/14", "SM_145": "SM 14"}
 
+# Coefficient de match FFT : format × catégorie d'âge (SM uniquement)
+# Source : grille officielle FFT
+_COEFF_TABLE = {
+    "1": {"11_12": 0.6, "13_14": 0.7, "15_16": 0.8, "17_18": 0.8, "senior": 1.0, "veteran": 1.0},
+    "2": {"11_12": 0.6, "13_14": 0.7, "15_16": 0.8, "17_18": 0.8, "senior": 1.0, "veteran": 1.0},
+    "3": {"11_12": 0.4, "13_14": 0.4, "15_16": 0.5, "17_18": 0.5, "senior": 0.6, "veteran": 1.0},
+    "4": {"11_12": 0.6, "13_14": 0.7, "15_16": 0.8, "17_18": 0.8, "senior": 1.0, "veteran": 1.0},
+    "5": {"11_12": 0.2, "13_14": 0.3, "15_16": 0.3, "17_18": 0.3, "senior": 0.4, "veteran": 1.0},
+    "6": {"11_12": 0.4, "13_14": 0.4, "15_16": 0.5, "17_18": 0.5, "senior": 0.6, "veteran": 1.0},
+    "7": {"11_12": 0.5, "13_14": 0.6, "15_16": 0.6, "17_18": 0.6, "senior": 0.8, "veteran": 1.0},
+}
+_ALL_COEFFS = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1.0]
+
+def _age_group(age_id: int) -> str:
+    """Groupe d'âge pour la table des coefficients."""
+    if 110 <= age_id < 130: return "11_12"
+    if 130 <= age_id < 150: return "13_14"
+    if 150 <= age_id < 170: return "15_16"
+    if 170 <= age_id < 210: return "17_18"
+    if age_id >= 350:       return "veteran"
+    return "senior"
+
+def _get_coeff(fmt_num: str, age_id: int, nat_code: str = "SM"):
+    """Retourne le coefficient pour un format et une catégorie, ou None."""
+    if nat_code != "SM":
+        return None
+    row = _COEFF_TABLE.get(str(fmt_num))
+    return row.get(_age_group(age_id)) if row else None
+
 
 def _fmt_date(date_obj, short=False):
     if not date_obj:
@@ -147,6 +176,7 @@ def _epreuves_html(epreuves, formats_list=None, statuts=None, only_natures=None,
                 fmt_entry = positional[0]
 
         fmt_badge = ""
+        coeff_badge = ""
         if fmt_entry:
             fn  = fmt_entry.get("num", "")
             fd  = fmt_entry.get("desc", "")
@@ -158,6 +188,12 @@ def _epreuves_html(epreuves, formats_list=None, statuts=None, only_natures=None,
                 f' <span class="badge fmt-ep-badge" style="background:{fc}" '
                 f'title="{html.escape(tip)}" data-bs-toggle="tooltip">F{fn}</span>'
             )
+            coeff = _get_coeff(fn, age_id, nat_code)
+            if coeff is not None:
+                coeff_badge = (
+                    f' <span class="badge coeff-badge" style="background:#5f3dc4;font-size:.7em" '
+                    f'title="Coefficient de match : {coeff}" data-bs-toggle="tooltip">×{coeff}</span>'
+                )
 
         statut_badge = ""
         if statuts is not None:
@@ -166,13 +202,15 @@ def _epreuves_html(epreuves, formats_list=None, statuts=None, only_natures=None,
                 statut_badge = _statut_badge_html(s_entry["statut"], s_entry["message"])
 
         ep_fmt_num = fmt_entry.get("num", "") if fmt_entry else ""
+        ep_coeff   = _get_coeff(ep_fmt_num, age_id, nat_code) if ep_fmt_num else None
+        ep_coeff_s = str(ep_coeff) if ep_coeff is not None else ""
         lines.append(
-            f'<div class="ep-line" data-ep-key="{html.escape(ep_key)}" data-fmt="{html.escape(ep_fmt_num)}">'
+            f'<div class="ep-line" data-ep-key="{html.escape(ep_key)}" data-fmt="{html.escape(ep_fmt_num)}" data-coeff="{ep_coeff_s}">'
             f'<span class="ep-nature" data-abbr="{html.escape(abbr_nat)}">{html.escape(nature)}</span> '
             f'<span class="ep-age" data-abbr="{html.escape(abbr_age)}">{html.escape(age)}</span> '
             f'<span class="ep-range">{html.escape(bas)} → {html.escape(haut)}</span> '
             f'<span class="ep-tarif">{tarif}€</span>'
-            f'{fmt_badge}{statut_badge}'
+            f'{fmt_badge}{coeff_badge}{statut_badge}'
             f'</div>'
         )
     return "\n".join(lines) if lines else '<span class="text-muted">—</span>'
@@ -275,6 +313,23 @@ def _tournament_to_row(t, only_natures=None, only_ep_keys=None):
         epreuves_keys_list = [k for k in epreuves_keys_list if k in only_ep_keys]
     has_sm_cat = any(k in SM_TARGET_KEYS for k in epreuves_keys_list)
 
+    # Coefficients uniques pour ce tournoi (tous ses épreuves SM avec format connu)
+    _key_to_fmt_r = {f.get("epreuve_key"): f for f in formats_list if f.get("epreuve_key")}
+    _seen_c: set = set()
+    coeffs_list: list = []
+    for _ep in t.get("epreuves", []):
+        _nc  = _ep.get("natureEpreuve", {}).get("code", "")
+        _aid = _ep.get("categorieAge",  {}).get("id",   0)
+        _ek  = f"{_nc}_{_aid}"
+        _fe  = _key_to_fmt_r.get(_ek)
+        if not _fe and fmt:
+            _fe = {"num": fmt}
+        if _fe:
+            _c = _get_coeff(_fe.get("num", ""), _aid, _nc)
+            if _c is not None and _c not in _seen_c:
+                _seen_c.add(_c)
+                coeffs_list.append(_c)
+
     ep_html = _epreuves_html(
         t.get("epreuves", []),
         enriched.get("formats_list"),
@@ -347,6 +402,7 @@ def _tournament_to_row(t, only_natures=None, only_ep_keys=None):
             and ep.get("natureEpreuve", {}).get("code", "")
             and ep.get("categorieAge", {}).get("id", 0)
         ],
+        "coeffs_set": coeffs_list,
     }
 
 
@@ -487,7 +543,8 @@ def generate_html(
             data-classements='{json.dumps(r["classements_ep"])}'
             data-paiement="{str(r['paiement']).lower()}"
             data-sm-cat="{1 if r['has_sm_cat'] else 0}"
-            data-sm-statuts='{json.dumps(r["statuts_sm_set"])}'>
+            data-sm-statuts='{json.dumps(r["statuts_sm_set"])}'
+            data-coeffs="{html.escape(','.join(str(c) for c in r['coeffs_set']))}">
 
           <td data-sort="{html.escape(r['date_debut_sort'])}">{html.escape(r['dates'])}</td>
           <td class="col-first-seen">{html.escape(r.get('first_seen', ''))}</td>
@@ -589,6 +646,15 @@ def generate_html(
         f'{html.escape(label)}</label>'
         for code, (color, label) in STATUT_CONFIG.items()
         if code != "autre"
+    )
+
+    # Chips coefficient
+    coeff_chips_html = "".join(
+        f'<label class="dept-chip">'
+        f'<input type="checkbox" class="coeff-chk" value="{c}" onchange="applyFilters()"> '
+        f'<span style="background:#5f3dc4;color:white;border-radius:2px;padding:0 3px;font-size:.8em;margin-right:2px">×{c}</span>'
+        f'</label>'
+        for c in _ALL_COEFFS
     )
 
     # Prochain 1er mardi du mois (sortie de classement FFT)
@@ -970,6 +1036,17 @@ def generate_html(
         </div>
       </div>
 
+      <div class="col-auto" style="position:relative">
+        <label class="form-label mb-1 fw-semibold small" style="color:#9775fa">Coefficient ×</label><br>
+        <button class="btn btn-sm" id="btn-coeff"
+                style="border-color:#5f3dc4;color:#9775fa"
+                onclick="toggleMultiPanel('panel-coeff','btn-coeff')">
+          Tous coeff ▾</button>
+        <div id="panel-coeff" class="multi-panel" style="display:none">
+          {coeff_chips_html}
+        </div>
+      </div>
+
       <div class="col-auto">
         <label class="form-label mb-1 fw-semibold small">&nbsp;</label><br>
         <div class="form-check form-check-inline me-1" title="Masque tout sauf SM 11 à 14 ans — améliore les performances">
@@ -1345,6 +1422,13 @@ $(function() {{
       var statAttr = $('#chk-sm-only').prop('checked') ? 'data-sm-statuts' : 'data-statuts';
       var statuts = JSON.parse($tr.attr(statAttr) || '[]');
       if (!checkedStatuts.some(function(s) {{ return statuts.indexOf(s) !== -1; }})) return false;
+    }}
+
+    // ── Filtre coefficient ────────────────────────────────────────────────────
+    var checkedCoeffs = $('.coeff-chk:checked').map(function() {{ return parseFloat($(this).val()); }}).get();
+    if (checkedCoeffs.length > 0) {{
+      var trCoeffs = ($tr.attr('data-coeffs') || '').split(',').filter(Boolean).map(parseFloat);
+      if (!checkedCoeffs.some(function(c) {{ return trCoeffs.indexOf(c) !== -1; }})) return false;
     }}
 
     if (onlyNew  && $tr.attr('data-new') !== 'true')  return false;
@@ -1846,12 +1930,13 @@ function resetFilters() {{
   $('#chk-hide-vert, #chk-hide-orange').prop('checked', true);  // default = masqué
   $('#chk-hide-past').prop('checked', true);  // remet masquer-terminés coché par défaut
   $('#filter-search').val('');
-  $('.ep-chk, .surf-chk, .fmt-chk, .statut-chk, #chk-no-fmt').prop('checked', false);
+  $('.ep-chk, .surf-chk, .fmt-chk, .statut-chk, .coeff-chk, #chk-no-fmt').prop('checked', false);
   $('.ep-chk[value="SM_110"], .ep-chk[value="SM_120"], .ep-chk[value="SM_125"]').prop('checked', true);
   updateMultiBtn('btn-ep', '.ep-chk', 'Toutes les épreuves');
   $('#btn-surf').text('Toutes ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-fmt').text('Tous ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-statut').text('Tous statuts ▾').removeClass('btn-primary').addClass('btn-outline-primary');
+  $('#btn-coeff').text('Tous coeff ▾').css('color','#9775fa').removeClass('btn-primary');
   applyEpLineFilter();
   if (dt) {{ dt.search('').draw(); }} else {{ applyFilters(); }}
 }}
@@ -1870,11 +1955,12 @@ function resetFiltersAll() {{
   $('#chk-hide-vert, #chk-hide-orange').prop('checked', false);
   $('#chk-hide-past').prop('checked', false);
   $('#filter-search').val('');
-  $('.ep-chk, .surf-chk, .fmt-chk, .statut-chk, #chk-no-fmt').prop('checked', false);
+  $('.ep-chk, .surf-chk, .fmt-chk, .statut-chk, .coeff-chk, #chk-no-fmt').prop('checked', false);
   updateMultiBtn('btn-ep', '.ep-chk', 'Toutes les épreuves');
   $('#btn-surf').text('Toutes ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-fmt').text('Tous ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-statut').text('Tous statuts ▾').removeClass('btn-primary').addClass('btn-outline-primary');
+  $('#btn-coeff').text('Tous coeff ▾').css('color','#9775fa').removeClass('btn-primary');
   applyEpLineFilter();
   if (dt) {{ dt.search('').draw(); }} else {{ applyFilters(); }}
 }}
@@ -3034,13 +3120,16 @@ def generate_html_mobile(
             haut     = ep.get("classementHaut", {}).get("libelle", "?").strip()
             fmt_entry = key_to_fmt.get(ep_key)
             s_entry   = statuts_inscr.get(ep_key) or statuts_inscr.get(nat_code)
+            _fn   = fmt_entry.get("num", "") if fmt_entry else ""
+            _coef = _get_coeff(_fn, age_id, nat_code) if _fn else None
             ep_list.append({
                 "key":        ep_key,
                 "nature":     _NAT_ABBR.get(nature, nature),
                 "age":        age.replace(" ans", "").replace(" Ans", "").strip(),
                 "bas":        bas,
                 "haut":       haut,
-                "fmtNum":     fmt_entry.get("num", "") if fmt_entry else "",
+                "fmtNum":     _fn,
+                "coeff":      _coef,
                 "statutCode": s_entry["statut"] if s_entry else "",
             })
 
@@ -3070,6 +3159,7 @@ def generate_html_mobile(
             "fmtAll":   r["fmt_all"],
             "epreuves": ep_list,
             "statuts":  r["statuts_sm_set"] if sm_only else r["statuts_set"],
+            "coeffs":   list({ep["coeff"] for ep in ep_list if ep["coeff"] is not None}),
             "isNew":    r["is_new"],
             "isTmc":    r["tmc"],
             "isInscr":  r["inscription"],
@@ -3206,6 +3296,11 @@ body{{background:#f0f2f5;font-size:14px;padding-bottom:70px}}
       <div id="mob-statut-chips" class="d-flex flex-wrap"></div>
     </div>
 
+    <div class="mb-3">
+      <div class="small fw-bold mb-1" style="color:#9775fa">Coefficient ×</div>
+      <div id="mob-coeff-chips" class="d-flex flex-wrap"></div>
+    </div>
+
     <div class="d-flex gap-2 mt-3 pb-2">
       <button class="btn btn-sm btn-outline-secondary flex-fill" onclick="mobReset()">↺ Réinitialiser</button>
       <button class="btn btn-sm btn-primary flex-fill" data-bs-dismiss="offcanvas">✓ Appliquer</button>
@@ -3269,13 +3364,14 @@ function buildCard(t) {{
   var favIcon  = _favs.has(t.id) ? '★' : '☆';
   var favCls   = 'fav-btn' + (_favs.has(t.id) ? ' active' : '');
   var epLines  = t.epreuves.map(function(ep) {{
-    var sb = '', fb = '';
+    var sb = '', fb = '', cb = '';
     if (ep.statutCode) {{
       var sc = _STATUT_CFG[ep.statutCode] || {{color:'#bdc3c7', label:ep.statutCode}};
       sb = '<span class="badge ms-1" style="background:' + sc.color + '">' + sc.label + '</span>';
     }}
     if (ep.fmtNum) fb = '<span class="badge me-1" style="background:' + (_FMT_COLORS[ep.fmtNum]||'#666') + '">F' + ep.fmtNum + '</span>';
-    return '<div class="ep-line py-1">' + fb + '<b>' + ep.nature + ' ' + ep.age + '</b> <span class="text-muted">' + ep.bas + '→' + ep.haut + '</span>' + sb + '</div>';
+    if (ep.coeff != null) cb = '<span class="badge ms-1" style="background:#5f3dc4;font-size:.7em">×' + ep.coeff + '</span>';
+    return '<div class="ep-line py-1">' + fb + '<b>' + ep.nature + ' ' + ep.age + '</b> <span class="text-muted">' + ep.bas + '→' + ep.haut + '</span>' + cb + sb + '</div>';
   }}).join('');
   var inLine  = t.isInscr ? '<span class="badge bg-success ms-1" style="font-size:.65em">Inscr. en ligne</span>' : '';
   var comment = t.comment ? '<div class="text-muted fst-italic mt-1" style="font-size:.72em">📋 ' + t.comment + '</div>' : '';
@@ -3313,9 +3409,10 @@ function mobFilter() {{
   var dateEnd   = document.getElementById('mob-date-end').value;
   var activeDur = document.querySelector('#mob-dur-chips .chip.active');
   var durMax    = activeDur ? parseInt(activeDur.dataset.key) : Infinity;
-  var checkedFmt = Array.from(document.querySelectorAll('#mob-fmt-chips .chip.active')).map(function(c){{return c.dataset.key;}});
-  var checkedEp = Array.from(document.querySelectorAll('#mob-ep-chips .chip.active')).map(function(c){{return c.dataset.key;}});
-  var checkedSt = Array.from(document.querySelectorAll('#mob-statut-chips .chip.active')).map(function(c){{return c.dataset.key;}});
+  var checkedFmt   = Array.from(document.querySelectorAll('#mob-fmt-chips .chip.active')).map(function(c){{return c.dataset.key;}});
+  var checkedEp    = Array.from(document.querySelectorAll('#mob-ep-chips .chip.active')).map(function(c){{return c.dataset.key;}});
+  var checkedSt    = Array.from(document.querySelectorAll('#mob-statut-chips .chip.active')).map(function(c){{return c.dataset.key;}});
+  var checkedCoeff = Array.from(document.querySelectorAll('#mob-coeff-chips .chip.active')).map(function(c){{return parseFloat(c.dataset.key);}});
   var planning  = absent ? getPlanningData() : {{}};
   var sortBy    = document.getElementById('mob-sort').value;
 
@@ -3349,6 +3446,9 @@ function mobFilter() {{
     }}
     if (checkedSt.length > 0) {{
       if (!checkedSt.some(function(s){{return t.statuts.indexOf(s)!==-1;}})) return false;
+    }}
+    if (checkedCoeff.length > 0) {{
+      if (!checkedCoeff.some(function(c){{return t.coeffs.indexOf(c)!==-1;}})) return false;
     }}
     if (q) {{
       var hay = (t.libelle+' '+t.nomClub+' '+t.ville).toLowerCase();
@@ -3449,6 +3549,16 @@ function mobReset() {{
     b.className = 'chip'; b.dataset.key = s.key; b.textContent = s.label;
     b.onclick = function() {{ this.classList.toggle('active'); mobFilter(); }};
     stC.appendChild(b);
+  }});
+  var coeffVals = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1.0];
+  var coCtn = document.getElementById('mob-coeff-chips');
+  coeffVals.forEach(function(cv) {{
+    var b = document.createElement('button');
+    b.className = 'chip'; b.dataset.key = cv;
+    b.style.cssText = 'border-color:#5f3dc4';
+    b.textContent = '×' + cv;
+    b.onclick = function() {{ this.classList.toggle('active'); mobFilter(); }};
+    coCtn.appendChild(b);
   }});
   mobFilter();
 }} catch(err) {{
