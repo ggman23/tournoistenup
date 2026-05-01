@@ -592,10 +592,20 @@ def generate_html(
     for key, lbl in epreuve_options:
         ep_options_html += f'<option value="{html.escape(key)}">{html.escape(lbl)}</option>\n'
 
-    # Chips épreuves
+    # Chips épreuves — les 6 SM cibles toujours présentes, puis les autres (de la donnée)
     import re as _re
+    _ep_options_dict = dict(epreuve_options)
+    # Garantit que les 6 clés SM cibles sont toujours disponibles
+    for _k, _lbl in _SM_LABELS.items():
+        if _k not in _ep_options_dict:
+            _ep_options_dict[_k] = f"Simple Messieurs {_lbl.replace('SM ', '')} ans"
+    # Ordre : SM cibles d'abord (dans _SM_ORDER), puis le reste
+    _all_ep_options = [(k, _ep_options_dict[k]) for k in _SM_ORDER]
+    for k, lbl in epreuve_options:
+        if k not in dict(_all_ep_options):
+            _all_ep_options.append((k, lbl))
     ep_chips_html = ""
-    for key, lbl in epreuve_options:
+    for key, lbl in _all_ep_options:
         short = lbl
         for full, abbr in [("Simple Messieurs","SM"),("Simple Dames","SD"),("Double Messieurs","DM"),("Double Dames","DD"),("Double Mixte","DX")]:
             if full in lbl:
@@ -603,6 +613,9 @@ def generate_html(
                 rest = _re.sub(r'\bans\b','',rest).strip()
                 short = f"{abbr} {rest}"
                 break
+        # Utilise _SM_LABELS pour un label court propre sur les cibles
+        if key in _SM_LABELS:
+            short = _SM_LABELS[key]
         ep_chips_html += (
             f'<label class="dept-chip">'
             f'<input type="checkbox" class="ep-chk" value="{html.escape(key)}" onchange="onEpChange()"> '
@@ -1775,7 +1788,7 @@ function pdfCustomize(doc) {{
 
   // Close multi-panels when clicking outside
   $(document).on('click.multiPanel', function(e) {{
-    if (!$(e.target).closest('.multi-panel, [id^="btn-ep"], [id^="btn-surf"], [id^="btn-fmt"], [id^="btn-statut"]').length) {{
+    if (!$(e.target).closest('.multi-panel, [id^="btn-ep"], [id^="btn-surf"], [id^="btn-fmt"], [id^="btn-statut"], [id^="btn-coeff"]').length) {{
       $('.multi-panel').hide();
     }}
   }});
