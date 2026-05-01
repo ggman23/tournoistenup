@@ -182,9 +182,9 @@ def _prompt_rue(default_rue: str, ville_label: str) -> str:
     hint = default_rue if default_rue else f"centre de {ville_label}"
     try:
         val = input(f"Rue de départ [{hint}] : ").strip()
-        return val if val else default_rue
+        return val if val else hint
     except (EOFError, KeyboardInterrupt):
-        return default_rue
+        return hint
 
 
 def _gen_mobile(tournaments_or_file, out_path, from_file=False, **kwargs):

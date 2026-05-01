@@ -1295,6 +1295,121 @@ def generate_html(
         {''.join(f'<button class="btn btn-sm" style="border-color:#5f3dc4;color:#9775fa" onclick="quickCoeffFilter({c})">×{c}</button>' for c in _ALL_COEFFS)}
       </div>
     </div>
+
+    <hr class="my-4">
+    <h6 style="color:#5f3dc4">Points gagnés par coefficient et classement adverse</h6>
+    <p class="text-muted small mb-2">Points attribués lorsque vous battez un joueur classé en colonnes (ex : battre un 30/2 avec coeff 0,6 = 36 pts).</p>
+    <div class="table-responsive">
+    <table class="table table-bordered table-sm text-center" style="max-width:560px;font-size:.85em">
+      <thead>
+        <tr style="background:#f8d7da">
+          <th>Coeff ×</th>
+          <th>30</th><th>30/1</th><th>30/2</th><th>30/3</th><th>30/4</th><th>30/5</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="fw-bold">1,0</td><td>120</td><td>90</td><td>60</td><td>30</td><td>20</td><td>15</td></tr>
+        <tr><td class="fw-bold">0,9</td><td>108</td><td>81</td><td>54</td><td>27</td><td>18</td><td>13,5</td></tr>
+        <tr><td class="fw-bold">0,8</td><td>96</td><td>72</td><td>48</td><td>24</td><td>16</td><td>12</td></tr>
+        <tr><td class="fw-bold">0,7</td><td>84</td><td>63</td><td>42</td><td>21</td><td>14</td><td>10,5</td></tr>
+        <tr><td class="fw-bold">0,6</td><td>72</td><td>54</td><td>36</td><td>18</td><td>12</td><td>9</td></tr>
+        <tr><td class="fw-bold">0,5</td><td>60</td><td>45</td><td>30</td><td>15</td><td>10</td><td>7,5</td></tr>
+        <tr><td class="fw-bold">0,4</td><td>48</td><td>36</td><td>24</td><td>12</td><td>8</td><td>6</td></tr>
+        <tr><td class="fw-bold">0,3</td><td>36</td><td>27</td><td>18</td><td>9</td><td>6</td><td>4,5</td></tr>
+        <tr><td class="fw-bold">0,2</td><td>24</td><td>18</td><td>12</td><td>6</td><td>4</td><td>3</td></tr>
+        <tr><td class="fw-bold">0,1</td><td>12</td><td>9</td><td>6</td><td>3</td><td>2</td><td>1,5</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <hr class="my-4">
+    <h6 style="color:#5f3dc4">Tableau complet : Formats → Coefficient → Points</h6>
+    <p class="text-muted small mb-2">Pour chaque catégorie d'âge, le format du tournoi donne le coefficient, et donc les points gagnés par victoire.</p>
+    <div class="table-responsive">
+    <table class="table table-bordered table-sm text-center" style="font-size:.82em">
+      <thead>
+        <tr style="background:#343a40;color:#fff">
+          <th>Catégorie</th>
+          <th>× 1,0</th><th>× 0,8</th><th>× 0,7</th><th>× 0,6</th>
+          <th>× 0,5</th><th>× 0,4</th><th>× 0,3</th><th>× 0,2</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="fw-semibold text-start">SM 11/12 ans</td>
+          <td></td><td></td>
+          <td style="background:#fee2e2"><small>F1, F2, F4</small></td>
+          <td style="background:#e2e8f0"><small>F7</small></td>
+          <td></td>
+          <td style="background:#dcfce7"><small>F3, F6</small></td>
+          <td></td>
+          <td style="background:#f3e8ff"><small>F5</small></td>
+        </tr>
+        <tr>
+          <td class="fw-semibold text-start">SM 13/14 ans</td>
+          <td></td><td></td>
+          <td style="background:#fee2e2"><small>F1, F2, F4</small></td>
+          <td style="background:#e2e8f0"><small>F7</small></td>
+          <td></td>
+          <td style="background:#dcfce7"><small>F3, F6</small></td>
+          <td style="background:#f3e8ff"><small>F5</small></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td class="fw-semibold text-start">SM 15/16 ans</td>
+          <td></td>
+          <td style="background:#fee2e2"><small>F1, F2, F4</small></td>
+          <td></td>
+          <td style="background:#e2e8f0"><small>F7</small></td>
+          <td style="background:#dcfce7"><small>F3, F6</small></td>
+          <td></td>
+          <td style="background:#f3e8ff"><small>F5</small></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td class="fw-semibold text-start">SM 17/18 ans</td>
+          <td></td>
+          <td style="background:#fee2e2"><small>F1, F2, F4</small></td>
+          <td></td>
+          <td style="background:#e2e8f0"><small>F7</small></td>
+          <td style="background:#dcfce7"><small>F3, F6</small></td>
+          <td></td>
+          <td style="background:#f3e8ff"><small>F5</small></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td class="fw-semibold text-start">SM Senior (adulte)</td>
+          <td style="background:#fee2e2"><small>F1, F2, F4</small></td>
+          <td style="background:#e2e8f0"><small>F7</small></td>
+          <td></td>
+          <td style="background:#dcfce7"><small>F3, F6</small></td>
+          <td></td>
+          <td style="background:#f3e8ff"><small>F5</small></td>
+          <td></td>
+          <td></td>
+        </tr>
+        <tr style="background:#f1f5f9;font-weight:bold">
+          <td class="text-start" style="color:#5f3dc4">Coefficient</td>
+          <td style="color:#5f3dc4">1,0</td><td style="color:#5f3dc4">0,8</td>
+          <td style="color:#5f3dc4">0,7</td><td style="color:#5f3dc4">0,6</td>
+          <td style="color:#5f3dc4">0,5</td><td style="color:#5f3dc4">0,4</td>
+          <td style="color:#5f3dc4">0,3</td><td style="color:#5f3dc4">0,2</td>
+        </tr>
+        <tr style="background:#f8d7da"><td class="fw-semibold text-start">vs 30</td>
+          <td>120</td><td>96</td><td>84</td><td>72</td><td>60</td><td>48</td><td>36</td><td>24</td></tr>
+        <tr><td class="fw-semibold text-start">vs 30/1</td>
+          <td>90</td><td>72</td><td>63</td><td>54</td><td>45</td><td>36</td><td>27</td><td>18</td></tr>
+        <tr style="background:#f8d7da"><td class="fw-semibold text-start">vs 30/2</td>
+          <td>60</td><td>48</td><td>42</td><td>36</td><td>30</td><td>24</td><td>18</td><td>12</td></tr>
+        <tr><td class="fw-semibold text-start">vs 30/3</td>
+          <td>30</td><td>24</td><td>21</td><td>18</td><td>15</td><td>12</td><td>9</td><td>6</td></tr>
+        <tr style="background:#f8d7da"><td class="fw-semibold text-start">vs 30/4</td>
+          <td>20</td><td>16</td><td>14</td><td>12</td><td>10</td><td>8</td><td>6</td><td>4</td></tr>
+        <tr><td class="fw-semibold text-start">vs 30/5</td>
+          <td>15</td><td>12</td><td>10,5</td><td>9</td><td>7,5</td><td>6</td><td>4,5</td><td>3</td></tr>
+      </tbody>
+    </table>
+    </div>
   </div>
 
   <!-- Vue Calendrier -->
@@ -1795,7 +1910,7 @@ function pdfCustomize(doc) {{
 
   // ── Valeurs par défaut au chargement ─────────────────────────────────────
   $('#chk-hide-vert, #chk-hide-orange').prop('checked', true);
-  $('.ep-chk[value="SM_110"], .ep-chk[value="SM_120"], .ep-chk[value="SM_125"]').prop('checked', true);
+  $('.ep-chk[value="SM_110"], .ep-chk[value="SM_120"], .ep-chk[value="SM_125"], .ep-chk[value="SM_130"], .ep-chk[value="SM_140"], .ep-chk[value="SM_145"]').prop('checked', true);
   updateMultiBtn('btn-ep', '.ep-chk', 'Toutes les épreuves');
   applyEpLineFilter();
   applyFilters();
@@ -1995,7 +2110,7 @@ function resetFilters() {{
   $('#chk-hide-past').prop('checked', true);  // remet masquer-terminés coché par défaut
   $('#filter-search').val('');
   $('.ep-chk, .surf-chk, .fmt-chk, .statut-chk, .coeff-chk, #chk-no-fmt').prop('checked', false);
-  $('.ep-chk[value="SM_110"], .ep-chk[value="SM_120"], .ep-chk[value="SM_125"]').prop('checked', true);
+  $('.ep-chk[value="SM_110"], .ep-chk[value="SM_120"], .ep-chk[value="SM_125"], .ep-chk[value="SM_130"], .ep-chk[value="SM_140"], .ep-chk[value="SM_145"]').prop('checked', true);
   updateMultiBtn('btn-ep', '.ep-chk', 'Toutes les épreuves');
   $('#btn-surf').text('Toutes ▾').removeClass('btn-primary').addClass('btn-outline-primary');
   $('#btn-fmt').text('Tous ▾').removeClass('btn-primary').addClass('btn-outline-primary');
