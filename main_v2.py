@@ -184,7 +184,7 @@ def _prompt_rue(default_rue: str, ville_label: str) -> str:
         val = input(f"Rue de départ [{hint}] : ").strip()
         return val if val else hint
     except (EOFError, KeyboardInterrupt):
-        return hint
+        return default_rue
 
 
 def _gen_mobile(tournaments_or_file, out_path, from_file=False, **kwargs):
@@ -406,11 +406,15 @@ def main():
             _json.dump(saved, f, ensure_ascii=False, indent=2)
         new_ids = set()  # fix-encoding: no new tournament detection
         only_natures = config["search"].get("epreuves") or None
+        _fe_rue  = config["search"]["ville"].get("rue", "")
+        _fe_city = config["search"]["ville"].get("label", "")
+        _fe_addr = (_fe_rue if _fe_city.lower() in _fe_rue.lower() else f"{_fe_rue}, {_fe_city}") if _fe_rue else ""
         _kw = dict(new_ids=new_ids, fetched_at=saved.get("fetched_at", ""),
                    only_natures=only_natures,
                    ref_lat=config["search"]["ville"].get("lat", 0.0),
                    ref_lng=config["search"]["ville"].get("lng", 0.0),
-                   ref_city=config["search"]["ville"].get("label", ""))
+                   ref_city=_fe_city,
+                   ref_address=_fe_addr)
         generate_html(tournaments, html_file, **_kw)
         _auto_push_html(html_file)
         generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
@@ -455,11 +459,15 @@ def main():
 
         history = load_json(history_file)
         new_ids = set()   # pas de détection de nouveaux tournois en mode refresh
+        _ref_rue_r  = config["search"]["ville"].get("rue", "")
+        _ref_city_r = config["search"]["ville"].get("label", "")
+        _ref_addr_r = (_ref_rue_r if _ref_city_r.lower() in _ref_rue_r.lower() else f"{_ref_rue_r}, {_ref_city_r}") if _ref_rue_r else ""
         _kw = dict(new_ids=new_ids, fetched_at=saved.get("fetched_at", ""),
                    only_natures=only_natures,
                    ref_lat=config["search"]["ville"].get("lat", 0.0),
                    ref_lng=config["search"]["ville"].get("lng", 0.0),
-                   ref_city=config["search"]["ville"].get("label", ""))
+                   ref_city=_ref_city_r,
+                   ref_address=_ref_addr_r)
         generate_html(tournaments, html_file, **_kw)
         _auto_push_html(html_file)
         generate_html(tournaments, html_file_sm, **_kw, sm_only=True)
@@ -711,7 +719,10 @@ def main():
     ref_lng  = config["search"]["ville"].get("lng", 0.0)
     ref_city = config["search"]["ville"].get("label", "")
     ref_rue  = config["search"]["ville"].get("rue", "")
-    ref_address = f"{ref_rue}, {ref_city}" if ref_rue else ""
+    if ref_rue:
+        ref_address = ref_rue if ref_city.lower() in ref_rue.lower() else f"{ref_rue}, {ref_city}"
+    else:
+        ref_address = ""
     # Save ref coords + address in JSON so generate_from_file / --html-only can use them
     saved_data["ref_lat"]     = ref_lat
     saved_data["ref_lng"]     = ref_lng
