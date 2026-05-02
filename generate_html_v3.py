@@ -3492,6 +3492,17 @@ function renderAdvStats() {{
   }});
   var sortedClass = Object.keys(byClass).sort(function(a,b){{ return byClass[b].rank - byClass[a].rank; }});
 
+  // group by meilleur classement (index 11), keep rank (index 16)
+  var byBest = {{}};
+  _ADV.forEach(function(r) {{
+    var c = r[11] || '?';
+    var rank = typeof r[16]==='number' ? r[16] : 99;
+    if (!byBest[c]) byBest[c] = {{wins:0, total:0, rank:rank}};
+    byBest[c].total++;
+    if (r[8]==='Oui') byBest[c].wins++;
+  }});
+  var sortedBest = Object.keys(byBest).sort(function(a,b){{ return byBest[b].rank - byBest[a].rank; }});
+
   // notable wins: victory against player whose current rank (mois, idx 15) is >= Class rank + 2
   var notable = _ADV.filter(function(r) {{
     return r[8]==='Oui' && typeof r[14]==='number' && typeof r[15]==='number' && r[15] >= r[14]+2;
@@ -3512,6 +3523,21 @@ function renderAdvStats() {{
   html += '<th>Classement (jour J)</th><th class="text-center">Matchs</th><th class="text-center">V</th><th class="text-center">D</th><th class="text-center">%</th></tr></thead><tbody>';
   sortedClass.forEach(function(c) {{
     var g = byClass[c];
+    var p = Math.round(g.wins/g.total*100);
+    var bar = p>=50 ? 'success' : 'danger';
+    html += '<tr><td><strong>' + c + '</strong></td><td class="text-center">' + g.total + '</td>';
+    html += '<td class="text-center text-success fw-bold">' + g.wins + '</td>';
+    html += '<td class="text-center text-danger fw-bold">' + (g.total-g.wins) + '</td>';
+    html += '<td class="text-center"><span class="badge bg-' + bar + '">' + p + '%</span></td></tr>';
+  }});
+  html += '</tbody></table></div>';
+
+  // ── Taux par meilleur classement ──
+  html += '<div class="col-auto ms-4"><h6 class="mb-2 text-muted">Taux de victoire par meilleur classement adverse (Best)</h6>';
+  html += '<table class="table table-sm table-bordered" style="width:auto;font-size:.85em"><thead><tr style="background:#f8f9fa">';
+  html += '<th>Meilleur classement</th><th class="text-center">Matchs</th><th class="text-center">V</th><th class="text-center">D</th><th class="text-center">%</th></tr></thead><tbody>';
+  sortedBest.forEach(function(c) {{
+    var g = byBest[c];
     var p = Math.round(g.wins/g.total*100);
     var bar = p>=50 ? 'success' : 'danger';
     html += '<tr><td><strong>' + c + '</strong></td><td class="text-center">' + g.total + '</td>';
