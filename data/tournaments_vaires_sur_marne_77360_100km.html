@@ -829,6 +829,7 @@
   <!-- Vue Adversaires -->
   <div id="view-adv" style="display:none" class="bg-white rounded shadow-sm p-3">
     <h5 class="mb-3">⚔️ Adversaires — <span class="badge bg-secondary">193</span> matchs</h5>
+    <div id="adv-stats" class="mb-4"></div>
     <div class="table-responsive">
       <table id="dt-adv" class="table table-striped table-hover table-sm" style="width:100%">
         <thead>
@@ -21478,8 +21479,74 @@ $.fn.dataTable.ext.search.push(function(settings, _d, _i, rowData) {
   return name.indexOf(_advJoueurVal) !== -1;
 });
 
+function renderAdvStats() {
+  var total = _ADV.length;
+  var wins  = _ADV.filter(function(r){ return r[8]==='Oui'; }).length;
+  var losses = total - wins;
+  var pct   = total > 0 ? Math.round(wins/total*100) : 0;
+
+  // group by classement le jour du match (index 7), keep rank (index 14)
+  var byClass = {};
+  _ADV.forEach(function(r) {
+    var c = r[7] || '?';
+    var rank = typeof r[14]==='number' ? r[14] : 99;
+    if (!byClass[c]) byClass[c] = {wins:0, total:0, rank:rank};
+    byClass[c].total++;
+    if (r[8]==='Oui') byClass[c].wins++;
+  });
+  var sortedClass = Object.keys(byClass).sort(function(a,b){ return byClass[b].rank - byClass[a].rank; });
+
+  // notable wins: victory against player whose current rank (mois, idx 15) is >= Class rank + 2
+  var notable = _ADV.filter(function(r) {
+    return r[8]==='Oui' && typeof r[14]==='number' && typeof r[15]==='number' && r[15] >= r[14]+2;
+  }).sort(function(a,b){ return (b[15]-b[14]) - (a[15]-a[14]); }).slice(0,5);
+
+  // ── Bilan global ──
+  var html = '<div class="row g-3 mb-3">';
+  html += '<div class="col-auto"><div class="card border-0 bg-light px-3 py-2 text-center"><div class="fs-4 fw-bold">' + total + '</div><div class="small text-muted">Matchs</div></div></div>';
+  html += '<div class="col-auto"><div class="card border-0 px-3 py-2 text-center" style="background:rgba(40,167,69,.12)"><div class="fs-4 fw-bold text-success">' + wins + '</div><div class="small text-muted">Victoires</div></div></div>';
+  html += '<div class="col-auto"><div class="card border-0 px-3 py-2 text-center" style="background:rgba(220,53,69,.10)"><div class="fs-4 fw-bold text-danger">' + losses + '</div><div class="small text-muted">Défaites</div></div></div>';
+  html += '<div class="col-auto"><div class="card border-0 px-3 py-2 text-center" style="background:rgba(13,110,253,.08)"><div class="fs-4 fw-bold text-primary">' + pct + '%</div><div class="small text-muted">Taux victoire</div></div></div>';
+  html += '</div>';
+
+  // ── Taux par classement adverse ──
+  html += '<div class="row g-3 align-items-start">';
+  html += '<div class="col-auto"><h6 class="mb-2 text-muted">Taux de victoire par classement adverse</h6>';
+  html += '<table class="table table-sm table-bordered" style="width:auto;font-size:.85em"><thead><tr style="background:#f8f9fa">';
+  html += '<th>Classement (jour J)</th><th class="text-center">Matchs</th><th class="text-center">V</th><th class="text-center">D</th><th class="text-center">%</th></tr></thead><tbody>';
+  sortedClass.forEach(function(c) {
+    var g = byClass[c];
+    var p = Math.round(g.wins/g.total*100);
+    var bar = p>=50 ? 'success' : 'danger';
+    html += '<tr><td><strong>' + c + '</strong></td><td class="text-center">' + g.total + '</td>';
+    html += '<td class="text-center text-success fw-bold">' + g.wins + '</td>';
+    html += '<td class="text-center text-danger fw-bold">' + (g.total-g.wins) + '</td>';
+    html += '<td class="text-center"><span class="badge bg-' + bar + '">' + p + '%</span></td></tr>';
+  });
+  html += '</tbody></table></div>';
+
+  // ── Victoires notables ──
+  if (notable.length > 0) {
+    html += '<div class="col-auto ms-4"><h6 class="mb-2 text-muted">Victoires notables <small class="text-muted fw-normal">(adversaires depuis bien progressés)</small></h6>';
+    html += '<table class="table table-sm table-bordered" style="width:auto;font-size:.85em"><thead><tr style="background:#f8f9fa">';
+    html += '<th>Joueur</th><th class="text-center">Class. J</th><th class="text-center">Classement actuel</th><th class="text-center">Best</th><th>Date</th></tr></thead><tbody>';
+    notable.forEach(function(r) {
+      html += '<tr><td><a href="https://tenup.fft.fr/palmares/' + r[4] + '" target="_blank" rel="noopener" style="text-decoration:none">' + r[2] + ' <strong>' + r[3] + '</strong></a></td>';
+      html += '<td class="text-center">' + r[7] + '</td>';
+      html += '<td class="text-center fw-bold text-success">' + r[10] + '</td>';
+      html += '<td class="text-center">' + r[11] + '</td>';
+      html += '<td>' + r[1] + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '</div>';
+
+  document.getElementById('adv-stats').innerHTML = html;
+}
+
 function initAdvTable() {
   if (_dtAdv) return;
+  renderAdvStats();
   function trunc(s, n) {
     if (!s) return '';
     return s.length > n ? '<span title="' + s.replace(/"/g,'&quot;') + '">' + s.substring(0, n) + '…</span>' : s;
