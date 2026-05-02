@@ -21570,17 +21570,18 @@ function renderAdvStats() {
   var byPlayer = {};
   _ADV.forEach(function(r) {
     var key = r[4]; // idCrm
-    if (!byPlayer[key]) byPlayer[key] = {prenom:r[2], nom:r[3], id:r[4], wins:0, total:0, lastClass:r[7]};
+    if (!byPlayer[key]) byPlayer[key] = {prenom:r[2], nom:r[3], id:r[4], wins:0, total:0, bestClass:'', bestRank:-1};
     byPlayer[key].total++;
     if (r[8]==='Oui') byPlayer[key].wins++;
-    byPlayer[key].lastClass = r[7];
+    var rb = typeof r[16]==='number' ? r[16] : -1;
+    if (rb > byPlayer[key].bestRank) { byPlayer[key].bestRank = rb; byPlayer[key].bestClass = r[11]; }
   });
   var multi = Object.values(byPlayer).filter(function(p){ return p.total > 1; });
   multi.sort(function(a,b){ return b.total - a.total || b.wins - a.wins; });
   if (multi.length > 0) {
     html += '<div class="row g-3 mt-1"><div class="col-auto"><h6 class="mb-2 text-muted">Adversaires rencontrés plusieurs fois</h6>';
     html += '<table class="table table-sm table-bordered" style="width:auto;font-size:.85em"><thead><tr style="background:#f8f9fa">';
-    html += '<th>Joueur</th><th class="text-center">Matchs</th><th class="text-center">V</th><th class="text-center">D</th><th class="text-center">%</th><th class="text-center">Dernier Class.</th></tr></thead><tbody>';
+    html += '<th>Joueur</th><th class="text-center">Matchs</th><th class="text-center">V</th><th class="text-center">D</th><th class="text-center">%</th><th class="text-center">Meilleur Class.</th></tr></thead><tbody>';
     multi.forEach(function(p) {
       var pct = Math.round(p.wins/p.total*100);
       var bar = pct>=50 ? 'success' : 'danger';
@@ -21589,7 +21590,7 @@ function renderAdvStats() {
       html += '<td class="text-center text-success fw-bold">' + p.wins + '</td>';
       html += '<td class="text-center text-danger fw-bold">' + (p.total-p.wins) + '</td>';
       html += '<td class="text-center"><span class="badge bg-' + bar + '">' + pct + '%</span></td>';
-      html += '<td class="text-center">' + p.lastClass + '</td></tr>';
+      html += '<td class="text-center">' + (p.bestClass||'?') + '</td></tr>';
     });
     html += '</tbody></table></div></div>';
   }
