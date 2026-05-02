@@ -36,7 +36,7 @@ def _read_elite_csv(path: str) -> list:
                 dept   = row[12].strip() if len(row) > 12 else ""
                 r_clas = _TENNIS_RANK.get(clas, 99)
                 r_best = _TENNIS_RANK.get(best, 99)
-                players.append([id_crm, prenom, nom, age, clas, best, club, ligue, dept, r_clas, r_best])
+                players.append([id_crm, prenom, nom, age, clas, best, club, ligue, dept, r_clas, r_best, f"{prenom} {nom}"])
     except FileNotFoundError:
         pass
     return players
@@ -3325,8 +3325,8 @@ function initEliteYear(yr) {{
   _dtElite[yr] = $('#dt-elite-' + yr).DataTable({{
     data: _ELITE[yr],
     columns: [
-      {{ render: function(d,t,r) {{
-          if (t === 'filter' || t === 'sort') return r[1] + ' ' + r[2];
+      {{ data: 11, render: function(d,t,r) {{
+          if (t === 'filter' || t === 'sort') return d;
           return '<a href="https://tenup.fft.fr/palmares/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
                  + r[1] + ' <strong>' + r[2] + '</strong></a>';
         }}
