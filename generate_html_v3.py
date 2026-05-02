@@ -14,6 +14,39 @@ _TENNIS_RANK = {"NC":0,"40/2":1,"40":2,"30/5":3,"30/4":4,"30/3":5,"30/2":6,"30/1
                 "15/5":9,"15/4":10,"15/3":11,"15/2":12,"15/1":13,"15":14,
                 "4/6":15,"3/6":16,"2/6":17,"1/6":18,"0":19,"-2/6":20,"-4/6":21,"-15":22,"-30":23}
 
+def _read_adv_csv(path: str) -> list:
+    rows = []
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            reader = _csv_mod.reader(f, delimiter=";")
+            next(reader)
+            for row in reader:
+                if len(row) < 14:
+                    continue
+                num       = row[0].strip()
+                date      = row[1].strip()
+                prenom    = row[2].strip()
+                nom       = row[3].strip()
+                id_crm    = row[4].strip()
+                annee     = row[5].strip()
+                age       = row[6].strip()
+                clas      = row[7].strip()
+                vd        = row[8].strip()
+                club      = row[9].strip()
+                mois      = row[10].strip()
+                best      = row[11].strip()
+                tournoi_nom = row[12].strip()
+                tournoi_id  = row[13].strip()
+                r_clas = _TENNIS_RANK.get(clas, 99)
+                r_mois = _TENNIS_RANK.get(mois, 99)
+                r_best = _TENNIS_RANK.get(best, 99)
+                rows.append([num, date, prenom, nom, id_crm, annee, age, clas, vd,
+                              club, mois, best, tournoi_nom, tournoi_id,
+                              r_clas, r_mois, r_best, f"{prenom} {nom}"])
+    except FileNotFoundError:
+        pass
+    return rows
+
 def _read_elite_csv(path: str) -> list:
     players = []
     try:
@@ -495,6 +528,8 @@ def generate_html(
         2014: _read_elite_csv(os.path.join(_script_dir, "2014.csv")),
     }
     _elite_json = {yr: json.dumps(rows, ensure_ascii=False) for yr, rows in _elite_data.items()}
+    _adv_data = _read_adv_csv(os.path.join(_script_dir, "adv.csv"))
+    _adv_json = json.dumps(_adv_data, ensure_ascii=False)
 
     for t in tournaments:
         tid = t.get("originalId") or t.get("id", "")
@@ -935,6 +970,10 @@ def generate_html(
     }}
     #view-elite .elite-filters input {{ min-width: 60px; }}
     #view-elite .elite-filters th {{ padding: 4px 8px; vertical-align: middle; }}
+    #view-adv .adv-filters input {{ min-width: 50px; }}
+    #view-adv .adv-filters th {{ padding: 4px 6px; vertical-align: middle; }}
+    #dt-adv tr.adv-win td {{ background-color: rgba(40,167,69,.12) !important; }}
+    #dt-adv tr.adv-loss td {{ background-color: rgba(220,53,69,.10) !important; }}
   </style>
 </head>
 <body>
@@ -1286,6 +1325,8 @@ def generate_html(
             onclick="showView('coeff')">× Coefficients</button>
     <button class="btn btn-sm btn-outline-warning view-tab" id="tab-elite"
             onclick="showView('elite')">👑 Élite</button>
+    <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-adv"
+            onclick="showView('adv')">⚔️ Adversaires</button>
     <small class="text-muted ms-2" id="view-info"></small>
   </div>
 
@@ -1531,6 +1572,36 @@ def generate_html(
     </div>
   </div>
 
+  <!-- Vue Adversaires -->
+  <div id="view-adv" style="display:none" class="bg-white rounded shadow-sm p-3">
+    <h5 class="mb-3">⚔️ Adversaires — <span class="badge bg-secondary">{len(_adv_data)}</span> matchs</h5>
+    <div class="table-responsive">
+      <table id="dt-adv" class="table table-striped table-hover table-sm" style="width:100%">
+        <thead>
+          <tr>
+            <th>N°</th><th>Date</th><th>Joueur</th><th>Ann.</th><th>Âge</th>
+            <th>Class.</th><th>Club</th><th>Mois</th><th>Best</th><th>Tournoi</th>
+            <th style="display:none">_rc</th><th style="display:none">_rm</th><th style="display:none">_rb</th>
+          </tr>
+          <tr class="adv-filters">
+            <th><input class="form-control form-control-sm" placeholder="N°"></th>
+            <th><input class="form-control form-control-sm" placeholder="Date…"></th>
+            <th><input class="form-control form-control-sm" placeholder="Joueur…"></th>
+            <th><input class="form-control form-control-sm" placeholder="Ann."></th>
+            <th><input class="form-control form-control-sm" placeholder="Âge"></th>
+            <th><input class="form-control form-control-sm" placeholder="Ex: 30/1"></th>
+            <th><input class="form-control form-control-sm" placeholder="Club…"></th>
+            <th><input class="form-control form-control-sm" placeholder="Mois…"></th>
+            <th><input class="form-control form-control-sm" placeholder="Best…"></th>
+            <th><input class="form-control form-control-sm" placeholder="Tournoi…"></th>
+            <th></th><th></th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Vue Calendrier -->
   <div id="view-calendar" style="display:none" class="bg-white rounded shadow-sm p-3"></div>
 
@@ -1632,7 +1703,8 @@ $(function() {{
 
   // ── Custom DataTables row filter ──────────────────────────────────────────
   $.fn.dataTable.ext.search.push(function(settings, _data, index) {{
-    if (settings.nTable && settings.nTable.id && settings.nTable.id.indexOf('dt-elite-') === 0) return true;
+    var _tid = settings.nTable && settings.nTable.id;
+    if (_tid && (_tid.indexOf('dt-elite-') === 0 || _tid === 'dt-adv')) return true;
     var node = settings.aoData[index] && settings.aoData[index].nTr;
     if (!node) return true;
     var $tr = $(node);
@@ -2333,8 +2405,10 @@ function showView(view) {{
   $('#view-rates').toggle(tableView === 'rates');
   $('#view-coeff').toggle(tableView === 'coeff');
   $('#view-elite').toggle(tableView === 'elite');
+  $('#view-adv').toggle(tableView === 'adv');
+  if (tableView === 'adv') initAdvTable();
   $('.view-tab').removeClass('btn-primary btn-warning btn-success btn-info btn-danger').addClass('btn-outline-secondary');
-  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements', planning:'tab-planning', rates:'tab-rates', coeff:'tab-coeff', elite:'tab-elite'}}[tableView] || 'tab-table';
+  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements', planning:'tab-planning', rates:'tab-rates', coeff:'tab-coeff', elite:'tab-elite', adv:'tab-adv'}}[tableView] || 'tab-table';
   if (isDerniers) {{
     $('#tab-derniers').removeClass('btn-outline-secondary btn-outline-warning').addClass('btn-warning');
     dt.column('.col-first-seen').visible(true);
@@ -2342,7 +2416,7 @@ function showView(view) {{
     dt.order([[dt.column('.col-first-seen').index(), 'desc']]).draw();
   }} else {{
     if (tableView !== 'inscrit' && tableView !== 'classements') dt.column('.col-first-seen').visible(false);
-    var actCls = {{inscrit:'btn-success', classements:'btn-info', planning:'btn-warning', rates:'btn-danger', coeff:'btn-primary', elite:'btn-warning'}}[tableView] || 'btn-primary';
+    var actCls = {{inscrit:'btn-success', classements:'btn-info', planning:'btn-warning', rates:'btn-danger', coeff:'btn-primary', elite:'btn-warning', adv:'btn-secondary'}}[tableView] || 'btn-primary';
     if (tableView === 'coeff') {{
       $('#tab-coeff').removeClass('btn-outline-secondary').css({{'background':'#5f3dc4','border-color':'#5f3dc4','color':'#fff'}});
     }} else {{
@@ -3386,6 +3460,76 @@ function showEliteYear(yr) {{
     else          {{ $b.removeClass('btn-warning').addClass('btn-outline-warning'); }}
   }});
   initEliteYear(yr);
+}}
+
+// ── Données Adversaires ────────────────────────────────────────────────────
+var _ADV = {_adv_json};
+var _dtAdv = null;
+var _advJoueurVal = '';
+
+$.fn.dataTable.ext.search.push(function(settings, _d, _i, rowData) {{
+  if (!settings.nTable || settings.nTable.id !== 'dt-adv') return true;
+  if (!_advJoueurVal) return true;
+  var name = ((rowData[2] || '') + ' ' + (rowData[3] || '')).toLowerCase();
+  return name.indexOf(_advJoueurVal) !== -1;
+}});
+
+function initAdvTable() {{
+  if (_dtAdv) return;
+  _dtAdv = $('#dt-adv').DataTable({{
+    data: _ADV,
+    columns: [
+      {{ data: 0,  className: 'text-center' }},
+      {{ data: 1 }},
+      {{ data: 17, render: function(d,t,r) {{
+          return '<a href="https://tenup.fft.fr/palmares/' + r[4] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
+                 + r[2] + ' <strong>' + r[3] + '</strong></a>';
+        }}
+      }},
+      {{ data: 5,  className: 'text-center' }},
+      {{ data: 6,  className: 'text-center' }},
+      {{ data: 7,  className: 'text-center', orderData: [10] }},
+      {{ data: 9 }},
+      {{ data: 10, className: 'text-center', orderData: [11] }},
+      {{ data: 11, className: 'text-center', orderData: [12] }},
+      {{ render: function(d,t,r) {{
+          return '<a href="https://tenup.fft.fr/tournoi/' + r[13] + '/tableaux" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
+                 + r[12] + '</a>';
+        }}
+      }},
+      {{ data: 14, visible: false, type: 'num' }},
+      {{ data: 15, visible: false, type: 'num' }},
+      {{ data: 16, visible: false, type: 'num' }},
+    ],
+    pageLength: 200,
+    lengthChange: false,
+    order: [[0, 'desc']],
+    language: {{ url: 'https://cdn.datatables.net/plug-ins/2.0.5/i18n/fr-FR.json' }},
+    orderCellsTop: true,
+    createdRow: function(row, data) {{
+      if (data[8] === 'Oui') $(row).addClass('adv-win');
+      else if (data[8] === 'Non') $(row).addClass('adv-loss');
+    }},
+    initComplete: function() {{
+      var api = this.api();
+      $('#dt-adv thead tr.adv-filters th').each(function(i) {{
+        var inp = $('input', this);
+        if (!inp.length) return;
+        if (i === 2) {{
+          inp.on('keyup change clear', function() {{
+            _advJoueurVal = this.value.toLowerCase();
+            api.draw();
+          }});
+        }} else {{
+          inp.on('keyup change clear', function() {{
+            if (api.column(i).search() !== this.value) {{
+              api.column(i).search(this.value).draw();
+            }}
+          }});
+        }}
+      }});
+    }}
+  }});
 }}
 </script>
 
