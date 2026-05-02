@@ -3483,10 +3483,10 @@ function initAdvTable() {{
   _dtAdv = $('#dt-adv').DataTable({{
     data: _ADV,
     autoWidth: false,
-    dom: "<'mb-2'f>tr<'d-flex justify-content-between align-items-center mt-2'ip>",
+    dom: "<'row mb-2'<'col-auto'f>><'row'<'col-12'tr>><'row mt-1'<'col-sm-5'i><'col-sm-7 text-end'p>>",
     columns: [
       {{ data: 0,  className: 'text-center', width: '42px' }},
-      {{ data: 1,  width: '98px' }},
+      {{ data: 1,  className: 'text-center', width: '88px' }},
       {{ data: 17, width: '140px', render: function(d,t,r) {{
           if (t !== 'display') return d;
           return '<a href="https://tenup.fft.fr/palmares/' + r[4] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;white-space:nowrap">'
@@ -3496,7 +3496,7 @@ function initAdvTable() {{
       {{ data: 5,  className: 'text-center', width: '50px' }},
       {{ data: 6,  className: 'text-center', width: '38px' }},
       {{ data: 7,  className: 'text-center', width: '55px', orderData: [10] }},
-      {{ data: 9,  width: '130px', render: function(d,t,r) {{ return t==='display' ? trunc(r[9],22) : (r[9]||''); }} }},
+      {{ data: 9,  width: '140px', render: function(d,t,r) {{ return t==='display' ? trunc(r[9],26) : (r[9]||''); }} }},
       {{ data: 10, className: 'text-center', width: '55px', orderData: [11] }},
       {{ data: 11, className: 'text-center', width: '55px', orderData: [12] }},
       {{ width: '160px', render: function(d,t,r) {{
