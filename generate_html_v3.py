@@ -3319,14 +3319,24 @@ var _ELITE = {{
   2014: {_elite_json[2014]}
 }};
 var _dtElite = {{}};
+var _eliteJoueurVal = {{}};
+
+// Custom name filter — directly compares prenom+nom (indices 1+2 in row data)
+$.fn.dataTable.ext.search.push(function(settings, _d, _i, rowData) {{
+  var tid = settings.nTable.id;
+  if (!tid || tid.indexOf('dt-elite-') !== 0) return true;
+  var q = _eliteJoueurVal[tid];
+  if (!q) return true;
+  var name = ((rowData[1] || '') + ' ' + (rowData[2] || '')).toLowerCase();
+  return name.indexOf(q) !== -1;
+}});
 
 function initEliteYear(yr) {{
   if (_dtElite[yr]) return;
   _dtElite[yr] = $('#dt-elite-' + yr).DataTable({{
     data: _ELITE[yr],
     columns: [
-      {{ data: 11, render: function(d,t,r) {{
-          if (t === 'filter' || t === 'sort') return d;
+      {{ render: function(d,t,r) {{
           return '<a href="https://tenup.fft.fr/palmares/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
                  + r[1] + ' <strong>' + r[2] + '</strong></a>';
         }}
@@ -3346,14 +3356,22 @@ function initEliteYear(yr) {{
     orderCellsTop: true,
     initComplete: function() {{
       var api = this.api();
-      $('#dt-elite-' + yr + ' thead tr.elite-filters th').each(function(i) {{
+      var tid = 'dt-elite-' + yr;
+      $('#' + tid + ' thead tr.elite-filters th').each(function(i) {{
         var inp = $('input', this);
         if (!inp.length) return;
-        inp.on('keyup change clear', function() {{
-          if (api.column(i).search() !== this.value) {{
-            api.column(i).search(this.value).draw();
-          }}
-        }});
+        if (i === 0) {{
+          inp.on('keyup change clear', function() {{
+            _eliteJoueurVal[tid] = this.value.toLowerCase();
+            api.draw();
+          }});
+        }} else {{
+          inp.on('keyup change clear', function() {{
+            if (api.column(i).search() !== this.value) {{
+              api.column(i).search(this.value).draw();
+            }}
+          }});
+        }}
       }});
     }}
   }});
