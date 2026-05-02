@@ -19382,6 +19382,7 @@ $(function() {
 
   // ── Custom DataTables row filter ──────────────────────────────────────────
   $.fn.dataTable.ext.search.push(function(settings, _data, index) {
+    if (settings.nTable && settings.nTable.id && settings.nTable.id.indexOf('dt-elite-') === 0) return true;
     var node = settings.aoData[index] && settings.aoData[index].nTr;
     if (!node) return true;
     var $tr = $(node);
