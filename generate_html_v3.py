@@ -7,7 +7,41 @@ import json
 import os
 import html
 import urllib.parse
+import csv as _csv_mod
 from datetime import datetime, timezone, timedelta
+
+_TENNIS_RANK = {"NC":0,"40":1,"30/5":2,"30/4":3,"30/3":4,"30/2":5,"30/1":6,"30":7,
+                "15/5":8,"15/4":9,"15/3":10,"15/2":11,"15/1":12,"15":13,
+                "4/6":14,"3/6":15,"2/6":16,"1/6":17,"0":18,"-2/6":19,"-4/6":20,"-15":21,"-30":22}
+
+def _read_elite_csv(path: str) -> list:
+    players = []
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            reader = _csv_mod.reader(f, delimiter=";")
+            next(reader)  # skip header
+            for row in reader:
+                if len(row) < 12:
+                    continue
+                id_crm = row[0].strip()
+                prenom = row[1].strip()
+                nom    = row[2].strip()
+                age    = row[5].strip()
+                clas   = row[6].strip()
+                best   = row[7].strip()
+                club   = row[8].strip()
+                ligue  = row[11].strip()
+                dept   = row[12].strip() if len(row) > 12 else ""
+                if not id_crm:
+                    continue
+                r_clas = _TENNIS_RANK.get(clas, 99)
+                r_best = _TENNIS_RANK.get(best, 99)
+                players.append([id_crm, prenom, nom, age, clas, best, club, ligue, dept, r_clas, r_best])
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+    return players
 
 
 SURFACE_COLORS = {
@@ -454,6 +488,16 @@ def generate_html(
         title = title.rstrip() + " — SM 11-14"
 
     new_ids = new_ids or set()
+
+    # Load elite player data from CSV files if available
+    _script_dir = os.path.dirname(os.path.abspath(__file__))
+    _elite_data = {
+        2016: _read_elite_csv(os.path.join(_script_dir, "2016.csv")),
+        2015: _read_elite_csv(os.path.join(_script_dir, "2015.csv")),
+        2014: _read_elite_csv(os.path.join(_script_dir, "2014.csv")),
+    }
+    _elite_json = {yr: json.dumps(rows, ensure_ascii=False) for yr, rows in _elite_data.items()}
+
     for t in tournaments:
         tid = t.get("originalId") or t.get("id", "")
         t["_is_new"] = tid in new_ids
@@ -1240,6 +1284,8 @@ def generate_html(
     <button class="btn btn-sm view-tab" id="tab-coeff"
             style="border-color:#5f3dc4;color:#9775fa"
             onclick="showView('coeff')">× Coefficients</button>
+    <button class="btn btn-sm btn-outline-warning view-tab" id="tab-elite"
+            onclick="showView('elite')">👑 Élite</button>
     <small class="text-muted ms-2" id="view-info"></small>
   </div>
 
@@ -3276,6 +3322,15 @@ def generate_html_mobile(
         t["_is_new"] = tid in new_ids
 
     _only_ep_keys = SM_TARGET_KEYS if sm_only else None
+
+    # Load elite player data from CSV files if available
+    _script_dir_m = os.path.dirname(os.path.abspath(__file__))
+    _elite_data_m = {
+        2016: _read_elite_csv(os.path.join(_script_dir_m, "2016.csv")),
+        2015: _read_elite_csv(os.path.join(_script_dir_m, "2015.csv")),
+        2014: _read_elite_csv(os.path.join(_script_dir_m, "2014.csv")),
+    }
+    _elite_json_m = {yr: json.dumps(rows, ensure_ascii=False) for yr, rows in _elite_data_m.items()}
 
     # Build JS data objects
     mob_data = []
