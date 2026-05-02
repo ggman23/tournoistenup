@@ -661,7 +661,7 @@
     <h6 style="color:#5f3dc4">Tableau complet : Formats → Coefficient → Points</h6>
     <p class="text-muted small mb-2">Pour chaque catégorie d'âge, le format du tournoi donne le coefficient, et donc les points gagnés par victoire.</p>
     <div class="table-responsive">
-    <table class="table table-bordered table-sm text-center" style="font-size:.82em">
+    <table class="table table-bordered table-sm text-center" style="font-size:.82em;width:auto">
       <thead>
         <tr style="background:#343a40;color:#fff">
           <th>Catégorie</th>
@@ -20641,12 +20641,12 @@ function initEliteYear(yr) {
                  + r[1] + ' <strong>' + r[2] + '</strong></a>';
         }
       },
-      { data: 3 },
-      { data: 4, orderData: [7]  },
-      { data: 5, orderData: [8] },
+      { data: 3, className: 'text-center' },
+      { data: 4, orderData: [7], className: 'text-center'  },
+      { data: 5, orderData: [8], className: 'text-center' },
       { data: 6 },
       { data: 7 },
-      { data: 8 },
+      { data: 8, className: 'text-center' },
       { data: 9,  visible: false, type: 'num' },
       { data: 10, visible: false, type: 'num' },
     ],
