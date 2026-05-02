@@ -3476,25 +3476,33 @@ $.fn.dataTable.ext.search.push(function(settings, _d, _i, rowData) {{
 
 function initAdvTable() {{
   if (_dtAdv) return;
+  function trunc(s, n) {{
+    if (!s) return '';
+    return s.length > n ? '<span title="' + s.replace(/"/g,'&quot;') + '">' + s.substring(0, n) + '…</span>' : s;
+  }}
   _dtAdv = $('#dt-adv').DataTable({{
     data: _ADV,
+    autoWidth: false,
+    dom: "<'mb-2'f>tr<'d-flex justify-content-between align-items-center mt-2'ip>",
     columns: [
-      {{ data: 0,  className: 'text-center' }},
-      {{ data: 1 }},
-      {{ data: 17, render: function(d,t,r) {{
-          return '<a href="https://tenup.fft.fr/palmares/' + r[4] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
+      {{ data: 0,  className: 'text-center', width: '42px' }},
+      {{ data: 1,  width: '98px' }},
+      {{ data: 17, width: '140px', render: function(d,t,r) {{
+          if (t !== 'display') return d;
+          return '<a href="https://tenup.fft.fr/palmares/' + r[4] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;white-space:nowrap">'
                  + r[2] + ' <strong>' + r[3] + '</strong></a>';
         }}
       }},
-      {{ data: 5,  className: 'text-center' }},
-      {{ data: 6,  className: 'text-center' }},
-      {{ data: 7,  className: 'text-center', orderData: [10] }},
-      {{ data: 9 }},
-      {{ data: 10, className: 'text-center', orderData: [11] }},
-      {{ data: 11, className: 'text-center', orderData: [12] }},
-      {{ render: function(d,t,r) {{
+      {{ data: 5,  className: 'text-center', width: '50px' }},
+      {{ data: 6,  className: 'text-center', width: '38px' }},
+      {{ data: 7,  className: 'text-center', width: '55px', orderData: [10] }},
+      {{ data: 9,  width: '130px', render: function(d,t,r) {{ return t==='display' ? trunc(r[9],22) : (r[9]||''); }} }},
+      {{ data: 10, className: 'text-center', width: '55px', orderData: [11] }},
+      {{ data: 11, className: 'text-center', width: '55px', orderData: [12] }},
+      {{ width: '160px', render: function(d,t,r) {{
+          if (t !== 'display') return r[12] || '';
           return '<a href="https://tenup.fft.fr/tournoi/' + r[13] + '/tableaux" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
-                 + r[12] + '</a>';
+                 + trunc(r[12], 28) + '</a>';
         }}
       }},
       {{ data: 14, visible: false, type: 'num' }},
