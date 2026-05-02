@@ -549,7 +549,7 @@ def generate_html(
           <td data-sort="{html.escape(r['date_debut_sort'])}">{html.escape(r['dates'])}</td>
           <td class="col-first-seen">{html.escape(r.get('first_seen', ''))}</td>
           <td>{nom_link}</td>
-          <td>{html.escape(r['cat'])}</td>
+          <td><a href="{html.escape(r['detail_url'])}/tableaux" target="_blank" rel="noopener" class="text-reset" style="border-bottom:1px dotted #6c757d;text-decoration:none">{html.escape(r['cat'])}</a></td>
           <td data-sort="{r['fmt_sort']}">{fmt_badge}</td>
           <td>{r['epreuves']}</td>
           <td>{r['surfaces']}</td>
