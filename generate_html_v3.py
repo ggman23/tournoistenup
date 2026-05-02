@@ -935,6 +935,8 @@ def generate_html(
       #t th:nth-child(13), #t td:nth-child(13),
       #t th:nth-child(14), #t td:nth-child(14) {{ display:none !important; }}
     }}
+    #view-elite .elite-filters input {{ min-width: 60px; }}
+    #view-elite .elite-filters th {{ padding: 4px 8px; vertical-align: middle; }}
   </style>
 </head>
 <body>
@@ -1455,6 +1457,79 @@ def generate_html(
           <td>15</td><td>12</td><td>10,5</td><td>9</td><td>7,5</td><td>6</td><td>4,5</td><td>3</td></tr>
       </tbody>
     </table>
+    </div>
+  </div>
+
+  <!-- Vue Élite -->
+  <div id="view-elite" style="display:none" class="bg-white rounded shadow-sm p-3">
+    <h5 style="color:#856404;margin-bottom:1rem">👑 Joueurs Élite FFT — Classements nationaux</h5>
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+      <button class="btn btn-sm btn-warning" id="btn-elite-2016" onclick="showEliteYear(2016)">Millésime 2016 <span class="badge bg-dark ms-1">{len(_elite_data[2016])}</span></button>
+      <button class="btn btn-sm btn-outline-warning" id="btn-elite-2015" onclick="showEliteYear(2015)">Millésime 2015 <span class="badge bg-dark ms-1">{len(_elite_data[2015])}</span></button>
+      <button class="btn btn-sm btn-outline-warning" id="btn-elite-2014" onclick="showEliteYear(2014)">Millésime 2014 <span class="badge bg-dark ms-1">{len(_elite_data[2014])}</span></button>
+    </div>
+    <div id="elite-section-2016">
+      <table id="dt-elite-2016" class="table table-striped table-hover table-sm" style="width:100%">
+        <thead>
+          <tr>
+            <th>Joueur</th><th>Âge</th><th>Class.</th><th>Meilleur</th><th>Club</th><th>Ligue</th><th>Dép.</th>
+            <th style="display:none">_rc</th><th style="display:none">_rb</th>
+          </tr>
+          <tr class="elite-filters">
+            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Âge..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>
+            <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Club..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Dép."></th>
+            <th></th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="elite-section-2015" style="display:none">
+      <table id="dt-elite-2015" class="table table-striped table-hover table-sm" style="width:100%">
+        <thead>
+          <tr>
+            <th>Joueur</th><th>Âge</th><th>Class.</th><th>Meilleur</th><th>Club</th><th>Ligue</th><th>Dép.</th>
+            <th style="display:none">_rc</th><th style="display:none">_rb</th>
+          </tr>
+          <tr class="elite-filters">
+            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Âge..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>
+            <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Club..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Dép."></th>
+            <th></th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="elite-section-2014" style="display:none">
+      <table id="dt-elite-2014" class="table table-striped table-hover table-sm" style="width:100%">
+        <thead>
+          <tr>
+            <th>Joueur</th><th>Âge</th><th>Class.</th><th>Meilleur</th><th>Club</th><th>Ligue</th><th>Dép.</th>
+            <th style="display:none">_rc</th><th style="display:none">_rb</th>
+          </tr>
+          <tr class="elite-filters">
+            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Âge..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>
+            <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Club..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Dép."></th>
+            <th></th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
     </div>
   </div>
 
@@ -2258,8 +2333,9 @@ function showView(view) {{
   $('#view-planning').toggle(tableView === 'planning');
   $('#view-rates').toggle(tableView === 'rates');
   $('#view-coeff').toggle(tableView === 'coeff');
+  $('#view-elite').toggle(tableView === 'elite');
   $('.view-tab').removeClass('btn-primary btn-warning btn-success btn-info btn-danger').addClass('btn-outline-secondary');
-  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements', planning:'tab-planning', rates:'tab-rates', coeff:'tab-coeff'}}[tableView] || 'tab-table';
+  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements', planning:'tab-planning', rates:'tab-rates', coeff:'tab-coeff', elite:'tab-elite'}}[tableView] || 'tab-table';
   if (isDerniers) {{
     $('#tab-derniers').removeClass('btn-outline-secondary btn-outline-warning').addClass('btn-warning');
     dt.column('.col-first-seen').visible(true);
@@ -2267,13 +2343,14 @@ function showView(view) {{
     dt.order([[dt.column('.col-first-seen').index(), 'desc']]).draw();
   }} else {{
     if (tableView !== 'inscrit' && tableView !== 'classements') dt.column('.col-first-seen').visible(false);
-    var actCls = {{inscrit:'btn-success', classements:'btn-info', planning:'btn-warning', rates:'btn-danger', coeff:'btn-primary'}}[tableView] || 'btn-primary';
+    var actCls = {{inscrit:'btn-success', classements:'btn-info', planning:'btn-warning', rates:'btn-danger', coeff:'btn-primary', elite:'btn-warning'}}[tableView] || 'btn-primary';
     if (tableView === 'coeff') {{
       $('#tab-coeff').removeClass('btn-outline-secondary').css({{'background':'#5f3dc4','border-color':'#5f3dc4','color':'#fff'}});
     }} else {{
       $('#tab-coeff').css({{'background':'','border-color':'#5f3dc4','color':'#9775fa'}});
       $('#' + tabId).removeClass('btn-outline-secondary btn-outline-success btn-outline-info btn-outline-warning btn-outline-danger').addClass(actCls);
     }}
+    if (tableView === 'elite') {{ if (!_dtElite[2016]) {{ showEliteYear(2016); }} }}
   }}
   if (tableView === 'calendar')    {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
   if (tableView === 'gantt')       renderGantt();
@@ -3235,6 +3312,62 @@ function renderMap() {{
 
   // Recalculate size (needed when div was hidden)
   setTimeout(function() {{ _mapObj.invalidateSize(); }}, 50);
+}}
+
+// ── Données Élite ─────────────────────────────────────────────────────────
+var _ELITE = {{
+  2016: {_elite_json[2016]},
+  2015: {_elite_json[2015]},
+  2014: {_elite_json[2014]}
+}};
+var _dtElite = {{}};
+
+function initEliteYear(yr) {{
+  if (_dtElite[yr]) return;
+  _dtElite[yr] = $('#dt-elite-' + yr).DataTable({{
+    data: _ELITE[yr],
+    columns: [
+      {{ render: function(d,t,r) {{
+          return '<a href="https://tenup.fft.fr/palmares/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
+                 + r[1] + ' <strong>' + r[2] + '</strong></a>';
+        }}
+      }},
+      {{ data: 3 }},
+      {{ data: 4, orderData: [9]  }},
+      {{ data: 5, orderData: [10] }},
+      {{ data: 6 }},
+      {{ data: 7 }},
+      {{ data: 8 }},
+      {{ data: 9,  visible: false }},
+      {{ data: 10, visible: false }},
+    ],
+    pageLength: 25,
+    order: [[2, 'desc']],
+    language: {{ url: 'https://cdn.datatables.net/plug-ins/2.0.5/i18n/fr-FR.json' }},
+    orderCellsTop: true,
+    initComplete: function() {{
+      var api = this.api();
+      $('#dt-elite-' + yr + ' thead tr.elite-filters th').each(function(i) {{
+        var inp = $('input', this);
+        if (!inp.length) return;
+        inp.on('keyup change clear', function() {{
+          if (api.column(i).search() !== this.value) {{
+            api.column(i).search(this.value).draw();
+          }}
+        }});
+      }});
+    }}
+  }});
+}}
+
+function showEliteYear(yr) {{
+  [2016, 2015, 2014].forEach(function(y) {{
+    $('#elite-section-' + y).toggle(y === yr);
+    var $b = $('#btn-elite-' + y);
+    if (y === yr) {{ $b.removeClass('btn-outline-warning').addClass('btn-warning'); }}
+    else          {{ $b.removeClass('btn-warning').addClass('btn-outline-warning'); }}
+  }});
+  initEliteYear(yr);
 }}
 </script>
 
