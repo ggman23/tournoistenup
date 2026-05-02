@@ -21,25 +21,23 @@ def _read_elite_csv(path: str) -> list:
             reader = _csv_mod.reader(f, delimiter=";")
             next(reader)  # skip header
             for row in reader:
-                if len(row) < 12:
+                if len(row) < 9:
                     continue
                 id_crm = row[0].strip()
-                prenom = row[1].strip()
-                nom    = row[2].strip()
-                age    = row[5].strip()
-                clas   = row[6].strip()
-                best   = row[7].strip()
-                club   = row[8].strip()
-                ligue  = row[11].strip()
-                dept   = row[12].strip() if len(row) > 12 else ""
                 if not id_crm:
                     continue
+                prenom = row[1].strip() if len(row) > 1 else ""
+                nom    = row[2].strip() if len(row) > 2 else ""
+                age    = row[5].strip() if len(row) > 5 else ""
+                clas   = row[6].strip() if len(row) > 6 else ""
+                best   = row[7].strip() if len(row) > 7 else ""
+                club   = row[8].strip() if len(row) > 8 else ""
+                ligue  = row[11].strip() if len(row) > 11 else ""
+                dept   = row[12].strip() if len(row) > 12 else ""
                 r_clas = _TENNIS_RANK.get(clas, 99)
                 r_best = _TENNIS_RANK.get(best, 99)
                 players.append([id_crm, prenom, nom, age, clas, best, club, ligue, dept, r_clas, r_best])
     except FileNotFoundError:
-        pass
-    except Exception:
         pass
     return players
 
@@ -3338,8 +3336,8 @@ function initEliteYear(yr) {{
       {{ data: 6 }},
       {{ data: 7 }},
       {{ data: 8 }},
-      {{ data: 9,  visible: false }},
-      {{ data: 10, visible: false }},
+      {{ data: 9,  visible: false, type: 'num' }},
+      {{ data: 10, visible: false, type: 'num' }},
     ],
     pageLength: 25,
     order: [[2, 'desc']],
