@@ -10,9 +10,9 @@ import urllib.parse
 import csv as _csv_mod
 from datetime import datetime, timezone, timedelta
 
-_TENNIS_RANK = {"NC":0,"40":1,"30/5":2,"30/4":3,"30/3":4,"30/2":5,"30/1":6,"30":7,
-                "15/5":8,"15/4":9,"15/3":10,"15/2":11,"15/1":12,"15":13,
-                "4/6":14,"3/6":15,"2/6":16,"1/6":17,"0":18,"-2/6":19,"-4/6":20,"-15":21,"-30":22}
+_TENNIS_RANK = {"NC":0,"40/2":1,"40":2,"30/5":3,"30/4":4,"30/3":5,"30/2":6,"30/1":7,"30":8,
+                "15/5":9,"15/4":10,"15/3":11,"15/2":12,"15/1":13,"15":14,
+                "4/6":15,"3/6":16,"2/6":17,"1/6":18,"0":19,"-2/6":20,"-4/6":21,"-15":22,"-30":23}
 
 def _read_elite_csv(path: str) -> list:
     players = []
@@ -3326,6 +3326,7 @@ function initEliteYear(yr) {{
     data: _ELITE[yr],
     columns: [
       {{ render: function(d,t,r) {{
+          if (t === 'filter' || t === 'sort') return r[1] + ' ' + r[2];
           return '<a href="https://tenup.fft.fr/palmares/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
                  + r[1] + ' <strong>' + r[2] + '</strong></a>';
         }}
