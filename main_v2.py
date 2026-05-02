@@ -75,13 +75,75 @@ def _ensure_cookie_server(port: int = COOKIE_SERVER_PORT) -> bool:
     return False
 
 
+def _generate_index(data_dir: str = "data") -> str:
+    """Génère data/index.html listant tous les HTML de tournois (page d'accueil GitHub Pages)."""
+    import glob
+    files = sorted(glob.glob(os.path.join(data_dir, "tournaments_*.html")))
+    items = []
+    for f in files:
+        name = os.path.basename(f)
+        is_sm     = "_SM" in name
+        is_mobile = "mobile" in name
+        label = (name
+                 .replace("tournaments_", "")
+                 .replace("_100km", " · 100 km")
+                 .replace("_300km", " · 300 km")
+                 .replace("_1100km", " · 1100 km")
+                 .replace("_150km", " · 150 km")
+                 .replace("_mobile_SM", "")
+                 .replace("_mobile", "")
+                 .replace("_SM", "")
+                 .replace(".html", "")
+                 .replace("_", " "))
+        badges = []
+        if is_sm:
+            badges.append('<span style="background:#6f42c1;color:#fff;padding:1px 7px;border-radius:10px;font-size:.75em;margin-left:6px">SM 11-14</span>')
+        if is_mobile:
+            badges.append('<span style="background:#0dcaf0;color:#000;padding:1px 7px;border-radius:10px;font-size:.75em;margin-left:4px">📱 mobile</span>')
+        items.append(
+            f'<li style="margin:.5em 0"><a href="{name}" style="color:#0d6efd;text-decoration:none">'
+            f'{label}</a>{"".join(badges)}</li>'
+        )
+    stamp = datetime.now().strftime("%d/%m/%Y à %H:%M")
+    content = f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tournois TenUp</title>
+<style>
+body{{font-family:system-ui,sans-serif;max-width:680px;margin:2rem auto;padding:0 1.2rem;color:#212529}}
+h1{{font-size:1.5rem;margin-bottom:.2rem}}
+.ts{{color:#6c757d;font-size:.85rem;margin-bottom:1.8rem}}
+ul{{padding-left:1.3rem;list-style:disc}}
+a:hover{{text-decoration:underline!important}}
+</style>
+</head>
+<body>
+<h1>🎾 Tournois TenUp</h1>
+<div class="ts">Mis à jour : {stamp}</div>
+<ul>
+{"".join(items)}
+</ul>
+</body>
+</html>"""
+    idx = os.path.join(data_dir, "index.html")
+    os.makedirs(data_dir, exist_ok=True)
+    with open(idx, "w", encoding="utf-8") as f:
+        f.write(content)
+    return idx
+
+
 def _auto_push_html(html_file: str):
     """Commit et push le fichier HTML vers GitHub (sauvegarde cloud). Non bloquant."""
     import subprocess
     stamp = datetime.now().strftime("%d/%m/%Y %H:%M")
     try:
+        # Régénérer l'index GitHub Pages et l'inclure dans le même commit
+        data_dir = os.path.dirname(os.path.abspath(html_file))
+        idx_file = _generate_index(data_dir)
         # Force-add même si data/ est dans .gitignore
-        r = subprocess.run(["git", "add", "-f", html_file],
+        r = subprocess.run(["git", "add", "-f", html_file, idx_file],
                            capture_output=True, text=True)
         if r.returncode != 0:
             logger.warning("git add HTML échoué : %s", r.stderr.strip())
