@@ -1647,6 +1647,17 @@ def generate_html(
   <div id="view-adv" style="display:none" class="bg-white rounded shadow-sm p-3">
     <h5 class="mb-3">⚔️ Adversaires — <span class="badge bg-secondary">{len(_adv_data)}</span> matchs</h5>
     <div id="adv-stats" class="mb-4"></div>
+    <div class="mb-2 d-flex gap-3 align-items-center">
+      <span class="small fw-semibold text-muted">Résultat :</span>
+      <div class="form-check form-check-inline mb-0">
+        <input class="form-check-input" type="checkbox" id="adv-chk-v" checked onchange="advResultFilter()">
+        <label class="form-check-label small fw-bold text-success" for="adv-chk-v">✔ Victoires</label>
+      </div>
+      <div class="form-check form-check-inline mb-0">
+        <input class="form-check-input" type="checkbox" id="adv-chk-d" checked onchange="advResultFilter()">
+        <label class="form-check-label small fw-bold text-danger" for="adv-chk-d">✘ Défaites</label>
+      </div>
+    </div>
     <div class="table-responsive">
       <table id="dt-adv" class="table table-striped table-hover table-sm" style="width:100%">
         <thead>
@@ -3590,6 +3601,7 @@ function showEliteYear(yr) {{
 var _ADV = {_adv_json};
 var _dtAdv = null;
 var _advJoueurVal = '';
+var _advShowV = true, _advShowD = true;
 
 $.fn.dataTable.ext.search.push(function(settings, _d, _i, rowData) {{
   if (!settings.nTable || settings.nTable.id !== 'dt-adv') return true;
@@ -3597,6 +3609,20 @@ $.fn.dataTable.ext.search.push(function(settings, _d, _i, rowData) {{
   var name = ((rowData[2] || '') + ' ' + (rowData[3] || '')).toLowerCase();
   return name.indexOf(_advJoueurVal) !== -1;
 }});
+
+$.fn.dataTable.ext.search.push(function(settings, _d, _i, rowData) {{
+  if (!settings.nTable || settings.nTable.id !== 'dt-adv') return true;
+  var vd = rowData[8];
+  if (vd === 'Oui' && !_advShowV) return false;
+  if (vd === 'Non' && !_advShowD) return false;
+  return true;
+}});
+
+function advResultFilter() {{
+  _advShowV = document.getElementById('adv-chk-v').checked;
+  _advShowD = document.getElementById('adv-chk-d').checked;
+  if (_dtAdv) _dtAdv.draw();
+}}
 
 function renderAdvStats() {{
   var total = _ADV.length;
