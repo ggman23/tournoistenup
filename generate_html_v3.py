@@ -79,6 +79,26 @@ def _ensure_gist(token: str, gist_id: str) -> str:
         print(f"⚠️  Impossible de créer le Gist favoris : {e}")
         return ""
 
+def _geocode_city_fallback(ville: str, cp: str) -> tuple:
+    """Géocode au niveau de la commune via l'API data.gouv.fr. Retourne (lat, lng) ou (None, None)."""
+    try:
+        import urllib.request as _ur2
+        import urllib.parse as _up2
+        q = _up2.urlencode({"q": f"{ville} {cp}", "type": "municipality", "limit": "1"})
+        req = _ur2.Request(
+            f"https://api-adresse.data.gouv.fr/search/?{q}",
+            headers={"User-Agent": "TournoisTenUp/1.0"},
+        )
+        with _ur2.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+        feats = data.get("features", [])
+        if feats:
+            coords = feats[0]["geometry"]["coordinates"]
+            return float(coords[1]), float(coords[0])
+    except Exception:
+        pass
+    return None, None
+
 def _read_adv_csv(path: str) -> list:
     rows = []
     try:
@@ -603,6 +623,27 @@ def generate_html(
 
     _only_ep_keys = SM_TARGET_KEYS if sm_only else None
     rows = [_tournament_to_row(t, only_natures=only_natures, only_ep_keys=_only_ep_keys) for t in tournaments]
+
+    # Fallback GPS : centre ville pour les tournois sans coordonnées précises
+    _cp_known: dict = {}
+    for r in rows:
+        if r.get("geo_lat") and r.get("cp"):
+            _cp_known.setdefault(r["cp"], (r["geo_lat"], r["geo_lng"]))
+    _city_api: dict = {}
+    for r in rows:
+        if r.get("geo_lat"):
+            continue
+        cp = r.get("cp", "")
+        if not cp:
+            continue
+        if cp in _cp_known:
+            r["geo_lat"], r["geo_lng"], r["geo_approx"] = _cp_known[cp][0], _cp_known[cp][1], True
+        else:
+            if cp not in _city_api:
+                _city_api[cp] = _geocode_city_fallback(r.get("ville", ""), cp)
+            if _city_api[cp][0]:
+                r["geo_lat"], r["geo_lng"], r["geo_approx"] = _city_api[cp][0], _city_api[cp][1], True
+
     epreuve_options = _collect_epreuve_options(rows, only_keys=SM_TARGET_KEYS if sm_only else None)
 
     tbody_lines = []
@@ -681,8 +722,9 @@ def generate_html(
             data-dept="{html.escape(r['dept'])}"
             data-road-km="{r['road_km'] if r['road_km'] is not None else ''}"
             data-road-min="{r['road_min'] if r['road_min'] is not None else ''}"
-            data-lat="{r['geo_lat'] if r['geo_lat'] is not None else ''}"
-            data-lng="{r['geo_lng'] if r['geo_lng'] is not None else ''}"
+            data-lat="{r.get('geo_lat') or ''}"
+            data-lng="{r.get('geo_lng') or ''}"
+            data-geo-approx="{'1' if r.get('geo_approx') else ''}"
             data-classements='{json.dumps(r["classements_ep"])}'
             data-paiement="{str(r['paiement']).lower()}"
             data-sm-cat="{1 if r['has_sm_cat'] else 0}"
@@ -2603,8 +2645,9 @@ function getFilteredData() {{
         }});
         return lines;
       }})(),
-      lat:     parseFloat($tr.attr('data-lat')) || 0,
-      lng:     parseFloat($tr.attr('data-lng')) || 0,
+      lat:      parseFloat($tr.attr('data-lat')) || 0,
+      lng:      parseFloat($tr.attr('data-lng')) || 0,
+      geoApprox: !!$tr.attr('data-geo-approx'),
       distKm:  parseFloat($tr.attr('data-distance')) || 0,
       roadKm:  $tr.attr('data-road-km') ? parseFloat($tr.attr('data-road-km')) : null,
       roadMin: $tr.attr('data-road-min') ? parseFloat($tr.attr('data-road-min')) : null,
@@ -3499,18 +3542,29 @@ function renderMap() {{
     }}
     var color = _FMT_COLORS[displayFmt] || '#6c757d';
     var marker;
+    var anyApprox = ts.some(function(t) {{ return t.geoApprox; }});
     if (ts.length === 1) {{
       marker = L.circleMarker([g.lat, g.lng], {{
-        radius: 8, color: '#fff', fillColor: color, fillOpacity: 0.85, weight: 1.5
+        radius: 8,
+        color:       anyApprox ? '#888' : '#fff',
+        fillColor:   color,
+        fillOpacity: anyApprox ? 0.55 : 0.85,
+        weight:      1.5,
+        dashArray:   anyApprox ? '5,4' : null
       }});
-      marker.bindPopup(buildMapPopup(t0), {{ maxWidth: 300 }});
+      var popup = buildMapPopup(t0);
+      if (anyApprox) popup = '<small style="color:#888;font-style:italic">📍 centre ville (approx.)</small><br>' + popup;
+      marker.bindPopup(popup, {{ maxWidth: 300 }});
     }} else {{
+      var strokeColor = anyApprox ? '#aaa' : '#fff';
       var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
-        + '<circle cx="16" cy="16" r="14" fill="' + color + '" stroke="#fff" stroke-width="2.5"/>'
+        + '<circle cx="16" cy="16" r="14" fill="' + color + '" stroke="' + strokeColor + '" stroke-width="2.5"'
+        + (anyApprox ? ' stroke-dasharray="5,3"' : '') + ' fill-opacity="' + (anyApprox ? '0.6' : '1') + '"/>'
         + '<text x="16" y="21" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold" font-family="Arial,sans-serif">' + ts.length + '</text>'
         + '</svg>';
       var icon = L.divIcon({{ className: '', html: svg, iconSize: [32, 32], iconAnchor: [16, 16] }});
       var popHtml = '<b style="font-size:.95em">' + t0.ville + ' — ' + ts.length + ' tournois</b>';
+      if (anyApprox) popHtml += '<br><small style="color:#888;font-style:italic">📍 centre ville (approx.)</small>';
       ts.forEach(function(tt) {{ popHtml += '<hr style="margin:5px 0">' + buildMapPopup(tt); }});
       marker = L.marker([g.lat, g.lng], {{ icon: icon }});
       marker.bindPopup(popHtml, {{ maxWidth: 360, maxHeight: 450 }});
