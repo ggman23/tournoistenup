@@ -22677,7 +22677,7 @@ function _extractCmpData(tr) {
   var comment = $tr.find('.ep-comment').first().attr('title') || $tr.find('.ep-comment').first().text().trim();
   var ouv = $tds.eq(13).text().trim();
   var fmts = [];
-  $tr.find('.fmt-badge').each(function() { fmts.push($(this).text().trim()); });
+  $tr.find('.fmt-badge').each(function() { fmts.push($(this).attr('data-fmt') || $(this).text().trim().replace(/^F/,'')); });
   var epreuves = [];
   $tr.find('.ep-line').each(function() {
     var $ep = $(this);
@@ -22767,7 +22767,7 @@ function _buildCompareHTML() {
   h += mkSection('ℹ Informations');
   h += mkRow('Distance', tours.map(function(t) { return t.dist ? '<span class="text-success fw-semibold">' + t.dist + '</span>' : ''; }));
   h += mkRow('Ouv. inscr.', tours.map(function(t) { return t.ouv || ''; }));
-  h += mkRow('Format(s)', tours.map(function(t) { return t.fmts.map(function(f) { return '<span class="badge bg-secondary me-1" style="font-size:.75em">F' + f + '</span>'; }).join('') || '—'; }));
+  h += mkRow('Format(s)', tours.map(function(t) { return t.fmts.map(function(f) { return '<span class="badge me-1" style="background:' + (_FMT_COLORS[f]||'#6c757d') + ';font-size:.75em">F' + f + '</span>'; }).join('') || '—'; }));
   h += mkRow('Commentaire', tours.map(function(t) { return t.comment ? '<small class="text-muted fst-italic">' + t.comment.substring(0,120) + '</small>' : ''; }));
   if (allKeys.length) {
     h += mkSection('🎾 Épreuves');
@@ -22849,7 +22849,7 @@ function clearGistToken() {
 
 <!-- Modal : comparaison de tournois -->
 <div class="modal fade" id="compareModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+  <div class="modal-dialog modal-dialog-scrollable" style="max-width:97vw;width:97vw">
     <div class="modal-content">
       <div class="modal-header py-2">
         <h5 class="modal-title">📊 Comparaison de tournois</h5>
