@@ -65,6 +65,10 @@
 | Rue de départ | Prompt `_prompt_rue()` mémorisé dans config — itinéraire depuis l'adresse exacte du joueur |
 | Destination Maps texte | Adresse textuelle du club utilisée (plus fiable que lat/lng géocodé) |
 | Fix locale git française | Détection des messages git FR/EN pour éviter faux "commit HTML échoué" |
+| GitHub Pages | Workflow `.github/workflows/pages.yml` — déploiement automatique du HTML vers GitHub Pages à chaque push sur main |
+| Onglet Élite | Tableau interactif des joueurs Elite FFT (CSV 2014/2015/2016) — tri numérique par classement, recherche nom, colonnes Âge/Class./Meilleur/Dép. centrées |
+| Onglet Adversaires | Tableau des adversaires depuis `adv.csv` — liens palmares/tableaux TenUp, coloris vert/rouge V/D, filtres par colonne, recherche plein texte |
+| Stats Adversaires | Bilan global (V/D/%), taux de victoire par classement jour J, par meilleur classement, adversaires rencontrés plusieurs fois |
 
 ---
 
@@ -116,7 +120,7 @@ ou quand un tournoi passe de "Bientôt" à "Ouvert".
 | 23 | Historique des statuts | Enregistrer les changements ouvert→attente→ouvert avec horodatage. Détecte les patterns d'ouverture par club. |
 | 24 | Commentaire club en infobulle | Afficher le commentaire du club au survol d'une ligne, sans ouvrir TenUp. |
 | 25 | Partage de vue par URL | Encoder l'état des filtres dans l'URL (#dept=91&fmt=2). Lien partageable qui restaure la même vue. |
-| 26 | Publication HTML automatique | Copier le HTML généré vers NAS (rsync/SMB) ou GitHub Pages à chaque run — accès depuis n'importe où. |
+| 26 | Publication HTML automatique ✅ | Implémenté — workflow GitHub Pages déploie automatiquement le HTML à chaque push sur main. |
 | 27 | Vue mobile optimisée | Refonte responsive : panneau filtres en drawer, tableau remplacé par cartes verticales sur petit écran. |
 
 ---
@@ -159,4 +163,4 @@ qu'il arrive → ~2719 tournois France entière.
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 21/04/2026 (clustering carte, Planning, Absent, Ratés, Maps, rue départ, filtre date, only_ep_keys SM, locale git, nouvelles propositions stats/mobile/NAS/filtres).*
+*Document créé le 09/04/2026 — mis à jour le 03/05/2026 (GitHub Pages, Onglet Élite, Onglet Adversaires, Stats Adversaires).*
