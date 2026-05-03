@@ -165,6 +165,12 @@ def _auto_push_html(html_file: str):
         r = subprocess.run(["git", "push"], capture_output=True, text=True)
         if r.returncode != 0:
             logger.warning("git push HTML échoué : %s", r.stderr.strip())
+            # Annule le commit local pour ne pas l'accumuler au prochain run
+            branch = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
+            subprocess.run(["git", "reset", "--hard", f"origin/{branch}"],
+                           capture_output=True, text=True)
         else:
             logger.info("✅ HTML sauvegardé sur GitHub : %s", html_file)
     except Exception as e:
