@@ -101,6 +101,12 @@ Lancer [2]  →  entrer "Saint-Jean-de-Monts" + "150 km"  →  tournois locaux e
 Lancer [3]  →  ~30 min  →  statuts à jour
 ```
 
+**Mettre à jour l'onglet Adversaires ou Élite :**
+```
+Copier les fichiers CSV mis à jour (adv.csv, 2014.csv, 2015.csv, 2016.csv)
+dans le dossier du projet, puis lancer [4] → le HTML est régénéré en <1 min.
+```
+
 ### Note importante sur [8] et [10]
 
 Lors du lancement de [8] ou [10], le script demande la **même ville et le même rayon**
@@ -214,7 +220,7 @@ python main_v2.py --html-only --generator v3
 
 | Vue | Description |
 |---|---|
-| Tableau | Vue par défaut — tableau trié/paginé |
+| Tableau | Vue par défaut — tableau trié/paginé des tournois |
 | Calendrier | Vue mensuelle — nombre de tournois par jour. Les jours avec absences Planning apparaissent en orange. |
 | Gantt | Diagramme de Gantt — durée des tournois sur axe temporel |
 | Carte | Carte interactive — marqueurs colorés par format, isochrones 30/60 min routières. Plusieurs tournois en même ville → badge numéroté, popup liste tous. |
@@ -222,6 +228,8 @@ python main_v2.py --html-only --generator v3
 | Derniers | Tableau trié par date d'ajout décroissante + colonne "Ajouté le" |
 | 🗓️ Planning | Calendrier mensuel d'absences — clic sur un jour pour noter une absence (stockée en localStorage) |
 | ❌ Ratés | Liste des tournois bloqués par les absences du Planning, triés par distance depuis la ville de référence |
+| Élite | Tableau des joueurs Elite FFT (catégories 2014/2015/2016) — tri par classement, recherche par nom |
+| Adversaires | Historique des matchs joués + statistiques — victoires/défaites, taux par classement, adversaires récurrents |
 
 **Dans l'onglet Carte :** tu peux changer la ville de référence — les isochrones 30/60 min
 se recalculent automatiquement en temps réel via l'API Valhalla (vraies routes).
@@ -246,6 +254,91 @@ Le filtre Absent utilise ces règles selon la durée du tournoi :
 Dans le tableau, le nom de la ville est un lien cliquable. Il ouvre Google Maps avec :
 - **Origine** : ta rue de départ (saisie au démarrage du script)
 - **Destination** : l'adresse textuelle complète du club (plus fiable que les coordonnées GPS)
+
+---
+
+## Onglet Élite — joueurs Elite FFT
+
+L'onglet **Élite** affiche les joueurs des catégories 14 ans (2014.csv), 15 ans (2015.csv)
+et 16 ans (2016.csv). Ces fichiers CSV doivent être placés dans le même dossier que le
+script `generate_html_v3.py`.
+
+### Mettre à jour les données Élite
+
+1. Télécharge les fichiers CSV mis à jour depuis FFT/TenUp
+2. Copie-les dans le dossier du projet (remplace les anciens)
+3. Régénère le HTML : `python main_v2.py --html-only --generator v3` ou option **[4]** dans tenup_v2.bat
+
+### Colonnes du tableau
+
+| Colonne | Contenu |
+|---|---|
+| Joueur | Prénom + Nom (recherche plein texte par le champ en haut) |
+| Âge | Âge du joueur |
+| Class. | Classement actuel — trié du meilleur au moins bon |
+| Meilleur | Meilleur classement jamais atteint — trié du meilleur au moins bon |
+| Club | Club d'appartenance |
+| Ligue | Ligue régionale |
+| Dép. | Département |
+
+### Recherche par nom
+
+Le champ de recherche en haut du tableau filtre sur le prénom ET le nom.
+La recherche est incrémentale — les résultats se mettent à jour à chaque frappe.
+
+---
+
+## Onglet Adversaires — historique des matchs
+
+L'onglet **Adversaires** affiche l'historique de tous les matchs joués par le joueur,
+alimenté par le fichier `adv.csv` placé dans le dossier du projet.
+
+### Mettre à jour les données Adversaires
+
+1. Exporte ou mets à jour `adv.csv` avec les nouveaux matchs
+2. Copie-le dans le dossier du projet
+3. Régénère le HTML : option **[4]** dans tenup_v2.bat (moins d'une minute)
+
+### Structure de adv.csv
+
+Le fichier contient 14 colonnes séparées par `;`, une ligne par match :
+N° match, Date, Prénom, Nom, ID CRM, Année naissance, Âge, Classement jour J,
+Victoire (Oui/Non), Club, Classement du mois, Meilleur classement, Nom tournoi, ID tournoi.
+
+### Colonnes du tableau
+
+| Colonne | Contenu |
+|---|---|
+| N° | Numéro du match (ordre décroissant par défaut = matchs récents en premier) |
+| Date | Date du match |
+| Joueur | Lien cliquable → palmarès FFT de l'adversaire |
+| Ann. | Année de naissance |
+| Âge | Âge au moment du match |
+| Class. | Classement de l'adversaire le jour du match |
+| Club | Club de l'adversaire (tronqué si trop long, infobulle au survol) |
+| Mois | Classement du mois |
+| Best | Meilleur classement jamais atteint |
+| Tournoi | Lien cliquable → tableaux du tournoi sur TenUp |
+
+### Lecture rapide des couleurs
+
+- **Ligne verte** : victoire
+- **Ligne rouge** : défaite
+
+### Section statistiques (en haut de l'onglet)
+
+La section stats se calcule automatiquement à l'ouverture de l'onglet :
+
+**Bilan global** — 4 cartes : total matchs / victoires / défaites / pourcentage de victoires.
+
+**Taux de victoire par classement (jour J)** — tableau groupant les adversaires par leur
+classement au moment du match : combien rencontrés, combien de victoires, quel pourcentage.
+
+**Taux de victoire par meilleur classement** — même tableau mais groupé par le meilleur
+classement jamais atteint par l'adversaire (plus représentatif du niveau réel).
+
+**Adversaires rencontrés plusieurs fois** — liste des adversaires affrontés au moins 2 fois,
+avec le bilan V/D/% et le meilleur classement obtenu. Trié par nombre total de matchs.
 
 ---
 
@@ -297,7 +390,9 @@ python main_v2.py --enrich-geo-only --reset-geo --generator v3
 | `data/history_<ville>_<km>km.json` | IDs connus → détection des nouveaux |
 | `data/tournaments_<ville>_<km>km.html` | Rapport HTML interactif complet |
 | `logs/tenup_YYYYMMDD_HHhMMSS.log` | Log complet de chaque run |
+| `adv.csv` | Historique des matchs adversaires (à fournir manuellement) |
+| `2014.csv` / `2015.csv` / `2016.csv` | Listes joueurs Elite FFT (à fournir manuellement) |
 
 ---
 
-*Document créé le 09/04/2026 — mis à jour le 20/04/2026 (rue de départ, ville cliquable Maps, Planning, Absent, Ratés, clustering carte, filtre date, HTML SM, vues).*
+*Document créé le 09/04/2026 — mis à jour le 03/05/2026 (Onglet Élite, Onglet Adversaires, stats adversaires, mise à jour des données CSV, GitHub Pages).*
