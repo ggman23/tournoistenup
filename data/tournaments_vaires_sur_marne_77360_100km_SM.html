@@ -232,7 +232,7 @@
     <span class="stat-card" style="background:#0d6efd;opacity:.75">691 épreuves</span>
     <span class="stat-card" style="background:#166534;padding:5px 10px"><span style="opacity:.7;font-size:.85em">SM 11</span> <strong>8</strong></span> <span class="stat-card" style="background:#166534;padding:5px 10px"><span style="opacity:.7;font-size:.85em">SM 11/12</span> <strong>321</strong></span> <span class="stat-card" style="background:#166534;padding:5px 10px"><span style="opacity:.7;font-size:.85em">SM 12</span> <strong>3</strong></span> <span class="stat-card" style="background:#166534;padding:5px 10px"><span style="opacity:.7;font-size:.85em">SM 13</span> <strong>1</strong></span> <span class="stat-card" style="background:#166534;padding:5px 10px"><span style="opacity:.7;font-size:.85em">SM 13/14</span> <strong>356</strong></span> <span class="stat-card" style="background:#166534;padding:5px 10px"><span style="opacity:.7;font-size:.85em">SM 14</span> <strong>2</strong></span>
     
-    <span class="stat-card" style="background:#8e44ad">⏰ 2j → classement 05/05</span>
+    <span class="stat-card" style="background:#8e44ad">⏰ 1j → classement 05/05</span>
     <small class="text-muted ms-auto">Mis à jour : 2026-05-03T20:51:48.491394Z</small>
   </div>
 
@@ -21711,8 +21711,16 @@ function initEliteYear(yr) {
         }
       },
       { data: 3, className: 'text-center' },
-      { data: 4, orderData: [7], className: 'text-center'  },
-      { data: 5, orderData: [8], className: 'text-center' },
+      { data: 4, orderData: [7], className: 'text-center', render: function(d,t,r) {
+          if (t !== 'display' || !d) return d || '';
+          return '<a href="https://tenup.fft.fr/simulation-classement/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
+        }
+      },
+      { data: 5, orderData: [8], className: 'text-center', render: function(d,t,r) {
+          if (t !== 'display' || !d) return d || '';
+          return '<a href="https://tenup.fft.fr/simulation-classement/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
+        }
+      },
       { data: 6 },
       { data: 7 },
       { data: 8, className: 'text-center' },
@@ -21924,10 +21932,22 @@ function initAdvTable() {
       },
       { data: 5,  className: 'text-center', width: '50px' },
       { data: 6,  className: 'text-center', width: '38px' },
-      { data: 7,  className: 'text-center', width: '55px', orderData: [10] },
+      { data: 7,  className: 'text-center', width: '55px', orderData: [10], render: function(d,t,r) {
+          if (t !== 'display' || !d) return d || '';
+          return '<a href="https://tenup.fft.fr/simulation-classement/' + r[4] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
+        }
+      },
       { data: 9,  width: '140px', render: function(d,t,r) { return t==='display' ? trunc(r[9],26) : (r[9]||''); } },
-      { data: 10, className: 'text-center', width: '55px', orderData: [11] },
-      { data: 11, className: 'text-center', width: '55px', orderData: [12] },
+      { data: 10, className: 'text-center', width: '55px', orderData: [11], render: function(d,t,r) {
+          if (t !== 'display' || !d) return d || '';
+          return '<a href="https://tenup.fft.fr/simulation-classement/' + r[4] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
+        }
+      },
+      { data: 11, className: 'text-center', width: '55px', orderData: [12], render: function(d,t,r) {
+          if (t !== 'display' || !d) return d || '';
+          return '<a href="https://tenup.fft.fr/simulation-classement/' + r[4] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
+        }
+      },
       { width: '160px', render: function(d,t,r) {
           if (t !== 'display') return r[12] || '';
           return '<a href="https://tenup.fft.fr/tournoi/' + r[13] + '/tableaux" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
