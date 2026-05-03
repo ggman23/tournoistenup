@@ -30,6 +30,8 @@ body{background:#f0f2f5;font-size:14px;padding-bottom:70px}
            placeholder="🔍 Rechercher..." oninput="mobFilter()">
     <button class="btn btn-sm btn-outline-light text-nowrap"
             data-bs-toggle="offcanvas" data-bs-target="#filterDrawer">⚙️ Filtres</button>
+    <button class="btn btn-sm btn-outline-light" id="mob-btn-gist" onclick="openGistSetup()"
+            title="Sync favoris">🔑</button>
   </div>
   <div class="d-flex gap-2 mt-1 align-items-center">
     <small class="flex-grow-1" id="mob-count" style="color:#adb5bd"></small>
@@ -141,7 +143,7 @@ var _TODAY      = '2026-05-03';
 var _TOTAL      = 428;
 var _SHOWN      = 30;
 var _filtered   = [];
-var _GIST_TOKEN = (function(){try{return atob('Z2hwX2RtTjl1TjVISXBhb0h6eDZlMlZFWDRJa1dFM0dCVTJMaWhIZA==');}catch(e){return '';}})(  );
+var _GIST_TOKEN = localStorage.getItem('tenup_gist_token') || '';
 var _GIST_ID    = "df5ce074fde6b9586ab2587a25322585";
 var _GIST_FILE  = 'tenup_favorites.json';
 var _favs       = (function() {
@@ -158,23 +160,33 @@ function _saveFavsLocal() {
   localStorage.setItem('tenup_favs', JSON.stringify(Array.from(_favs)));
 }
 function _syncFavsToGist() {
-  if (!_GIST_TOKEN || !_GIST_ID) return;
+  if (!_GIST_TOKEN || !_GIST_ID) { console.warn('[Gist] Pas de token/ID — sync désactivée'); return; }
+  var arr = Array.from(_favs);
   fetch('https://api.github.com/gists/' + _GIST_ID, {
     method: 'PATCH',
     headers: { 'Authorization': 'token ' + _GIST_TOKEN, 'Content-Type': 'application/json',
                 'Accept': 'application/vnd.github.v3+json' },
-    body: JSON.stringify({ files: { [_GIST_FILE]: { content: JSON.stringify(Array.from(_favs)) } } })
-  }).catch(function(e) { console.warn('Gist sync failed:', e); });
+    body: JSON.stringify({ files: { [_GIST_FILE]: { content: JSON.stringify(arr) } } })
+  }).then(function(r) {
+    if (!r.ok) { console.error('[Gist] PATCH échoué ' + r.status + ' ' + r.statusText + ' — token expiré ?'); }
+    else { console.log('[Gist] Sync OK (' + arr.length + ' favoris)'); }
+  }).catch(function(e) { console.warn('[Gist] Sync réseau échoué:', e); });
 }
 function _loadFavsFromGist() {
-  if (!_GIST_TOKEN || !_GIST_ID) return;
-  fetch('https://api.github.com/gists/' + _GIST_ID, {
-    headers: { 'Authorization': 'token ' + _GIST_TOKEN, 'Accept': 'application/vnd.github.v3+json' }
-  }).then(function(r) { return r.json(); }).then(function(data) {
+  if (!_GIST_ID) return;
+  var hdrs = { 'Accept': 'application/vnd.github.v3+json' };
+  if (_GIST_TOKEN) hdrs['Authorization'] = 'token ' + _GIST_TOKEN;
+  fetch('https://api.github.com/gists/' + _GIST_ID, { headers: hdrs })
+  .then(function(r) {
+    if (!r.ok) { console.error('[Gist] GET échoué ' + r.status + ' ' + r.statusText); return null; }
+    return r.json();
+  }).then(function(data) {
+    if (!data) return;
     var file = data.files && data.files[_GIST_FILE];
-    if (!file) return;
+    if (!file) { console.warn('[Gist] Fichier ' + _GIST_FILE + ' absent du Gist'); return; }
     var arr = JSON.parse(file.content || '[]');
     if (!Array.isArray(arr)) return;
+    console.log('[Gist] Chargé ' + arr.length + ' favoris depuis Gist');
     _favs = new Set(arr);
     _saveFavsLocal();
     document.querySelectorAll('[data-id]').forEach(function(el) {
@@ -183,7 +195,7 @@ function _loadFavsFromGist() {
       if (btn) { btn.textContent = _favs.has(id) ? '★' : '☆'; btn.classList.toggle('active', _favs.has(id)); }
     });
     if (document.getElementById('mob-fav-only') && document.getElementById('mob-fav-only').checked) mobFilter();
-  }).catch(function(e) { console.warn('Gist load failed:', e); });
+  }).catch(function(e) { console.warn('[Gist] Chargement réseau échoué:', e); });
 }
 function toggleFav(id) {
   if (_favs.has(id)) _favs.delete(id); else _favs.add(id);
@@ -427,12 +439,61 @@ function mobReset() {
   });
   mobFilter();
   _loadFavsFromGist();
+  if (localStorage.getItem('tenup_gist_token')) document.getElementById('mob-btn-gist').style.borderColor = '#28a745';
 } catch(err) {
   document.getElementById('mob-cards').innerHTML =
     '<div class="alert alert-danger m-3"><b>Erreur JS :</b><br><code>' + err.message + '</code><br><small>' + (err.stack||'').substring(0,300) + '</small></div>';
   document.getElementById('mob-count').textContent = 'Erreur — voir ci-dessous';
 }
+function openGistSetup() {
+  var cur = localStorage.getItem('tenup_gist_token') || '';
+  document.getElementById('mob-gist-input').value = cur;
+  var st = document.getElementById('mob-gist-status');
+  st.innerHTML = cur ? '<span class="text-success">✔ Token configuré</span>' : '<span class="text-muted">Aucun token — sync désactivée</span>';
+  document.getElementById('mob-btn-gist').style.borderColor = cur ? '#28a745' : '';
+  new bootstrap.Modal(document.getElementById('mobGistModal')).show();
+}
+function saveMobGistToken() {
+  var val = document.getElementById('mob-gist-input').value.trim();
+  _GIST_TOKEN = val;
+  if (val) localStorage.setItem('tenup_gist_token', val);
+  else localStorage.removeItem('tenup_gist_token');
+  document.getElementById('mob-btn-gist').style.borderColor = val ? '#28a745' : '';
+  bootstrap.Modal.getInstance(document.getElementById('mobGistModal')).hide();
+  if (val) _loadFavsFromGist();
+}
+function clearMobGistToken() {
+  _GIST_TOKEN = '';
+  localStorage.removeItem('tenup_gist_token');
+  document.getElementById('mob-gist-input').value = '';
+  document.getElementById('mob-gist-status').innerHTML = '<span class="text-muted">Token effacé</span>';
+  document.getElementById('mob-btn-gist').style.borderColor = '';
+}
 })();
 </script>
+
+<!-- Modal : sync Gist token -->
+<div class="modal fade" id="mobGistModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title">🔄 Sync favoris entre appareils</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-2">Entrez votre token GitHub (scope <code>gist</code>) pour synchroniser vos favoris. Stocké uniquement dans ce navigateur.</p>
+        <input type="password" class="form-control form-control-sm font-monospace" id="mob-gist-input" placeholder="ghp_...">
+        <div id="mob-gist-status" class="mt-2 small"></div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-danger btn-sm" onclick="clearMobGistToken()">Effacer</button>
+        <div>
+          <button type="button" class="btn btn-secondary btn-sm me-1" data-bs-dismiss="modal">Annuler</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="saveMobGistToken()">Sauvegarder</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
