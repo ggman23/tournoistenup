@@ -746,6 +746,7 @@ def generate_html(
           <td><small>{email_link}</small></td>
           <td><small>{html.escape(r['ouverture'])}</small></td>
           <td class="text-center"><button class="fav-btn" data-id="{tid_esc}" onclick="toggleFav(this)">&#9734;</button></td>
+          <td class="text-center"><button class="cmp-btn" data-id="{tid_esc}" onclick="toggleCompare(this)" title="Ajouter à la comparaison">⊞</button></td>
         </tr>""")
 
     tbody        = "\n".join(tbody_lines)
@@ -988,6 +989,16 @@ def generate_html(
     .fav-btn {{ background:none; border:none; cursor:pointer; font-size:1.15em;
                padding:0 3px; color:#ccc; line-height:1; transition:color .15s; }}
     .fav-btn.fav-active {{ color:#f39c12; }}
+    .cmp-btn {{ background:none; border:none; cursor:pointer; font-size:1.1em;
+               padding:0 4px; color:#adb5bd; line-height:1; transition:color .15s; }}
+    .cmp-btn:hover {{ color:#0d6efd; }}
+    .cmp-btn.cmp-active {{ color:#0d6efd; }}
+    #compare-bar {{ position:fixed; bottom:0; left:0; right:0; z-index:2000; background:#1a1a2e;
+                    color:#fff; padding:8px 20px; display:flex; align-items:center; gap:10px;
+                    box-shadow:0 -3px 10px rgba(0,0,0,.4);
+                    transform:translateY(100%); transition:transform .25s ease; }}
+    #compare-bar.show {{ transform:translateY(0); }}
+    #compare-body .table th {{ font-size:.82em; }}
     .dept-group {{ display:flex; align-items:center; flex-wrap:wrap; gap:3px; font-size:.8em; }}
     .dept-ligue-btn {{ font-size:.72em; white-space:nowrap; user-select:none; }}
     .dept-ligue-btn:hover {{ opacity:.8; }}
@@ -1788,6 +1799,7 @@ def generate_html(
           <th>Email</th>
           <th>Ouv. inscr.</th>
           <th>⭐</th>
+          <th title="Sélectionner pour comparaison">📊</th>
         </tr>
       </thead>
       <tbody>{tbody}</tbody>
@@ -2109,7 +2121,7 @@ function pdfCustomize(doc) {{
     columnDefs: [
       {{ targets: [3,4,6,9,10], searchable: false }},
       {{ targets: [4,8], type: 'num' }},
-      {{ targets: [14], orderable: false, searchable: false }},
+      {{ targets: [14,15], orderable: false, searchable: false }},
       {{ targets: ['.col-first-seen'], visible: false, searchable: false,
          render: function(data, type, row) {{
            if (type === 'display' && data) {{
@@ -2211,6 +2223,7 @@ function pdfCustomize(doc) {{
     ],
     drawCallback: function() {{
       restoreFavs();
+      restoreCompare();
       applyEpLineFilter();
       var n = dt.page.info().recordsDisplay;
       $('#filter-count').text(n + ' affiché(s)');
@@ -3873,6 +3886,151 @@ function initAdvTable() {{
   }});
 }}
 
+// ── Comparaison de tournois ────────────────────────────────────────────────
+var _compareIds = [];
+var _compareData = {{}};
+var _COMPARE_MAX = 6;
+
+function toggleCompare(btn) {{
+  var id = btn.getAttribute('data-id');
+  var idx = _compareIds.indexOf(id);
+  if (idx === -1) {{
+    if (_compareIds.length >= _COMPARE_MAX) {{
+      alert('Maximum ' + _COMPARE_MAX + ' tournois à comparer simultanément.');
+      return;
+    }}
+    _compareIds.push(id);
+    _compareData[id] = _extractCmpData($(btn).closest('tr')[0]);
+    btn.classList.add('cmp-active');
+    btn.textContent = '⊟';
+  }} else {{
+    _compareIds.splice(idx, 1);
+    delete _compareData[id];
+    btn.classList.remove('cmp-active');
+    btn.textContent = '⊞';
+  }}
+  _updateCompareBar();
+}}
+
+function _extractCmpData(tr) {{
+  var $tr = $(tr);
+  var $tds = $tr.find('td');
+  var nom = $tr.find('a.tournament-link').first().text().trim();
+  var $villeEl = $tds.eq(7);
+  var ville = $villeEl.contents().filter(function() {{ return this.nodeType === 3; }}).text().trim()
+            + ' ' + $villeEl.find('small').text().trim();
+  var $distEl = $tds.eq(8);
+  var distRoute = $distEl.find('.text-success').text().trim();
+  var distBase  = $distEl.clone().children().remove().end().text().trim();
+  var dist = distRoute || distBase;
+  var comment = $tr.find('.ep-comment').first().attr('title') || $tr.find('.ep-comment').first().text().trim();
+  var ouv = $tds.eq(13).text().trim();
+  var fmts = [];
+  $tr.find('.fmt-badge').each(function() {{ fmts.push($(this).text().trim()); }});
+  var epreuves = [];
+  $tr.find('.ep-line').each(function() {{
+    var $ep = $(this);
+    var nature = $ep.find('.ep-nature').text().trim();
+    var age    = $ep.find('.ep-age').text().trim();
+    var statut = $ep.find('.statut-badge').attr('data-statut') || '';
+    var sLabel = $ep.find('.statut-badge').text().trim();
+    var range  = $ep.find('.ep-range').text().trim();
+    var tarif  = $ep.find('.ep-tarif').text().trim();
+    var key    = $ep.attr('data-ep-key') || '';
+    var coeff  = $ep.attr('data-coeff') || '';
+    if (nature) {{
+      epreuves.push({{ key: key, label: nature + (age ? ' ' + age : ''), statut: statut, sLabel: sLabel, range: range, tarif: tarif, coeff: coeff }});
+    }}
+  }});
+  return {{ nom: nom, ville: ville.trim(), dist: dist, comment: comment, ouv: ouv, fmts: fmts, epreuves: epreuves }};
+}}
+
+function restoreCompare() {{
+  document.querySelectorAll('.cmp-btn').forEach(function(btn) {{
+    var id = btn.getAttribute('data-id');
+    var active = _compareIds.indexOf(id) !== -1;
+    btn.classList.toggle('cmp-active', active);
+    btn.textContent = active ? '⊟' : '⊞';
+  }});
+}}
+
+function _updateCompareBar() {{
+  var n = _compareIds.length;
+  document.getElementById('cmp-count-label').textContent =
+    n + ' tournoi' + (n > 1 ? 's' : '') + ' sélectionné' + (n > 1 ? 's' : '');
+  document.getElementById('btn-open-compare').disabled = n < 2;
+  document.getElementById('compare-bar').classList.toggle('show', n > 0);
+}}
+
+function clearCompare() {{
+  _compareIds = [];
+  _compareData = {{}};
+  restoreCompare();
+  _updateCompareBar();
+}}
+
+function openCompareModal() {{
+  if (_compareIds.length < 2) return;
+  document.getElementById('compare-body').innerHTML = _buildCompareHTML();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('compareModal')).show();
+}}
+
+function _buildCompareHTML() {{
+  var SC = {{ ouvert:'#28a745', bientot:'#2980b9', attente:'#e67e22', inscrit_attente:'#d35400',
+              cloture:'#dc3545', impossible:'#95a5a6', hors_bornes:'#7f8c8d',
+              deja_inscrit:'#1abc9c', ineligible:'#34495e', autre:'#bdc3c7' }};
+  var tours = _compareIds.map(function(id) {{ return _compareData[id]; }}).filter(Boolean);
+  var n = tours.length;
+
+  var allKeys = [], keyLabels = {{}};
+  tours.forEach(function(t) {{
+    t.epreuves.forEach(function(ep) {{
+      if (allKeys.indexOf(ep.key) === -1) {{ allKeys.push(ep.key); keyLabels[ep.key] = ep.label; }}
+    }});
+  }});
+
+  function mkBadge(ep) {{
+    if (!ep) return '<span class="text-muted small">—</span>';
+    var c = SC[ep.statut] || '#6c757d';
+    var h = '<span class="badge" style="background:' + c + ';font-size:.73em">' + (ep.sLabel || ep.statut || '?') + '</span>';
+    if (ep.range && ep.range.indexOf('?') === -1) h += ' <span class="text-muted small">' + ep.range + '</span>';
+    if (ep.tarif && ep.tarif !== '0€') h += ' <span class="badge bg-light text-dark border" style="font-size:.7em">' + ep.tarif + '</span>';
+    if (ep.coeff) h += ' <span style="font-size:.7em;color:#9775fa">×' + ep.coeff + '</span>';
+    return h;
+  }}
+
+  function mkRow(label, cells) {{
+    return '<tr><td class="text-muted small fw-semibold text-nowrap pe-3" style="background:#f8f9fa;width:110px">' + label + '</td>'
+      + cells.map(function(c) {{ return '<td>' + (c || '<span class="text-muted">—</span>') + '</td>'; }}).join('') + '</tr>';
+  }}
+  function mkSection(label) {{
+    return '<tr class="table-secondary"><td colspan="' + (n+1) + '" class="fw-bold py-1 px-2" style="font-size:.75em;letter-spacing:.04em;text-transform:uppercase">' + label + '</td></tr>';
+  }}
+
+  var ths = tours.map(function(t) {{
+    return '<th style="min-width:180px;max-width:240px;font-size:.82em"><div class="text-muted fw-normal" style="font-size:.88em">' + (t.ville||'') + '</div>' + (t.nom||'?') + '</th>';
+  }}).join('');
+
+  var h = '<table class="table table-bordered table-sm align-middle mb-0" style="font-size:.85em">';
+  h += '<thead class="table-dark"><tr><th style="min-width:110px">Critère</th>' + ths + '</tr></thead><tbody>';
+  h += mkSection('ℹ Informations');
+  h += mkRow('Distance', tours.map(function(t) {{ return t.dist ? '<span class="text-success fw-semibold">' + t.dist + '</span>' : ''; }}));
+  h += mkRow('Ouv. inscr.', tours.map(function(t) {{ return t.ouv || ''; }}));
+  h += mkRow('Format(s)', tours.map(function(t) {{ return t.fmts.map(function(f) {{ return '<span class="badge bg-secondary me-1" style="font-size:.75em">F' + f + '</span>'; }}).join('') || '—'; }}));
+  h += mkRow('Commentaire', tours.map(function(t) {{ return t.comment ? '<small class="text-muted fst-italic">' + t.comment.substring(0,120) + '</small>' : ''; }}));
+  if (allKeys.length) {{
+    h += mkSection('🎾 Épreuves');
+    allKeys.forEach(function(key) {{
+      h += mkRow(keyLabels[key] || key, tours.map(function(t) {{
+        var ep = t.epreuves.find(function(e) {{ return e.key === key; }});
+        return ep ? mkBadge(ep) : '<span class="text-muted small fst-italic">Non proposée</span>';
+      }}));
+    }});
+  }}
+  h += '</tbody></table>';
+  return h;
+}}
+
 function exportFavs() {{
   var favs = _getFavs();
   var arr = Object.keys(favs).filter(function(k) {{ return favs[k]; }});
@@ -3929,6 +4087,32 @@ function clearGistToken() {{
   document.getElementById('btn-gist-sync').style.borderColor = '';
 }}
 </script>
+
+<!-- Barre de comparaison flottante -->
+<div id="compare-bar">
+  <span id="cmp-count-label">0 sélectionné</span>
+  <button class="btn btn-primary btn-sm" id="btn-open-compare" onclick="openCompareModal()" disabled>📊 Comparer</button>
+  <button class="btn btn-outline-light btn-sm" onclick="clearCompare()">✕ Vider</button>
+  <small class="text-muted ms-auto">max 6 tournois</small>
+</div>
+
+<!-- Modal : comparaison de tournois -->
+<div class="modal fade" id="compareModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h5 class="modal-title">📊 Comparaison de tournois</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-2" id="compare-body" style="overflow-x:auto"></div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-danger btn-sm"
+                onclick="clearCompare();bootstrap.Modal.getInstance(document.getElementById('compareModal')).hide()">✕ Vider la sélection</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Modal : synchronisation Gist -->
 <div class="modal fade" id="gistModal" tabindex="-1" aria-hidden="true">
