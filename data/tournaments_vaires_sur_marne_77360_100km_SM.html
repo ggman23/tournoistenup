@@ -19241,6 +19241,9 @@ var currentView = 'table';
 var _REF_LAT = 48.873284;
 var _REF_LNG = 2.638373;
 var _REF_CITY = "VAIRES SUR MARNE, 77360";
+var _GIST_TOKEN = (function(){try{return atob('Z2hwX2RtTjl1TjVISXBhb0h6eDZlMlZFWDRJa1dFM0dCVTJMaWhIZA==');}catch(e){return '';}})(  );
+var _GIST_ID    = "df5ce074fde6b9586ab2587a25322585";
+var _GIST_FILE  = 'tenup_favorites.json';
 var _mapObj = null;
 var _mapMarkers = null;
 var _isoLayers = null;
@@ -19647,6 +19650,8 @@ function pdfCustomize(doc) {
     }
   });
 
+  _loadFavsFromGist();
+
   // Close multi-panels when clicking outside
   $(document).on('click.multiPanel', function(e) {
     if (!$(e.target).closest('.multi-panel, [id^="btn-ep"], [id^="btn-surf"], [id^="btn-fmt"], [id^="btn-statut"], [id^="btn-coeff"]').length) {
@@ -19778,10 +19783,49 @@ function onSmOnlyChange() {
   applyFilters();
 }
 
-// ── Favorites (stored in localStorage) ───────────────────────────────────────
+// ── Favoris (Gist sync + localStorage cache) ─────────────────────────────────
+function _getFavs() {
+  try {
+    var raw = JSON.parse(localStorage.getItem('tenup_favs') || '{}');
+    if (Array.isArray(raw)) {
+      var obj = {};
+      raw.forEach(function(id) { obj[id] = true; });
+      return obj;
+    }
+    return raw;
+  } catch(e) { return {}; }
+}
+function _setFavs(favs) {
+  localStorage.setItem('tenup_favs', JSON.stringify(favs));
+  if (!_GIST_TOKEN || !_GIST_ID) return;
+  var arr = Object.keys(favs).filter(function(k) { return favs[k]; });
+  fetch('https://api.github.com/gists/' + _GIST_ID, {
+    method: 'PATCH',
+    headers: { 'Authorization': 'token ' + _GIST_TOKEN, 'Content-Type': 'application/json',
+                'Accept': 'application/vnd.github.v3+json' },
+    body: JSON.stringify({ files: { [_GIST_FILE]: { content: JSON.stringify(arr) } } })
+  }).catch(function(e) { console.warn('Gist sync failed:', e); });
+}
+function _loadFavsFromGist() {
+  if (!_GIST_TOKEN || !_GIST_ID) return;
+  fetch('https://api.github.com/gists/' + _GIST_ID, {
+    headers: { 'Authorization': 'token ' + _GIST_TOKEN, 'Accept': 'application/vnd.github.v3+json' }
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    var file = data.files && data.files[_GIST_FILE];
+    if (!file) return;
+    var arr = JSON.parse(file.content || '[]');
+    if (!Array.isArray(arr)) return;
+    var favs = {};
+    arr.forEach(function(id) { favs[id] = true; });
+    localStorage.setItem('tenup_favs', JSON.stringify(favs));
+    restoreFavs();
+    if ($('#chk-fav').prop('checked')) dt.draw();
+  }).catch(function(e) { console.warn('Gist load failed:', e); });
+}
+
 function toggleFav(btn) {
   var id   = btn.getAttribute('data-id');
-  var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{}');
+  var favs = _getFavs();
   if (favs[id]) {
     delete favs[id];
     btn.textContent = '☆';
@@ -19791,14 +19835,13 @@ function toggleFav(btn) {
     btn.textContent = '★';
     btn.classList.add('fav-active');
   }
-  localStorage.setItem('tenup_favs', JSON.stringify(favs));
+  _setFavs(favs);
   if ($('#chk-fav').prop('checked')) dt.draw();
 }
 
 function toggleFavMap(btn) {
   var id = btn.getAttribute('data-id');
-  var favs = {};
-  try { favs = JSON.parse(localStorage.getItem('tenup_favs') || '{}'); } catch(e) {}
+  var favs = _getFavs();
   if (favs[id]) {
     delete favs[id];
     btn.textContent = '☆';
@@ -19808,8 +19851,7 @@ function toggleFavMap(btn) {
     btn.textContent = '★';
     btn.style.color = '#f39c12';
   }
-  localStorage.setItem('tenup_favs', JSON.stringify(favs));
-  // Sync bouton dans le tableau
+  _setFavs(favs);
   var $row = $('.fav-btn[data-id="' + id + '"]');
   if ($row.length) {
     if (favs[id]) { $row.text('★').addClass('fav-active'); }
@@ -19819,7 +19861,7 @@ function toggleFavMap(btn) {
 }
 
 function restoreFavs() {
-  var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{}');
+  var favs = _getFavs();
   $('.fav-btn').each(function() {
     var id  = $(this).attr('data-id');
     var isFav = !!favs[id];
