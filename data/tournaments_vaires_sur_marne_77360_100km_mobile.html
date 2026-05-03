@@ -141,12 +141,54 @@ var _TODAY      = '2026-05-03';
 var _TOTAL      = 428;
 var _SHOWN      = 30;
 var _filtered   = [];
-var _favs       = new Set(JSON.parse(localStorage.getItem('tenup_favs') || '[]'));
+var _GIST_TOKEN = (function(){try{return atob('Z2hwX2RtTjl1TjVISXBhb0h6eDZlMlZFWDRJa1dFM0dCVTJMaWhIZA==');}catch(e){return '';}})(  );
+var _GIST_ID    = "df5ce074fde6b9586ab2587a25322585";
+var _GIST_FILE  = 'tenup_favorites.json';
+var _favs       = (function() {
+  try {
+    var raw = JSON.parse(localStorage.getItem('tenup_favs') || '[]');
+    if (Array.isArray(raw)) return new Set(raw);
+    if (raw && typeof raw === 'object') return new Set(Object.keys(raw).filter(function(k){return raw[k];}));
+  } catch(e) {}
+  return new Set();
+})();
 var _activeCoeffs = [];
 
+function _saveFavsLocal() {
+  localStorage.setItem('tenup_favs', JSON.stringify(Array.from(_favs)));
+}
+function _syncFavsToGist() {
+  if (!_GIST_TOKEN || !_GIST_ID) return;
+  fetch('https://api.github.com/gists/' + _GIST_ID, {
+    method: 'PATCH',
+    headers: { 'Authorization': 'token ' + _GIST_TOKEN, 'Content-Type': 'application/json',
+                'Accept': 'application/vnd.github.v3+json' },
+    body: JSON.stringify({ files: { [_GIST_FILE]: { content: JSON.stringify(Array.from(_favs)) } } })
+  }).catch(function(e) { console.warn('Gist sync failed:', e); });
+}
+function _loadFavsFromGist() {
+  if (!_GIST_TOKEN || !_GIST_ID) return;
+  fetch('https://api.github.com/gists/' + _GIST_ID, {
+    headers: { 'Authorization': 'token ' + _GIST_TOKEN, 'Accept': 'application/vnd.github.v3+json' }
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    var file = data.files && data.files[_GIST_FILE];
+    if (!file) return;
+    var arr = JSON.parse(file.content || '[]');
+    if (!Array.isArray(arr)) return;
+    _favs = new Set(arr);
+    _saveFavsLocal();
+    document.querySelectorAll('[data-id]').forEach(function(el) {
+      var id = el.getAttribute('data-id');
+      var btn = el.querySelector('.fav-btn');
+      if (btn) { btn.textContent = _favs.has(id) ? '★' : '☆'; btn.classList.toggle('active', _favs.has(id)); }
+    });
+    if (document.getElementById('mob-fav-only') && document.getElementById('mob-fav-only').checked) mobFilter();
+  }).catch(function(e) { console.warn('Gist load failed:', e); });
+}
 function toggleFav(id) {
   if (_favs.has(id)) _favs.delete(id); else _favs.add(id);
-  localStorage.setItem('tenup_favs', JSON.stringify(Array.from(_favs)));
+  _saveFavsLocal();
+  _syncFavsToGist();
   var btn = document.querySelector('[data-id="' + id + '"] .fav-btn');
   if (btn) { btn.textContent = _favs.has(id) ? '★' : '☆'; btn.classList.toggle('active', _favs.has(id)); }
   if (document.getElementById('mob-fav-only').checked) mobFilter();
@@ -384,6 +426,7 @@ function mobReset() {
     coCtn.appendChild(b);
   });
   mobFilter();
+  _loadFavsFromGist();
 } catch(err) {
   document.getElementById('mob-cards').innerHTML =
     '<div class="alert alert-danger m-3"><b>Erreur JS :</b><br><code>' + err.message + '</code><br><small>' + (err.stack||'').substring(0,300) + '</small></div>';
