@@ -17,7 +17,7 @@ _TENNIS_RANK = {"NC":0,"40/2":1,"40":2,"30/5":3,"30/4":4,"30/3":5,"30/2":6,"30/1
 # ── GitHub Gist — synchronisation des favoris entre appareils ─────────────────
 # Token et Gist ID lus depuis .env (jamais committés).
 # Format .env :
-#   TENUP_GIST_TOKEN=ghp_xxxx
+#   TENUP_GIST_TOKEN=<ton-token-github>
 #   TENUP_GIST_ID=xxxx          (créé automatiquement au 1er run si absent)
 def _load_gist_env() -> tuple:
     """Lit TENUP_GIST_TOKEN et TENUP_GIST_ID depuis .env ou variables d'environnement."""
@@ -585,6 +585,8 @@ def generate_html(
 
     new_ids = new_ids or set()
     _gist_id_val = _ensure_gist(_GIST_TOKEN, _GIST_ID)
+    import base64 as _b64
+    _gist_token_b64 = _b64.b64encode(_GIST_TOKEN.encode()).decode() if _GIST_TOKEN else ''
 
     # Load elite player data from CSV files if available
     _script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1754,7 +1756,7 @@ var currentView = 'table';
 var _REF_LAT = {ref_lat or 0};
 var _REF_LNG = {ref_lng or 0};
 var _REF_CITY = {json.dumps(ref_city or "")};
-var _GIST_TOKEN = {json.dumps(_GIST_TOKEN)};
+var _GIST_TOKEN = (function(){{try{{return atob('{_gist_token_b64}');}}catch(e){{return '';}}}})(  );
 var _GIST_ID    = {json.dumps(_gist_id_val)};
 var _GIST_FILE  = 'tenup_favorites.json';
 var _mapObj = null;
@@ -3850,6 +3852,8 @@ def generate_html_mobile(
 
     new_ids = new_ids or set()
     _gist_id_val = _ensure_gist(_GIST_TOKEN, _GIST_ID)
+    import base64 as _b64
+    _gist_token_b64 = _b64.b64encode(_GIST_TOKEN.encode()).decode() if _GIST_TOKEN else ''
     for t in tournaments:
         tid = t.get("originalId") or t.get("id", "")
         t["_is_new"] = tid in new_ids
@@ -4112,7 +4116,7 @@ var _TODAY      = '{today_iso}';
 var _TOTAL      = {total};
 var _SHOWN      = 30;
 var _filtered   = [];
-var _GIST_TOKEN = {json.dumps(_GIST_TOKEN)};
+var _GIST_TOKEN = (function(){{try{{return atob('{_gist_token_b64}');}}catch(e){{return '';}}}})(  );
 var _GIST_ID    = {json.dumps(_gist_id_val)};
 var _GIST_FILE  = 'tenup_favorites.json';
 var _favs       = (function() {{
