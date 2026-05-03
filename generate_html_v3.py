@@ -585,8 +585,6 @@ def generate_html(
 
     new_ids = new_ids or set()
     _gist_id_val = _ensure_gist(_GIST_TOKEN, _GIST_ID)
-    import base64 as _b64
-    _gist_token_b64 = _b64.b64encode(_GIST_TOKEN.encode()).decode() if _GIST_TOKEN else ''
 
     # Load elite player data from CSV files if available
     _script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1287,6 +1285,8 @@ def generate_html(
           <input class="form-check-input" type="checkbox" id="chk-fav" onchange="applyFilters()">
           <label class="form-check-label small" for="chk-fav">⭐ Favoris</label>
         </div>
+        <button class="btn btn-sm btn-outline-secondary" onclick="openGistSetup()" id="btn-gist-sync"
+                title="Configurer la synchronisation des favoris entre appareils">🔑</button>
         <div class="form-check form-check-inline" title="Masquer les tournois qui tombent pendant une absence (configurer dans onglet Planning)">
           <input class="form-check-input" type="checkbox" id="chk-absent" onchange="applyFilters()">
           <label class="form-check-label small fw-semibold" for="chk-absent" style="color:#e65100">🚫 Absent</label>
@@ -1756,7 +1756,7 @@ var currentView = 'table';
 var _REF_LAT = {ref_lat or 0};
 var _REF_LNG = {ref_lng or 0};
 var _REF_CITY = {json.dumps(ref_city or "")};
-var _GIST_TOKEN = (function(){{try{{return atob('{_gist_token_b64}');}}catch(e){{return '';}}}})(  );
+var _GIST_TOKEN = localStorage.getItem('tenup_gist_token') || '';
 var _GIST_ID    = {json.dumps(_gist_id_val)};
 var _GIST_FILE  = 'tenup_favorites.json';
 var _mapObj = null;
@@ -2166,6 +2166,7 @@ function pdfCustomize(doc) {{
   }});
 
   _loadFavsFromGist();
+  if (localStorage.getItem('tenup_gist_token')) document.getElementById('btn-gist-sync').style.borderColor = '#28a745';
 
   // Close multi-panels when clicking outside
   $(document).on('click.multiPanel', function(e) {{
@@ -3779,7 +3780,57 @@ function initAdvTable() {{
     }}
   }});
 }}
+
+function openGistSetup() {{
+  var cur = localStorage.getItem('tenup_gist_token') || '';
+  document.getElementById('gistTokenInput').value = cur;
+  var st = document.getElementById('gistTokenStatus');
+  st.innerHTML = cur ? '<span class="text-success">✔ Token configuré</span>' : '<span class="text-muted">Aucun token — sync désactivée</span>';
+  document.getElementById('btn-gist-sync').style.borderColor = cur ? '#28a745' : '';
+  new bootstrap.Modal(document.getElementById('gistModal')).show();
+}}
+function saveGistToken() {{
+  var val = document.getElementById('gistTokenInput').value.trim();
+  _GIST_TOKEN = val;
+  if (val) localStorage.setItem('tenup_gist_token', val);
+  else localStorage.removeItem('tenup_gist_token');
+  document.getElementById('btn-gist-sync').style.borderColor = val ? '#28a745' : '';
+  bootstrap.Modal.getInstance(document.getElementById('gistModal')).hide();
+  if (val) _loadFavsFromGist();
+}}
+function clearGistToken() {{
+  _GIST_TOKEN = '';
+  localStorage.removeItem('tenup_gist_token');
+  document.getElementById('gistTokenInput').value = '';
+  document.getElementById('gistTokenStatus').innerHTML = '<span class="text-muted">Token effacé</span>';
+  document.getElementById('btn-gist-sync').style.borderColor = '';
+}}
 </script>
+
+<!-- Modal : synchronisation Gist -->
+<div class="modal fade" id="gistModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">🔄 Sync favoris entre appareils</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-2">Entrez votre token GitHub (scope <code>gist</code>) pour synchroniser vos favoris entre PC et téléphone. Le token est stocké uniquement dans ce navigateur.</p>
+        <label class="form-label fw-semibold small">Token GitHub</label>
+        <input type="password" class="form-control form-control-sm font-monospace" id="gistTokenInput" placeholder="ghp_...">
+        <div id="gistTokenStatus" class="mt-2 small"></div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-danger btn-sm" onclick="clearGistToken()">Effacer</button>
+        <div>
+          <button type="button" class="btn btn-secondary btn-sm me-1" data-bs-dismiss="modal">Annuler</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="saveGistToken()">Sauvegarder</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Modal : saisie absence Planning -->
 <div class="modal fade" id="planModal" tabindex="-1" aria-labelledby="planModalTitle" aria-hidden="true">
@@ -3861,8 +3912,6 @@ def generate_html_mobile(
 
     new_ids = new_ids or set()
     _gist_id_val = _ensure_gist(_GIST_TOKEN, _GIST_ID)
-    import base64 as _b64
-    _gist_token_b64 = _b64.b64encode(_GIST_TOKEN.encode()).decode() if _GIST_TOKEN else ''
     for t in tournaments:
         tid = t.get("originalId") or t.get("id", "")
         t["_is_new"] = tid in new_ids
@@ -4014,6 +4063,8 @@ body{{background:#f0f2f5;font-size:14px;padding-bottom:70px}}
            placeholder="🔍 Rechercher..." oninput="mobFilter()">
     <button class="btn btn-sm btn-outline-light text-nowrap"
             data-bs-toggle="offcanvas" data-bs-target="#filterDrawer">⚙️ Filtres</button>
+    <button class="btn btn-sm btn-outline-light" id="mob-btn-gist" onclick="openGistSetup()"
+            title="Sync favoris">🔑</button>
   </div>
   <div class="d-flex gap-2 mt-1 align-items-center">
     <small class="flex-grow-1" id="mob-count" style="color:#adb5bd"></small>
@@ -4125,7 +4176,7 @@ var _TODAY      = '{today_iso}';
 var _TOTAL      = {total};
 var _SHOWN      = 30;
 var _filtered   = [];
-var _GIST_TOKEN = (function(){{try{{return atob('{_gist_token_b64}');}}catch(e){{return '';}}}})(  );
+var _GIST_TOKEN = localStorage.getItem('tenup_gist_token') || '';
 var _GIST_ID    = {json.dumps(_gist_id_val)};
 var _GIST_FILE  = 'tenup_favorites.json';
 var _favs       = (function() {{
@@ -4421,13 +4472,62 @@ function mobReset() {{
   }});
   mobFilter();
   _loadFavsFromGist();
+  if (localStorage.getItem('tenup_gist_token')) document.getElementById('mob-btn-gist').style.borderColor = '#28a745';
 }} catch(err) {{
   document.getElementById('mob-cards').innerHTML =
     '<div class="alert alert-danger m-3"><b>Erreur JS :</b><br><code>' + err.message + '</code><br><small>' + (err.stack||'').substring(0,300) + '</small></div>';
   document.getElementById('mob-count').textContent = 'Erreur — voir ci-dessous';
 }}
+function openGistSetup() {{
+  var cur = localStorage.getItem('tenup_gist_token') || '';
+  document.getElementById('mob-gist-input').value = cur;
+  var st = document.getElementById('mob-gist-status');
+  st.innerHTML = cur ? '<span class="text-success">✔ Token configuré</span>' : '<span class="text-muted">Aucun token — sync désactivée</span>';
+  document.getElementById('mob-btn-gist').style.borderColor = cur ? '#28a745' : '';
+  new bootstrap.Modal(document.getElementById('mobGistModal')).show();
+}}
+function saveMobGistToken() {{
+  var val = document.getElementById('mob-gist-input').value.trim();
+  _GIST_TOKEN = val;
+  if (val) localStorage.setItem('tenup_gist_token', val);
+  else localStorage.removeItem('tenup_gist_token');
+  document.getElementById('mob-btn-gist').style.borderColor = val ? '#28a745' : '';
+  bootstrap.Modal.getInstance(document.getElementById('mobGistModal')).hide();
+  if (val) _loadFavsFromGist();
+}}
+function clearMobGistToken() {{
+  _GIST_TOKEN = '';
+  localStorage.removeItem('tenup_gist_token');
+  document.getElementById('mob-gist-input').value = '';
+  document.getElementById('mob-gist-status').innerHTML = '<span class="text-muted">Token effacé</span>';
+  document.getElementById('mob-btn-gist').style.borderColor = '';
+}}
 }})();
 </script>
+
+<!-- Modal : sync Gist token -->
+<div class="modal fade" id="mobGistModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title">🔄 Sync favoris entre appareils</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-2">Entrez votre token GitHub (scope <code>gist</code>) pour synchroniser vos favoris. Stocké uniquement dans ce navigateur.</p>
+        <input type="password" class="form-control form-control-sm font-monospace" id="mob-gist-input" placeholder="ghp_...">
+        <div id="mob-gist-status" class="mt-2 small"></div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-danger btn-sm" onclick="clearMobGistToken()">Effacer</button>
+        <div>
+          <button type="button" class="btn btn-secondary btn-sm me-1" data-bs-dismiss="modal">Annuler</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="saveMobGistToken()">Sauvegarder</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>"""
 
