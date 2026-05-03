@@ -1723,6 +1723,7 @@ def generate_html(
     </div>
     <button id="map-fs-btn" onclick="toggleMapFullscreen()">⛶ Plein écran</button>
     <div id="view-map"></div>
+    <div id="map-geo-info" class="mt-1 small text-muted"></div>
   </div>
 
   <!-- Table -->
@@ -2060,7 +2061,6 @@ function pdfCustomize(doc) {{
 
   dt = $('#t').DataTable({{
     pageLength: 25,
-    deferRender: true,
     lengthMenu: [[25, 50, 100, -1], [25, 50, 100, "Tout"]],
     order: [[8, 'asc']],
     language: {{ url: 'https://cdn.datatables.net/plug-ins/2.0.5/i18n/fr-FR.json' }},
@@ -3435,7 +3435,15 @@ function renderRates() {{
 
 function renderMap() {{
   // Collect tournaments that have coordinates
-  var data = getFilteredData().filter(function(t) {{ return t.lat && t.lng; }});
+  var allFiltered = getFilteredData();
+  var data = allFiltered.filter(function(t) {{ return t.lat && t.lng; }});
+  var noGeo = allFiltered.length - data.length;
+  var infoEl = document.getElementById('map-geo-info');
+  if (infoEl) {{
+    infoEl.textContent = noGeo > 0
+      ? '⚠ ' + noGeo + ' tournoi' + (noGeo > 1 ? 's' : '') + ' sans coordonnées GPS non affiché' + (noGeo > 1 ? 's' : '') + ' sur la carte (' + data.length + '/' + allFiltered.length + ' affiché' + (data.length > 1 ? 's' : '') + ')'
+      : '';
+  }}
 
   // Initialize map once
   if (!_mapObj) {{
