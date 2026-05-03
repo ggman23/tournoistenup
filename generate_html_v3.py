@@ -3236,8 +3236,9 @@ function _drawIsoGeoJSON(geojson, colorMap) {{
     var mins = feature.properties.contour || 0;
     var color = colorMap[mins] || '#795548';
     var layer = L.geoJSON(feature, {{
-      style: {{ color: color, fillColor: color, fillOpacity: 0.1, weight: 2.5 }}
-    }}).bindTooltip(mins + '\u00a0min en voiture', {{sticky: true}});
+      style: {{ color: color, fillColor: color, fillOpacity: 0.1, weight: 2.5 }},
+      interactive: false
+    }});
     _isoGeoJSONLayers[mins] = layer;
     if (_isoVisibility[mins] !== false) {{ layer.addTo(_isoLayers); }}
     _updateIsoToggleBtn(mins, color, _isoVisibility[mins] !== false);
@@ -3254,8 +3255,8 @@ function _drawFallbackCircles(minutes, colorMap) {{
     var layer = L.circle([_REF_LAT, _REF_LNG], {{
       radius: mins * mPerMin,
       color: color, fillColor: color, fillOpacity: 0.05,
-      weight: 2, dashArray: '7 5'
-    }}).bindTooltip(mins + '\u00a0min (\u2248\u00a0' + km + '\u00a0km)', {{sticky: true}});
+      weight: 2, dashArray: '7 5', interactive: false
+    }});
     _isoGeoJSONLayers[mins] = layer;
     if (_isoVisibility[mins] !== false) {{ layer.addTo(_isoLayers); }}
     _updateIsoToggleBtn(mins, color, _isoVisibility[mins] !== false);
