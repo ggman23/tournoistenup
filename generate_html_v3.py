@@ -1287,6 +1287,9 @@ def generate_html(
         </div>
         <button class="btn btn-sm btn-outline-secondary" onclick="openGistSetup()" id="btn-gist-sync"
                 title="Configurer la synchronisation des favoris entre appareils">🔑</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="exportFavs()" title="Exporter les favoris (fichier JSON)">📥</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('fav-import-input').click()" title="Importer des favoris depuis un fichier JSON">📤</button>
+        <input type="file" id="fav-import-input" accept=".json" style="display:none" onchange="importFavs(this)">
         <div class="form-check form-check-inline" title="Masquer les tournois qui tombent pendant une absence (configurer dans onglet Planning)">
           <input class="form-check-input" type="checkbox" id="chk-absent" onchange="applyFilters()">
           <label class="form-check-label small fw-semibold" for="chk-absent" style="color:#e65100">🚫 Absent</label>
@@ -3781,6 +3784,37 @@ function initAdvTable() {{
   }});
 }}
 
+function exportFavs() {{
+  var favs = _getFavs();
+  var arr = Object.keys(favs).filter(function(k) {{ return favs[k]; }});
+  var blob = new Blob([JSON.stringify(arr, null, 2)], {{type: 'application/json'}});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'tenup_favoris_' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}}
+function importFavs(input) {{
+  var file = input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {{
+    try {{
+      var arr = JSON.parse(e.target.result);
+      if (!Array.isArray(arr)) {{ alert('Format invalide — tableau JSON attendu'); return; }}
+      var favs = _getFavs();
+      arr.forEach(function(id) {{ favs[id] = true; }});
+      _setFavs(favs);
+      restoreFavs();
+      if ($('#chk-fav').prop('checked')) dt.draw();
+      alert(arr.length + ' favoris importés (' + Object.keys(favs).length + ' au total)');
+    }} catch(err) {{ alert('Erreur lecture fichier : ' + err.message); }}
+    input.value = '';
+  }};
+  reader.readAsText(file);
+}}
+
 function openGistSetup() {{
   var cur = localStorage.getItem('tenup_gist_token') || '';
   document.getElementById('gistTokenInput').value = cur;
@@ -4158,6 +4192,11 @@ body{{background:#f0f2f5;font-size:14px;padding-bottom:70px}}
       <button class="btn btn-sm btn-outline-secondary flex-fill" onclick="mobReset()">↺ Réinitialiser</button>
       <button class="btn btn-sm btn-primary flex-fill" data-bs-dismiss="offcanvas">✓ Appliquer</button>
     </div>
+    <div class="d-flex gap-2 pb-3 border-top pt-2">
+      <button class="btn btn-sm btn-outline-secondary flex-fill" onclick="exportFavs()">📥 Exporter favoris</button>
+      <button class="btn btn-sm btn-outline-secondary flex-fill" onclick="document.getElementById('mob-fav-import-input').click()">📤 Importer</button>
+      <input type="file" id="mob-fav-import-input" accept=".json" style="display:none" onchange="importFavsMob(this)">
+    </div>
   </div>
 </div>
 
@@ -4477,6 +4516,38 @@ function mobReset() {{
   document.getElementById('mob-cards').innerHTML =
     '<div class="alert alert-danger m-3"><b>Erreur JS :</b><br><code>' + err.message + '</code><br><small>' + (err.stack||'').substring(0,300) + '</small></div>';
   document.getElementById('mob-count').textContent = 'Erreur — voir ci-dessous';
+}}
+function exportFavs() {{
+  var arr = Array.from(_favs);
+  var blob = new Blob([JSON.stringify(arr, null, 2)], {{type: 'application/json'}});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'tenup_favoris_' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}}
+function importFavsMob(input) {{
+  var file = input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {{
+    try {{
+      var arr = JSON.parse(e.target.result);
+      if (!Array.isArray(arr)) {{ alert('Format invalide'); return; }}
+      arr.forEach(function(id) {{ _favs.add(id); }});
+      _saveFavsLocal();
+      _syncFavsToGist();
+      document.querySelectorAll('[data-id]').forEach(function(el) {{
+        var id = el.getAttribute('data-id');
+        var btn = el.querySelector('.fav-btn');
+        if (btn) {{ btn.textContent = _favs.has(id) ? '★' : '☆'; btn.classList.toggle('active', _favs.has(id)); }}
+      }});
+      alert(arr.length + ' favoris importés (' + _favs.size + ' au total)');
+    }} catch(err) {{ alert('Erreur : ' + err.message); }}
+    input.value = '';
+  }};
+  reader.readAsText(file);
 }}
 function openGistSetup() {{
   var cur = localStorage.getItem('tenup_gist_token') || '';
