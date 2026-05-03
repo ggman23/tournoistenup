@@ -14,6 +14,46 @@ _TENNIS_RANK = {"NC":0,"40/2":1,"40":2,"30/5":3,"30/4":4,"30/3":5,"30/2":6,"30/1
                 "15/5":9,"15/4":10,"15/3":11,"15/2":12,"15/1":13,"15":14,
                 "4/6":15,"3/6":16,"2/6":17,"1/6":18,"0":19,"-2/6":20,"-4/6":21,"-15":22,"-30":23}
 
+# ── GitHub Gist — synchronisation des favoris entre appareils ─────────────────
+# 1. Crée un token GitHub sur https://github.com/settings/tokens (scope: gist seulement)
+# 2. Colle-le dans _GIST_TOKEN ci-dessous
+# 3. Lance generate_html — le Gist est créé automatiquement et _GIST_ID est mis à jour
+_GIST_TOKEN = ""   # ex: "ghp_xxxxxxxxxxxxxxxxxxxx"
+_GIST_ID    = ""   # rempli automatiquement au premier run si _GIST_TOKEN est défini
+
+def _ensure_gist(token: str, gist_id: str) -> str:
+    """Crée le Gist partagé si token défini et Gist pas encore existant. Retourne le gist_id."""
+    if not token or gist_id:
+        return gist_id
+    import urllib.request as _ur
+    body = json.dumps({
+        "description": "TournoisTenUp — favoris partagés",
+        "public": False,
+        "files": {"tenup_favorites.json": {"content": "[]"}}
+    }).encode()
+    req = _ur.Request(
+        "https://api.github.com/gists",
+        data=body,
+        headers={"Authorization": f"token {token}", "Content-Type": "application/json",
+                 "Accept": "application/vnd.github.v3+json"},
+        method="POST"
+    )
+    try:
+        with _ur.urlopen(req) as resp:
+            new_id = json.loads(resp.read())["id"]
+        # Auto-update _GIST_ID in this source file
+        _self = os.path.abspath(__file__)
+        with open(_self, encoding="utf-8") as f:
+            src = f.read()
+        src = src.replace('_GIST_ID    = ""', f'_GIST_ID    = "{new_id}"', 1)
+        with open(_self, "w", encoding="utf-8") as f:
+            f.write(src)
+        print(f"✅ Gist favoris créé et configuré automatiquement : {new_id}")
+        return new_id
+    except Exception as e:
+        print(f"⚠️  Impossible de créer le Gist favoris : {e}")
+        return ""
+
 def _read_adv_csv(path: str) -> list:
     rows = []
     try:
@@ -519,6 +559,7 @@ def generate_html(
         title = title.rstrip() + " — SM 11-14"
 
     new_ids = new_ids or set()
+    _gist_id_val = _ensure_gist(_GIST_TOKEN, _GIST_ID)
 
     # Load elite player data from CSV files if available
     _script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1688,6 +1729,9 @@ var currentView = 'table';
 var _REF_LAT = {ref_lat or 0};
 var _REF_LNG = {ref_lng or 0};
 var _REF_CITY = {json.dumps(ref_city or "")};
+var _GIST_TOKEN = {json.dumps(_GIST_TOKEN)};
+var _GIST_ID    = {json.dumps(_gist_id_val)};
+var _GIST_FILE  = 'tenup_favorites.json';
 var _mapObj = null;
 var _mapMarkers = null;
 var _isoLayers = null;
@@ -2094,6 +2138,8 @@ function pdfCustomize(doc) {{
     }}
   }});
 
+  _loadFavsFromGist();
+
   // Close multi-panels when clicking outside
   $(document).on('click.multiPanel', function(e) {{
     if (!$(e.target).closest('.multi-panel, [id^="btn-ep"], [id^="btn-surf"], [id^="btn-fmt"], [id^="btn-statut"], [id^="btn-coeff"]').length) {{
@@ -2225,10 +2271,49 @@ function onSmOnlyChange() {{
   applyFilters();
 }}
 
-// ── Favorites (stored in localStorage) ───────────────────────────────────────
+// ── Favoris (Gist sync + localStorage cache) ─────────────────────────────────
+function _getFavs() {{
+  try {{
+    var raw = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}');
+    if (Array.isArray(raw)) {{
+      var obj = {{}};
+      raw.forEach(function(id) {{ obj[id] = true; }});
+      return obj;
+    }}
+    return raw;
+  }} catch(e) {{ return {{}}; }}
+}}
+function _setFavs(favs) {{
+  localStorage.setItem('tenup_favs', JSON.stringify(favs));
+  if (!_GIST_TOKEN || !_GIST_ID) return;
+  var arr = Object.keys(favs).filter(function(k) {{ return favs[k]; }});
+  fetch('https://api.github.com/gists/' + _GIST_ID, {{
+    method: 'PATCH',
+    headers: {{ 'Authorization': 'token ' + _GIST_TOKEN, 'Content-Type': 'application/json',
+                'Accept': 'application/vnd.github.v3+json' }},
+    body: JSON.stringify({{ files: {{ [_GIST_FILE]: {{ content: JSON.stringify(arr) }} }} }})
+  }}).catch(function(e) {{ console.warn('Gist sync failed:', e); }});
+}}
+function _loadFavsFromGist() {{
+  if (!_GIST_TOKEN || !_GIST_ID) return;
+  fetch('https://api.github.com/gists/' + _GIST_ID, {{
+    headers: {{ 'Authorization': 'token ' + _GIST_TOKEN, 'Accept': 'application/vnd.github.v3+json' }}
+  }}).then(function(r) {{ return r.json(); }}).then(function(data) {{
+    var file = data.files && data.files[_GIST_FILE];
+    if (!file) return;
+    var arr = JSON.parse(file.content || '[]');
+    if (!Array.isArray(arr)) return;
+    var favs = {{}};
+    arr.forEach(function(id) {{ favs[id] = true; }});
+    localStorage.setItem('tenup_favs', JSON.stringify(favs));
+    restoreFavs();
+    if ($('#chk-fav').prop('checked')) dt.draw();
+  }}).catch(function(e) {{ console.warn('Gist load failed:', e); }});
+}}
+
 function toggleFav(btn) {{
   var id   = btn.getAttribute('data-id');
-  var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}');
+  var favs = _getFavs();
   if (favs[id]) {{
     delete favs[id];
     btn.textContent = '\u2606';
@@ -2238,14 +2323,13 @@ function toggleFav(btn) {{
     btn.textContent = '\u2605';
     btn.classList.add('fav-active');
   }}
-  localStorage.setItem('tenup_favs', JSON.stringify(favs));
+  _setFavs(favs);
   if ($('#chk-fav').prop('checked')) dt.draw();
 }}
 
 function toggleFavMap(btn) {{
   var id = btn.getAttribute('data-id');
-  var favs = {{}};
-  try {{ favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}'); }} catch(e) {{}}
+  var favs = _getFavs();
   if (favs[id]) {{
     delete favs[id];
     btn.textContent = '\u2606';
@@ -2255,8 +2339,7 @@ function toggleFavMap(btn) {{
     btn.textContent = '\u2605';
     btn.style.color = '#f39c12';
   }}
-  localStorage.setItem('tenup_favs', JSON.stringify(favs));
-  // Sync bouton dans le tableau
+  _setFavs(favs);
   var $row = $('.fav-btn[data-id="' + id + '"]');
   if ($row.length) {{
     if (favs[id]) {{ $row.text('\u2605').addClass('fav-active'); }}
@@ -2266,7 +2349,7 @@ function toggleFavMap(btn) {{
 }}
 
 function restoreFavs() {{
-  var favs = JSON.parse(localStorage.getItem('tenup_favs') || '{{}}');
+  var favs = _getFavs();
   $('.fav-btn').each(function() {{
     var id  = $(this).attr('data-id');
     var isFav = !!favs[id];
@@ -3741,6 +3824,7 @@ def generate_html_mobile(
         title = title.rstrip() + " — SM 11-14"
 
     new_ids = new_ids or set()
+    _gist_id_val = _ensure_gist(_GIST_TOKEN, _GIST_ID)
     for t in tournaments:
         tid = t.get("originalId") or t.get("id", "")
         t["_is_new"] = tid in new_ids
@@ -4003,12 +4087,54 @@ var _TODAY      = '{today_iso}';
 var _TOTAL      = {total};
 var _SHOWN      = 30;
 var _filtered   = [];
-var _favs       = new Set(JSON.parse(localStorage.getItem('tenup_favs') || '[]'));
+var _GIST_TOKEN = {json.dumps(_GIST_TOKEN)};
+var _GIST_ID    = {json.dumps(_gist_id_val)};
+var _GIST_FILE  = 'tenup_favorites.json';
+var _favs       = (function() {{
+  try {{
+    var raw = JSON.parse(localStorage.getItem('tenup_favs') || '[]');
+    if (Array.isArray(raw)) return new Set(raw);
+    if (raw && typeof raw === 'object') return new Set(Object.keys(raw).filter(function(k){{return raw[k];}}));
+  }} catch(e) {{}}
+  return new Set();
+}})();
 var _activeCoeffs = [];
 
+function _saveFavsLocal() {{
+  localStorage.setItem('tenup_favs', JSON.stringify(Array.from(_favs)));
+}}
+function _syncFavsToGist() {{
+  if (!_GIST_TOKEN || !_GIST_ID) return;
+  fetch('https://api.github.com/gists/' + _GIST_ID, {{
+    method: 'PATCH',
+    headers: {{ 'Authorization': 'token ' + _GIST_TOKEN, 'Content-Type': 'application/json',
+                'Accept': 'application/vnd.github.v3+json' }},
+    body: JSON.stringify({{ files: {{ [_GIST_FILE]: {{ content: JSON.stringify(Array.from(_favs)) }} }} }})
+  }}).catch(function(e) {{ console.warn('Gist sync failed:', e); }});
+}}
+function _loadFavsFromGist() {{
+  if (!_GIST_TOKEN || !_GIST_ID) return;
+  fetch('https://api.github.com/gists/' + _GIST_ID, {{
+    headers: {{ 'Authorization': 'token ' + _GIST_TOKEN, 'Accept': 'application/vnd.github.v3+json' }}
+  }}).then(function(r) {{ return r.json(); }}).then(function(data) {{
+    var file = data.files && data.files[_GIST_FILE];
+    if (!file) return;
+    var arr = JSON.parse(file.content || '[]');
+    if (!Array.isArray(arr)) return;
+    _favs = new Set(arr);
+    _saveFavsLocal();
+    document.querySelectorAll('[data-id]').forEach(function(el) {{
+      var id = el.getAttribute('data-id');
+      var btn = el.querySelector('.fav-btn');
+      if (btn) {{ btn.textContent = _favs.has(id) ? '★' : '☆'; btn.classList.toggle('active', _favs.has(id)); }}
+    }});
+    if (document.getElementById('mob-fav-only') && document.getElementById('mob-fav-only').checked) mobFilter();
+  }}).catch(function(e) {{ console.warn('Gist load failed:', e); }});
+}}
 function toggleFav(id) {{
   if (_favs.has(id)) _favs.delete(id); else _favs.add(id);
-  localStorage.setItem('tenup_favs', JSON.stringify(Array.from(_favs)));
+  _saveFavsLocal();
+  _syncFavsToGist();
   var btn = document.querySelector('[data-id="' + id + '"] .fav-btn');
   if (btn) {{ btn.textContent = _favs.has(id) ? '★' : '☆'; btn.classList.toggle('active', _favs.has(id)); }}
   if (document.getElementById('mob-fav-only').checked) mobFilter();
@@ -4246,6 +4372,7 @@ function mobReset() {{
     coCtn.appendChild(b);
   }});
   mobFilter();
+  _loadFavsFromGist();
 }} catch(err) {{
   document.getElementById('mob-cards').innerHTML =
     '<div class="alert alert-danger m-3"><b>Erreur JS :</b><br><code>' + err.message + '</code><br><small>' + (err.stack||'').substring(0,300) + '</small></div>';
