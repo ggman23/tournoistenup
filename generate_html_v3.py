@@ -3628,8 +3628,16 @@ function initEliteYear(yr) {{
         }}
       }},
       {{ data: 3, className: 'text-center' }},
-      {{ data: 4, orderData: [7], className: 'text-center'  }},
-      {{ data: 5, orderData: [8], className: 'text-center' }},
+      {{ data: 4, orderData: [7], className: 'text-center', render: function(d,t,r) {{
+          if (t !== 'display' || !d) return d || '';
+          return '<a href="https://tenup.fft.fr/simulation-classement/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
+        }}
+      }},
+      {{ data: 5, orderData: [8], className: 'text-center', render: function(d,t,r) {{
+          if (t !== 'display' || !d) return d || '';
+          return '<a href="https://tenup.fft.fr/simulation-classement/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
+        }}
+      }},
       {{ data: 6 }},
       {{ data: 7 }},
       {{ data: 8, className: 'text-center' }},
@@ -3841,10 +3849,22 @@ function initAdvTable() {{
       }},
       {{ data: 5,  className: 'text-center', width: '50px' }},
       {{ data: 6,  className: 'text-center', width: '38px' }},
-      {{ data: 7,  className: 'text-center', width: '55px', orderData: [10] }},
+      {{ data: 7,  className: 'text-center', width: '55px', orderData: [10], render: function(d,t,r) {{
+          if (t !== 'display' || !d) return d || '';
+          return '<a href="https://tenup.fft.fr/simulation-classement/' + r[4] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
+        }}
+      }},
       {{ data: 9,  width: '140px', render: function(d,t,r) {{ return t==='display' ? trunc(r[9],26) : (r[9]||''); }} }},
-      {{ data: 10, className: 'text-center', width: '55px', orderData: [11] }},
-      {{ data: 11, className: 'text-center', width: '55px', orderData: [12] }},
+      {{ data: 10, className: 'text-center', width: '55px', orderData: [11], render: function(d,t,r) {{
+          if (t !== 'display' || !d) return d || '';
+          return '<a href="https://tenup.fft.fr/simulation-classement/' + r[4] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
+        }}
+      }},
+      {{ data: 11, className: 'text-center', width: '55px', orderData: [12], render: function(d,t,r) {{
+          if (t !== 'display' || !d) return d || '';
+          return '<a href="https://tenup.fft.fr/simulation-classement/' + r[4] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
+        }}
+      }},
       {{ width: '160px', render: function(d,t,r) {{
           if (t !== 'display') return r[12] || '';
           return '<a href="https://tenup.fft.fr/tournoi/' + r[13] + '/tableaux" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
