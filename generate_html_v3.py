@@ -2312,30 +2312,39 @@ function _getFavs() {{
 }}
 function _setFavs(favs) {{
   localStorage.setItem('tenup_favs', JSON.stringify(favs));
-  if (!_GIST_TOKEN || !_GIST_ID) return;
+  if (!_GIST_TOKEN || !_GIST_ID) {{ console.warn('[Gist] Pas de token/ID — sync désactivée'); return; }}
   var arr = Object.keys(favs).filter(function(k) {{ return favs[k]; }});
   fetch('https://api.github.com/gists/' + _GIST_ID, {{
     method: 'PATCH',
     headers: {{ 'Authorization': 'token ' + _GIST_TOKEN, 'Content-Type': 'application/json',
                 'Accept': 'application/vnd.github.v3+json' }},
     body: JSON.stringify({{ files: {{ [_GIST_FILE]: {{ content: JSON.stringify(arr) }} }} }})
-  }}).catch(function(e) {{ console.warn('Gist sync failed:', e); }});
+  }}).then(function(r) {{
+    if (!r.ok) {{ console.error('[Gist] PATCH échoué ' + r.status + ' ' + r.statusText + ' — token expiré ?'); }}
+    else {{ console.log('[Gist] Sync OK (' + arr.length + ' favoris)'); }}
+  }}).catch(function(e) {{ console.warn('[Gist] Sync réseau échoué:', e); }});
 }}
 function _loadFavsFromGist() {{
-  if (!_GIST_TOKEN || !_GIST_ID) return;
-  fetch('https://api.github.com/gists/' + _GIST_ID, {{
-    headers: {{ 'Authorization': 'token ' + _GIST_TOKEN, 'Accept': 'application/vnd.github.v3+json' }}
-  }}).then(function(r) {{ return r.json(); }}).then(function(data) {{
+  if (!_GIST_ID) return;
+  var hdrs = {{ 'Accept': 'application/vnd.github.v3+json' }};
+  if (_GIST_TOKEN) hdrs['Authorization'] = 'token ' + _GIST_TOKEN;
+  fetch('https://api.github.com/gists/' + _GIST_ID, {{ headers: hdrs }})
+  .then(function(r) {{
+    if (!r.ok) {{ console.error('[Gist] GET échoué ' + r.status + ' ' + r.statusText); return null; }}
+    return r.json();
+  }}).then(function(data) {{
+    if (!data) return;
     var file = data.files && data.files[_GIST_FILE];
-    if (!file) return;
+    if (!file) {{ console.warn('[Gist] Fichier ' + _GIST_FILE + ' absent du Gist'); return; }}
     var arr = JSON.parse(file.content || '[]');
     if (!Array.isArray(arr)) return;
+    console.log('[Gist] Chargé ' + arr.length + ' favoris depuis Gist');
     var favs = {{}};
     arr.forEach(function(id) {{ favs[id] = true; }});
     localStorage.setItem('tenup_favs', JSON.stringify(favs));
     restoreFavs();
     if ($('#chk-fav').prop('checked')) dt.draw();
-  }}).catch(function(e) {{ console.warn('Gist load failed:', e); }});
+  }}).catch(function(e) {{ console.warn('[Gist] Chargement réseau échoué:', e); }});
 }}
 
 function toggleFav(btn) {{
@@ -4133,23 +4142,33 @@ function _saveFavsLocal() {{
   localStorage.setItem('tenup_favs', JSON.stringify(Array.from(_favs)));
 }}
 function _syncFavsToGist() {{
-  if (!_GIST_TOKEN || !_GIST_ID) return;
+  if (!_GIST_TOKEN || !_GIST_ID) {{ console.warn('[Gist] Pas de token/ID — sync désactivée'); return; }}
+  var arr = Array.from(_favs);
   fetch('https://api.github.com/gists/' + _GIST_ID, {{
     method: 'PATCH',
     headers: {{ 'Authorization': 'token ' + _GIST_TOKEN, 'Content-Type': 'application/json',
                 'Accept': 'application/vnd.github.v3+json' }},
-    body: JSON.stringify({{ files: {{ [_GIST_FILE]: {{ content: JSON.stringify(Array.from(_favs)) }} }} }})
-  }}).catch(function(e) {{ console.warn('Gist sync failed:', e); }});
+    body: JSON.stringify({{ files: {{ [_GIST_FILE]: {{ content: JSON.stringify(arr) }} }} }})
+  }}).then(function(r) {{
+    if (!r.ok) {{ console.error('[Gist] PATCH échoué ' + r.status + ' ' + r.statusText + ' — token expiré ?'); }}
+    else {{ console.log('[Gist] Sync OK (' + arr.length + ' favoris)'); }}
+  }}).catch(function(e) {{ console.warn('[Gist] Sync réseau échoué:', e); }});
 }}
 function _loadFavsFromGist() {{
-  if (!_GIST_TOKEN || !_GIST_ID) return;
-  fetch('https://api.github.com/gists/' + _GIST_ID, {{
-    headers: {{ 'Authorization': 'token ' + _GIST_TOKEN, 'Accept': 'application/vnd.github.v3+json' }}
-  }}).then(function(r) {{ return r.json(); }}).then(function(data) {{
+  if (!_GIST_ID) return;
+  var hdrs = {{ 'Accept': 'application/vnd.github.v3+json' }};
+  if (_GIST_TOKEN) hdrs['Authorization'] = 'token ' + _GIST_TOKEN;
+  fetch('https://api.github.com/gists/' + _GIST_ID, {{ headers: hdrs }})
+  .then(function(r) {{
+    if (!r.ok) {{ console.error('[Gist] GET échoué ' + r.status + ' ' + r.statusText); return null; }}
+    return r.json();
+  }}).then(function(data) {{
+    if (!data) return;
     var file = data.files && data.files[_GIST_FILE];
-    if (!file) return;
+    if (!file) {{ console.warn('[Gist] Fichier ' + _GIST_FILE + ' absent du Gist'); return; }}
     var arr = JSON.parse(file.content || '[]');
     if (!Array.isArray(arr)) return;
+    console.log('[Gist] Chargé ' + arr.length + ' favoris depuis Gist');
     _favs = new Set(arr);
     _saveFavsLocal();
     document.querySelectorAll('[data-id]').forEach(function(el) {{
@@ -4158,7 +4177,7 @@ function _loadFavsFromGist() {{
       if (btn) {{ btn.textContent = _favs.has(id) ? '★' : '☆'; btn.classList.toggle('active', _favs.has(id)); }}
     }});
     if (document.getElementById('mob-fav-only') && document.getElementById('mob-fav-only').checked) mobFilter();
-  }}).catch(function(e) {{ console.warn('Gist load failed:', e); }});
+  }}).catch(function(e) {{ console.warn('[Gist] Chargement réseau échoué:', e); }});
 }}
 function toggleFav(id) {{
   if (_favs.has(id)) _favs.delete(id); else _favs.add(id);
