@@ -473,6 +473,8 @@
           <input class="form-check-input" type="checkbox" id="chk-fav" onchange="applyFilters()">
           <label class="form-check-label small" for="chk-fav">⭐ Favoris</label>
         </div>
+        <button class="btn btn-sm btn-outline-secondary" onclick="openGistSetup()" id="btn-gist-sync"
+                title="Configurer la synchronisation des favoris entre appareils">🔑</button>
         <div class="form-check form-check-inline" title="Masquer les tournois qui tombent pendant une absence (configurer dans onglet Planning)">
           <input class="form-check-input" type="checkbox" id="chk-absent" onchange="applyFilters()">
           <label class="form-check-label small fw-semibold" for="chk-absent" style="color:#e65100">🚫 Absent</label>
@@ -19692,7 +19694,7 @@ var currentView = 'table';
 var _REF_LAT = 48.873284;
 var _REF_LNG = 2.638373;
 var _REF_CITY = "VAIRES SUR MARNE, 77360";
-var _GIST_TOKEN = (function(){try{return atob('Z2hwX2RtTjl1TjVISXBhb0h6eDZlMlZFWDRJa1dFM0dCVTJMaWhIZA==');}catch(e){return '';}})(  );
+var _GIST_TOKEN = localStorage.getItem('tenup_gist_token') || '';
 var _GIST_ID    = "df5ce074fde6b9586ab2587a25322585";
 var _GIST_FILE  = 'tenup_favorites.json';
 var _mapObj = null;
@@ -20102,6 +20104,7 @@ function pdfCustomize(doc) {
   });
 
   _loadFavsFromGist();
+  if (localStorage.getItem('tenup_gist_token')) document.getElementById('btn-gist-sync').style.borderColor = '#28a745';
 
   // Close multi-panels when clicking outside
   $(document).on('click.multiPanel', function(e) {
@@ -20248,30 +20251,39 @@ function _getFavs() {
 }
 function _setFavs(favs) {
   localStorage.setItem('tenup_favs', JSON.stringify(favs));
-  if (!_GIST_TOKEN || !_GIST_ID) return;
+  if (!_GIST_TOKEN || !_GIST_ID) { console.warn('[Gist] Pas de token/ID — sync désactivée'); return; }
   var arr = Object.keys(favs).filter(function(k) { return favs[k]; });
   fetch('https://api.github.com/gists/' + _GIST_ID, {
     method: 'PATCH',
     headers: { 'Authorization': 'token ' + _GIST_TOKEN, 'Content-Type': 'application/json',
                 'Accept': 'application/vnd.github.v3+json' },
     body: JSON.stringify({ files: { [_GIST_FILE]: { content: JSON.stringify(arr) } } })
-  }).catch(function(e) { console.warn('Gist sync failed:', e); });
+  }).then(function(r) {
+    if (!r.ok) { console.error('[Gist] PATCH échoué ' + r.status + ' ' + r.statusText + ' — token expiré ?'); }
+    else { console.log('[Gist] Sync OK (' + arr.length + ' favoris)'); }
+  }).catch(function(e) { console.warn('[Gist] Sync réseau échoué:', e); });
 }
 function _loadFavsFromGist() {
-  if (!_GIST_TOKEN || !_GIST_ID) return;
-  fetch('https://api.github.com/gists/' + _GIST_ID, {
-    headers: { 'Authorization': 'token ' + _GIST_TOKEN, 'Accept': 'application/vnd.github.v3+json' }
-  }).then(function(r) { return r.json(); }).then(function(data) {
+  if (!_GIST_ID) return;
+  var hdrs = { 'Accept': 'application/vnd.github.v3+json' };
+  if (_GIST_TOKEN) hdrs['Authorization'] = 'token ' + _GIST_TOKEN;
+  fetch('https://api.github.com/gists/' + _GIST_ID, { headers: hdrs })
+  .then(function(r) {
+    if (!r.ok) { console.error('[Gist] GET échoué ' + r.status + ' ' + r.statusText); return null; }
+    return r.json();
+  }).then(function(data) {
+    if (!data) return;
     var file = data.files && data.files[_GIST_FILE];
-    if (!file) return;
+    if (!file) { console.warn('[Gist] Fichier ' + _GIST_FILE + ' absent du Gist'); return; }
     var arr = JSON.parse(file.content || '[]');
     if (!Array.isArray(arr)) return;
+    console.log('[Gist] Chargé ' + arr.length + ' favoris depuis Gist');
     var favs = {};
     arr.forEach(function(id) { favs[id] = true; });
     localStorage.setItem('tenup_favs', JSON.stringify(favs));
     restoreFavs();
     if ($('#chk-fav').prop('checked')) dt.draw();
-  }).catch(function(e) { console.warn('Gist load failed:', e); });
+  }).catch(function(e) { console.warn('[Gist] Chargement réseau échoué:', e); });
 }
 
 function toggleFav(btn) {
@@ -21706,7 +21718,57 @@ function initAdvTable() {
     }
   });
 }
+
+function openGistSetup() {
+  var cur = localStorage.getItem('tenup_gist_token') || '';
+  document.getElementById('gistTokenInput').value = cur;
+  var st = document.getElementById('gistTokenStatus');
+  st.innerHTML = cur ? '<span class="text-success">✔ Token configuré</span>' : '<span class="text-muted">Aucun token — sync désactivée</span>';
+  document.getElementById('btn-gist-sync').style.borderColor = cur ? '#28a745' : '';
+  new bootstrap.Modal(document.getElementById('gistModal')).show();
+}
+function saveGistToken() {
+  var val = document.getElementById('gistTokenInput').value.trim();
+  _GIST_TOKEN = val;
+  if (val) localStorage.setItem('tenup_gist_token', val);
+  else localStorage.removeItem('tenup_gist_token');
+  document.getElementById('btn-gist-sync').style.borderColor = val ? '#28a745' : '';
+  bootstrap.Modal.getInstance(document.getElementById('gistModal')).hide();
+  if (val) _loadFavsFromGist();
+}
+function clearGistToken() {
+  _GIST_TOKEN = '';
+  localStorage.removeItem('tenup_gist_token');
+  document.getElementById('gistTokenInput').value = '';
+  document.getElementById('gistTokenStatus').innerHTML = '<span class="text-muted">Token effacé</span>';
+  document.getElementById('btn-gist-sync').style.borderColor = '';
+}
 </script>
+
+<!-- Modal : synchronisation Gist -->
+<div class="modal fade" id="gistModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">🔄 Sync favoris entre appareils</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-2">Entrez votre token GitHub (scope <code>gist</code>) pour synchroniser vos favoris entre PC et téléphone. Le token est stocké uniquement dans ce navigateur.</p>
+        <label class="form-label fw-semibold small">Token GitHub</label>
+        <input type="password" class="form-control form-control-sm font-monospace" id="gistTokenInput" placeholder="ghp_...">
+        <div id="gistTokenStatus" class="mt-2 small"></div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-danger btn-sm" onclick="clearGistToken()">Effacer</button>
+        <div>
+          <button type="button" class="btn btn-secondary btn-sm me-1" data-bs-dismiss="modal">Annuler</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="saveGistToken()">Sauvegarder</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Modal : saisie absence Planning -->
 <div class="modal fade" id="planModal" tabindex="-1" aria-labelledby="planModalTitle" aria-hidden="true">
