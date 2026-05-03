@@ -15,11 +15,27 @@ _TENNIS_RANK = {"NC":0,"40/2":1,"40":2,"30/5":3,"30/4":4,"30/3":5,"30/2":6,"30/1
                 "4/6":15,"3/6":16,"2/6":17,"1/6":18,"0":19,"-2/6":20,"-4/6":21,"-15":22,"-30":23}
 
 # ── GitHub Gist — synchronisation des favoris entre appareils ─────────────────
-# 1. Crée un token GitHub sur https://github.com/settings/tokens (scope: gist seulement)
-# 2. Colle-le dans _GIST_TOKEN ci-dessous
-# 3. Lance generate_html — le Gist est créé automatiquement et _GIST_ID est mis à jour
-_GIST_TOKEN = ""   # ex: "ghp_xxxxxxxxxxxxxxxxxxxx"
-_GIST_ID    = ""   # rempli automatiquement au premier run si _GIST_TOKEN est défini
+# Token et Gist ID lus depuis .env (jamais committés).
+# Format .env :
+#   TENUP_GIST_TOKEN=ghp_xxxx
+#   TENUP_GIST_ID=xxxx          (créé automatiquement au 1er run si absent)
+def _load_gist_env() -> tuple:
+    """Lit TENUP_GIST_TOKEN et TENUP_GIST_ID depuis .env ou variables d'environnement."""
+    import os as _os
+    token = _os.environ.get("TENUP_GIST_TOKEN", "")
+    gid   = _os.environ.get("TENUP_GIST_ID", "")
+    env_path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), ".env")
+    if _os.path.exists(env_path):
+        with open(env_path, encoding="utf-8") as _f:
+            for line in _f:
+                line = line.strip()
+                if line.startswith("TENUP_GIST_TOKEN=") and not token:
+                    token = line.split("=", 1)[1].strip()
+                elif line.startswith("TENUP_GIST_ID=") and not gid:
+                    gid   = line.split("=", 1)[1].strip()
+    return token, gid
+
+_GIST_TOKEN, _GIST_ID = _load_gist_env()
 
 def _ensure_gist(token: str, gist_id: str) -> str:
     """Crée le Gist partagé si token défini et Gist pas encore existant. Retourne le gist_id."""
@@ -41,14 +57,23 @@ def _ensure_gist(token: str, gist_id: str) -> str:
     try:
         with _ur.urlopen(req) as resp:
             new_id = json.loads(resp.read())["id"]
-        # Auto-update _GIST_ID in this source file
-        _self = os.path.abspath(__file__)
-        with open(_self, encoding="utf-8") as f:
-            src = f.read()
-        src = src.replace('_GIST_ID    = ""', f'_GIST_ID    = "{new_id}"', 1)
-        with open(_self, "w", encoding="utf-8") as f:
-            f.write(src)
-        print(f"✅ Gist favoris créé et configuré automatiquement : {new_id}")
+        # Write GIST_ID to .env so it persists across runs
+        _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+        _env_lines = []
+        _id_written = False
+        if os.path.exists(_env_path):
+            with open(_env_path, encoding="utf-8") as _fe:
+                for _line in _fe:
+                    if _line.startswith("TENUP_GIST_ID="):
+                        _env_lines.append(f"TENUP_GIST_ID={new_id}\n")
+                        _id_written = True
+                    else:
+                        _env_lines.append(_line)
+        if not _id_written:
+            _env_lines.append(f"TENUP_GIST_ID={new_id}\n")
+        with open(_env_path, "w", encoding="utf-8") as _fe:
+            _fe.writelines(_env_lines)
+        print(f"✅ Gist favoris créé et ID sauvegardé dans .env : {new_id}")
         return new_id
     except Exception as e:
         print(f"⚠️  Impossible de créer le Gist favoris : {e}")
