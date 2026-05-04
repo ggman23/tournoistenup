@@ -614,6 +614,11 @@ def generate_html(
         2014: _read_elite_csv(os.path.join(_script_dir, "2014.csv")),
     }
     _elite_json = {yr: json.dumps(rows, ensure_ascii=False) for yr, rows in _elite_data.items()}
+    _elite_tout = []
+    for _yr in [2016, 2015, 2014]:
+        for _row in _elite_data[_yr]:
+            _elite_tout.append(_row + [str(_yr)])
+    _elite_tout_json = json.dumps(_elite_tout, ensure_ascii=False)
     _adv_data = _read_adv_csv(os.path.join(_script_dir, "adv.csv"))
     _adv_json = json.dumps(_adv_data, ensure_ascii=False)
 
@@ -1630,6 +1635,7 @@ def generate_html(
       <button class="btn btn-sm btn-warning" id="btn-elite-2016" onclick="showEliteYear(2016)">Millésime 2016 <span class="badge bg-dark ms-1">{len(_elite_data[2016])}</span></button>
       <button class="btn btn-sm btn-outline-warning" id="btn-elite-2015" onclick="showEliteYear(2015)">Millésime 2015 <span class="badge bg-dark ms-1">{len(_elite_data[2015])}</span></button>
       <button class="btn btn-sm btn-outline-warning" id="btn-elite-2014" onclick="showEliteYear(2014)">Millésime 2014 <span class="badge bg-dark ms-1">{len(_elite_data[2014])}</span></button>
+      <button class="btn btn-sm btn-outline-warning" id="btn-elite-tout" onclick="showEliteYear('tout')">Tous millésimes <span class="badge bg-dark ms-1">{len(_elite_tout)}</span></button>
     </div>
     <div id="elite-section-2016">
       <table id="dt-elite-2016" class="table table-striped table-hover table-sm" style="width:100%">
@@ -1682,6 +1688,28 @@ def generate_html(
           </tr>
           <tr class="elite-filters">
             <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Âge..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>
+            <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Club..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Dép."></th>
+            <th></th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="elite-section-tout" style="display:none">
+      <table id="dt-elite-tout" class="table table-striped table-hover table-sm" style="width:100%">
+        <thead>
+          <tr>
+            <th>Joueur</th><th>Millésime</th><th>Âge</th><th>Class.</th><th>Meilleur</th><th>Club</th><th>Ligue</th><th>Dép.</th>
+            <th style="display:none">_rc</th><th style="display:none">_rb</th>
+          </tr>
+          <tr class="elite-filters">
+            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ex: 2015"></th>
             <th><input class="form-control form-control-sm" placeholder="Âge..."></th>
             <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>
             <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>
@@ -3602,7 +3630,8 @@ function renderMap() {{
 var _ELITE = {{
   2016: {_elite_json[2016]},
   2015: {_elite_json[2015]},
-  2014: {_elite_json[2014]}
+  2014: {_elite_json[2014]},
+  tout: {_elite_tout_json}
 }};
 var _dtElite = {{}};
 var _eliteJoueurVal = {{}};
@@ -3617,35 +3646,51 @@ $.fn.dataTable.ext.search.push(function(settings, _d, _i, rowData) {{
   return name.indexOf(q) !== -1;
 }});
 
-function initEliteYear(yr) {{
-  if (_dtElite[yr]) return;
-  _dtElite[yr] = $('#dt-elite-' + yr).DataTable({{
-    data: _ELITE[yr],
-    columns: [
-      {{ render: function(d,t,r) {{
-          return '<a href="https://tenup.fft.fr/palmares/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
-                 + r[1] + ' <strong>' + r[2] + '</strong></a>';
-        }}
-      }},
-      {{ data: 3, className: 'text-center' }},
-      {{ data: 4, orderData: [7], className: 'text-center', render: function(d,t,r) {{
-          if (t !== 'display' || !d) return d || '';
-          return '<a href="https://tenup.fft.fr/simulation-classement/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
-        }}
-      }},
-      {{ data: 5, orderData: [8], className: 'text-center', render: function(d,t,r) {{
-          if (t !== 'display' || !d) return d || '';
-          return '<a href="https://tenup.fft.fr/simulation-classement/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
-        }}
-      }},
+function _eliteCols(isTout) {{
+  var simLink = function(d,t,r) {{
+    if (t !== 'display' || !d) return d || '';
+    return '<a href="https://tenup.fft.fr/simulation-classement/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
+  }};
+  var nameCol = {{ render: function(d,t,r) {{
+    return '<a href="https://tenup.fft.fr/palmares/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
+           + r[1] + ' <strong>' + r[2] + '</strong></a>';
+  }} }};
+  if (isTout) {{
+    // Extra "Millésime" col at position 1 shifts orderData indices by 1
+    return [
+      nameCol,
+      {{ data: 12, className: 'text-center' }},
+      {{ data: 3,  className: 'text-center' }},
+      {{ data: 4,  orderData: [8], className: 'text-center', render: simLink }},
+      {{ data: 5,  orderData: [9], className: 'text-center', render: simLink }},
       {{ data: 6 }},
       {{ data: 7 }},
-      {{ data: 8, className: 'text-center' }},
+      {{ data: 8,  className: 'text-center' }},
       {{ data: 9,  visible: false, type: 'num' }},
       {{ data: 10, visible: false, type: 'num' }},
-    ],
+    ];
+  }}
+  return [
+    nameCol,
+    {{ data: 3,  className: 'text-center' }},
+    {{ data: 4,  orderData: [7], className: 'text-center', render: simLink }},
+    {{ data: 5,  orderData: [8], className: 'text-center', render: simLink }},
+    {{ data: 6 }},
+    {{ data: 7 }},
+    {{ data: 8,  className: 'text-center' }},
+    {{ data: 9,  visible: false, type: 'num' }},
+    {{ data: 10, visible: false, type: 'num' }},
+  ];
+}}
+
+function initEliteYear(yr) {{
+  if (_dtElite[yr]) return;
+  var isTout = (yr === 'tout');
+  _dtElite[yr] = $('#dt-elite-' + yr).DataTable({{
+    data: _ELITE[yr],
+    columns: _eliteCols(isTout),
     pageLength: 25,
-    order: [[2, 'desc']],
+    order: [[isTout ? 3 : 2, 'desc']],
     language: {{ url: 'https://cdn.datatables.net/plug-ins/2.0.5/i18n/fr-FR.json' }},
     orderCellsTop: true,
     initComplete: function() {{
@@ -3672,7 +3717,7 @@ function initEliteYear(yr) {{
 }}
 
 function showEliteYear(yr) {{
-  [2016, 2015, 2014].forEach(function(y) {{
+  [2016, 2015, 2014, 'tout'].forEach(function(y) {{
     $('#elite-section-' + y).toggle(y === yr);
     var $b = $('#btn-elite-' + y);
     if (y === yr) {{ $b.removeClass('btn-outline-warning').addClass('btn-warning'); }}
