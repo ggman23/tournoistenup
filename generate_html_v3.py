@@ -1383,7 +1383,7 @@ def generate_html(
       <div class="col-auto">
         <label class="form-label mb-1 fw-semibold small">Mots à exclure (séparés par espace)</label>
         <input type="text" class="form-control form-control-sm" id="filter-exclude"
-               autocomplete="off" placeholder="ex: hiver open fédéral" style="min-width:260px" oninput="applyFilters()">
+               autocomplete="off" value="" placeholder="ex: hiver open fédéral" style="min-width:260px" oninput="applyFilters()">
       </div>
 
       <div class="col-auto">
@@ -2281,11 +2281,14 @@ function pdfCustomize(doc) {{
   applyFilters();
 }});
 
-// Le navigateur peut restaurer les valeurs de formulaire APRÈS le ready — on vide en pageshow
-window.addEventListener('pageshow', function() {{
+// Chrome restaure les valeurs de formulaire depuis son cache interne APRÈS tous les événements JS.
+// On couvre tous les cas : ready, load, pageshow, et deux setTimeout décalés.
+function _clearExclude() {{
   var el = document.getElementById('filter-exclude');
-  if (el && el.value) {{ el.value = ''; applyFilters(); }}
-}});
+  if (el && el.value) {{ el.value = ''; if (dt) dt.draw(); }}
+}}
+window.addEventListener('load',     _clearExclude);
+window.addEventListener('pageshow', function() {{ _clearExclude(); setTimeout(_clearExclude, 50); setTimeout(_clearExclude, 300); }});
 
 function applyFilters() {{
   if (dt) dt.draw();
