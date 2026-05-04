@@ -1383,7 +1383,7 @@ def generate_html(
       <div class="col-auto">
         <label class="form-label mb-1 fw-semibold small">Mots à exclure (séparés par espace)</label>
         <input type="text" class="form-control form-control-sm" id="filter-exclude"
-               autocomplete="off" value="" placeholder="ex: hiver open fédéral" style="min-width:260px" oninput="applyFilters()">
+               autocomplete="new-password" value="" placeholder="ex: hiver open fédéral" style="min-width:260px" oninput="applyFilters()">
       </div>
 
       <div class="col-auto">
@@ -4216,7 +4216,7 @@ function clearGistToken() {{
       <div class="modal-body">
         <p class="text-muted small mb-2">Entrez votre token GitHub (scope <code>gist</code>) pour synchroniser vos favoris entre PC et téléphone. Le token est stocké uniquement dans ce navigateur.</p>
         <label class="form-label fw-semibold small">Token GitHub</label>
-        <input type="password" class="form-control form-control-sm font-monospace" id="gistTokenInput" placeholder="ghp_...">
+        <input type="password" class="form-control form-control-sm font-monospace" id="gistTokenInput" autocomplete="new-password" placeholder="ghp_...">
         <div id="gistTokenStatus" class="mt-2 small"></div>
       </div>
       <div class="modal-footer d-flex justify-content-between">
@@ -4950,7 +4950,7 @@ function clearMobGistToken() {{
       </div>
       <div class="modal-body">
         <p class="text-muted small mb-2">Entrez votre token GitHub (scope <code>gist</code>) pour synchroniser vos favoris. Stocké uniquement dans ce navigateur.</p>
-        <input type="password" class="form-control form-control-sm font-monospace" id="mob-gist-input" placeholder="ghp_...">
+        <input type="password" class="form-control form-control-sm font-monospace" id="mob-gist-input" autocomplete="new-password" placeholder="ghp_...">
         <div id="mob-gist-status" class="mt-2 small"></div>
       </div>
       <div class="modal-footer d-flex justify-content-between">
