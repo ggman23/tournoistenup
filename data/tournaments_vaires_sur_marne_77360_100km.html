@@ -523,7 +523,7 @@
       <div class="col-auto">
         <label class="form-label mb-1 fw-semibold small">Mots à exclure (séparés par espace)</label>
         <input type="text" class="form-control form-control-sm" id="filter-exclude"
-               placeholder="ex: hiver open fédéral" style="min-width:260px" oninput="applyFilters()">
+               autocomplete="off" placeholder="ex: hiver open fédéral" style="min-width:260px" oninput="applyFilters()">
       </div>
 
       <div class="col-auto">
@@ -22217,11 +22217,20 @@ function _eliteCols(isTout) {
 function initEliteYear(yr) {
   if (_dtElite[yr]) return;
   var isTout = (yr === 'tout');
+  var yrLabel = isTout ? 'Tous millésimes' : ('Millésime ' + yr);
   _dtElite[yr] = $('#dt-elite-' + yr).DataTable({
     data: _ELITE[yr],
     columns: _eliteCols(isTout),
     pageLength: 25,
     order: [[isTout ? 3 : 2, 'desc']],
+    dom: "<'row mb-1'<'col-sm-6'B><'col-sm-6'f>><'row'<'col-12'tr>><'row mt-1'<'col-sm-5'i><'col-sm-7 text-end'p>>",
+    buttons: [
+      { extend: 'pdfHtml5', text: '📑 PDF', className: 'btn-sm btn-outline-danger',
+         orientation: 'landscape', pageSize: 'A4',
+         title: 'Élite FFT — ' + yrLabel,
+         exportOptions: { columns: ':visible' }
+      }
+    ],
     language: { url: 'https://cdn.datatables.net/plug-ins/2.0.5/i18n/fr-FR.json' },
     orderCellsTop: true,
     initComplete: function() {
