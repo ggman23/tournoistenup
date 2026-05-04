@@ -20359,6 +20359,12 @@ function pdfCustomize(doc) {
   applyFilters();
 });
 
+// Le navigateur peut restaurer les valeurs de formulaire APRÈS le ready — on vide en pageshow
+window.addEventListener('pageshow', function() {
+  var el = document.getElementById('filter-exclude');
+  if (el && el.value) { el.value = ''; applyFilters(); }
+});
+
 function applyFilters() {
   if (dt) dt.draw();
 }
@@ -21772,7 +21778,7 @@ function initEliteYear(yr) {
     pageLength: 25,
     lengthMenu: [[25, 50, 100, -1], [25, 50, 100, 'Tout']],
     order: [[isTout ? 3 : 2, 'desc']],
-    dom: "<'row mb-1'<'col-sm-4'f><'col-sm-4'l><'col-sm-4 text-end'B>><'row'<'col-12'tr>><'row mt-1'<'col-sm-5'i><'col-sm-7 text-end'p>>",
+    dom: "<'d-flex align-items-center gap-3 flex-wrap mb-2'flB><'row'<'col-12'tr>><'row mt-1'<'col-sm-5'i><'col-sm-7 text-end'p>>",
     buttons: [
       { extend: 'pdfHtml5', text: '📑 PDF', className: 'btn-sm btn-outline-danger',
          orientation: 'landscape', pageSize: 'A4',
@@ -21971,7 +21977,7 @@ function initAdvTable() {
   _dtAdv = $('#dt-adv').DataTable({
     data: _ADV,
     autoWidth: false,
-    dom: "<'row mb-2'<'col-sm-6'f><'col-sm-6 text-end'B>><'row'<'col-12'tr>><'row mt-1'<'col-sm-5'i><'col-sm-7 text-end'p>>",
+    dom: "<'d-flex align-items-center gap-3 flex-wrap mb-2'fB><'row'<'col-12'tr>><'row mt-1'<'col-sm-5'i><'col-sm-7 text-end'p>>",
     buttons: [
       { extend: 'pdfHtml5', text: '📑 PDF', className: 'btn-sm btn-outline-danger',
          orientation: 'landscape', pageSize: 'A4', title: 'Adversaires',
