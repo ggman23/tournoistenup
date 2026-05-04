@@ -2273,6 +2273,7 @@ function pdfCustomize(doc) {{
   }});
 
   // ── Valeurs par défaut au chargement ─────────────────────────────────────
+  $('#filter-exclude').val('');
   $('#chk-hide-vert, #chk-hide-orange').prop('checked', true);
   $('.ep-chk[value="SM_110"], .ep-chk[value="SM_120"], .ep-chk[value="SM_125"], .ep-chk[value="SM_130"], .ep-chk[value="SM_140"], .ep-chk[value="SM_145"]').prop('checked', true);
   updateMultiBtn('btn-ep', '.ep-chk', 'Toutes les épreuves');
@@ -3691,8 +3692,9 @@ function initEliteYear(yr) {{
     data: _ELITE[yr],
     columns: _eliteCols(isTout),
     pageLength: 25,
+    lengthMenu: [[25, 50, 100, -1], [25, 50, 100, 'Tout']],
     order: [[isTout ? 3 : 2, 'desc']],
-    dom: "<'row mb-1'<'col-sm-6'B><'col-sm-6'f>><'row'<'col-12'tr>><'row mt-1'<'col-sm-5'i><'col-sm-7 text-end'p>>",
+    dom: "<'row mb-1'<'col-sm-4'f><'col-sm-4'l><'col-sm-4 text-end'B>><'row'<'col-12'tr>><'row mt-1'<'col-sm-5'i><'col-sm-7 text-end'p>>",
     buttons: [
       {{ extend: 'pdfHtml5', text: '📑 PDF', className: 'btn-sm btn-outline-danger',
          orientation: 'landscape', pageSize: 'A4',
@@ -3891,7 +3893,13 @@ function initAdvTable() {{
   _dtAdv = $('#dt-adv').DataTable({{
     data: _ADV,
     autoWidth: false,
-    dom: "<'row mb-2'<'col-auto'f>><'row'<'col-12'tr>><'row mt-1'<'col-sm-5'i><'col-sm-7 text-end'p>>",
+    dom: "<'row mb-2'<'col-sm-6'f><'col-sm-6 text-end'B>><'row'<'col-12'tr>><'row mt-1'<'col-sm-5'i><'col-sm-7 text-end'p>>",
+    buttons: [
+      {{ extend: 'pdfHtml5', text: '📑 PDF', className: 'btn-sm btn-outline-danger',
+         orientation: 'landscape', pageSize: 'A4', title: 'Adversaires',
+         exportOptions: {{ columns: ':visible' }}
+      }}
+    ],
     columns: [
       {{ data: 0,  className: 'text-center', width: '42px' }},
       {{ data: 1,  className: 'text-center', width: '88px' }},
