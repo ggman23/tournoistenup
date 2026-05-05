@@ -12,7 +12,8 @@ from datetime import datetime, timezone, timedelta
 
 _TENNIS_RANK = {"NC":0,"40/2":1,"40":2,"30/5":3,"30/4":4,"30/3":5,"30/2":6,"30/1":7,"30":8,
                 "15/5":9,"15/4":10,"15/3":11,"15/2":12,"15/1":13,"15":14,
-                "4/6":15,"3/6":16,"2/6":17,"1/6":18,"0":19,"-2/6":20,"-4/6":21,"-15":22,"-30":23}
+                "5/6":15,"5/5":16,"5/4":17,"5/3":18,"5/2":19,"5/1":20,
+                "4/6":21,"3/6":22,"2/6":23,"1/6":24,"0":25,"-2/6":26,"-4/6":27,"-15":28,"-30":29}
 
 # ── GitHub Gist — synchronisation des favoris entre appareils ─────────────────
 # Token et Gist ID lus depuis .env (jamais committés).
@@ -636,7 +637,7 @@ def generate_html(
             _rc, _rp = _curr[9], _prev[9]
             if _rc == 99 or _rp == 99 or _rc == _rp:
                 continue
-            _delta = _rp - _rc  # positive = improved, negative = worsened
+            _delta = _rc - _rp  # positive = improved (higher r_clas = better rank)
             _entry = _curr + [str(_yr), _prev[4], _prev[9], _delta]
             (_elite_montes if _delta > 0 else _elite_descentes).append(_entry)
     _elite_montes_json    = json.dumps(_elite_montes,    ensure_ascii=False)
@@ -3749,7 +3750,9 @@ function initEliteYear(yr) {{
   var yrLabel     = isTout ? 'Tous millésimes' : (isMontes ? 'Montés' : (isDescentes ? 'Descentes' : ('Millésime ' + yr)));
   // Montés : sort by delta desc (biggest improvement first)
   // Descentes : sort by delta asc (most negative = biggest drop first)
-  var defaultOrder = isTout ? [[3,'desc']] : (isMontes ? [[9,'desc']] : (isDescentes ? [[9,'asc']] : [[2,'desc']]));
+  // Sort directly on the hidden numeric r_clas column (orderData not applied to initial order)
+  // per-yr: col7=r_clas  tout: col8=r_clas  montes/descentes: col9=delta
+  var defaultOrder = isTout ? [[8,'desc']] : (isMontes ? [[9,'desc']] : (isDescentes ? [[9,'asc']] : [[7,'desc']]));
   _dtElite[yr] = $('#dt-elite-' + yr).DataTable({{
     data: _ELITE[yr],
     columns: _eliteCols(mode),
