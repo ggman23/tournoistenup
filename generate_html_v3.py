@@ -608,17 +608,137 @@ def generate_html(
 
     # Load elite player data from CSV files if available
     _script_dir = os.path.dirname(os.path.abspath(__file__))
-    _elite_data = {
-        2016: _read_elite_csv(os.path.join(_script_dir, "2016.csv")),
-        2015: _read_elite_csv(os.path.join(_script_dir, "2015.csv")),
-        2014: _read_elite_csv(os.path.join(_script_dir, "2014.csv")),
-    }
+    _ALL_ELITE_YEARS = list(range(2018, 2007, -1))  # 2018..2008 descending
+    _elite_data = {}
+    for _yr in _ALL_ELITE_YEARS:
+        _p = os.path.join(_script_dir, f"{_yr}.csv")
+        _elite_data[_yr] = _read_elite_csv(_p) if os.path.exists(_p) else []
     _elite_json = {yr: json.dumps(rows, ensure_ascii=False) for yr, rows in _elite_data.items()}
+    # "Tous millésimes" — all years with yr appended at index 12
     _elite_tout = []
-    for _yr in [2016, 2015, 2014]:
+    for _yr in _ALL_ELITE_YEARS:
         for _row in _elite_data[_yr]:
             _elite_tout.append(_row + [str(_yr)])
     _elite_tout_json = json.dumps(_elite_tout, ensure_ascii=False)
+    # Montés / Descentes — compare current CSV vs *_avril.csv (previous month)
+    # Entry layout: base[0..11] + [yr_str(12), clas_prev(13), r_clas_prev(14), delta(15)]
+    _elite_montes, _elite_descentes = [], []
+    for _yr in _ALL_ELITE_YEARS:
+        _prev_p = os.path.join(_script_dir, f"{_yr}_avril.csv")
+        if not os.path.exists(_prev_p):
+            continue
+        _prev_by_id = {r[0]: r for r in _read_elite_csv(_prev_p)}
+        for _curr in _elite_data.get(_yr, []):
+            _id = _curr[0]
+            if _id not in _prev_by_id:
+                continue
+            _prev = _prev_by_id[_id]
+            _rc, _rp = _curr[9], _prev[9]
+            if _rc == 99 or _rp == 99 or _rc == _rp:
+                continue
+            _delta = _rp - _rc  # positive = improved, negative = worsened
+            _entry = _curr + [str(_yr), _prev[4], _prev[9], _delta]
+            (_elite_montes if _delta > 0 else _elite_descentes).append(_entry)
+    _elite_montes_json    = json.dumps(_elite_montes,    ensure_ascii=False)
+    _elite_descentes_json = json.dumps(_elite_descentes, ensure_ascii=False)
+    # Default year = first with data
+    _elite_default_yr = next((y for y in _ALL_ELITE_YEARS if _elite_data[y]), _ALL_ELITE_YEARS[0])
+    # Build JS key list for showEliteYear
+    _elite_all_keys = _ALL_ELITE_YEARS + ['tout']
+    if _elite_montes:    _elite_all_keys.append('montes')
+    if _elite_descentes: _elite_all_keys.append('descentes')
+    _elite_all_keys_json = json.dumps(_elite_all_keys)
+    # Build JS _ELITE object entries
+    _elite_js_entries = '\n  '.join(f'{yr}: {_elite_json[yr]},' for yr in _ALL_ELITE_YEARS)
+    _elite_js_entries += f'\n  tout: {_elite_tout_json},'
+    _elite_js_entries += f'\n  montes: {_elite_montes_json},'
+    _elite_js_entries += f'\n  descentes: {_elite_descentes_json},'
+    # Build button HTML
+    _yr_btns = []
+    for _yr in _ALL_ELITE_YEARS:
+        _cls = 'btn-warning' if _yr == _elite_default_yr else 'btn-outline-warning'
+        _yr_btns.append(f'<button class="btn btn-sm {_cls}" id="btn-elite-{_yr}" onclick="showEliteYear({_yr})">{_yr} <span class="badge bg-dark ms-1">{len(_elite_data[_yr])}</span></button>')
+    _yr_btns.append(f'<button class="btn btn-sm btn-outline-warning" id="btn-elite-tout" onclick="showEliteYear(\'tout\')">Tous <span class="badge bg-dark ms-1">{len(_elite_tout)}</span></button>')
+    if _elite_montes:
+        _yr_btns.append(f'<button class="btn btn-sm btn-outline-success" id="btn-elite-montes" onclick="showEliteYear(\'montes\')">↑ Montés <span class="badge bg-dark ms-1">{len(_elite_montes)}</span></button>')
+    if _elite_descentes:
+        _yr_btns.append(f'<button class="btn btn-sm btn-outline-danger" id="btn-elite-descentes" onclick="showEliteYear(\'descentes\')">↓ Descentes <span class="badge bg-dark ms-1">{len(_elite_descentes)}</span></button>')
+    _elite_buttons_html = '\n      '.join(_yr_btns)
+    # Build section HTML (one per year + tout + montes + descentes)
+    def _mk_yr_section(yr, hidden=True):
+        _d = ' style="display:none"' if hidden else ''
+        return (
+            f'    <div id="elite-section-{yr}"{_d}>\n'
+            f'      <table id="dt-elite-{yr}" class="table table-striped table-hover table-sm" style="width:100%">\n'
+            f'        <thead>\n'
+            f'          <tr><th>Joueur</th><th>Âge</th><th>Class.</th><th>Meilleur</th><th>Club</th><th>Ligue</th><th>Dép.</th>'
+            f'<th style="display:none">_rc</th><th style="display:none">_rb</th></tr>\n'
+            f'          <tr class="elite-filters">\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Âge..."></th>\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Club..."></th>\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Dép."></th>\n'
+            f'            <th></th><th></th>\n'
+            f'          </tr>\n'
+            f'        </thead>\n'
+            f'        <tbody></tbody>\n'
+            f'      </table>\n'
+            f'    </div>'
+        )
+    _sections_html = '\n'.join(_mk_yr_section(yr, hidden=(yr != _elite_default_yr)) for yr in _ALL_ELITE_YEARS)
+    _sections_html += '''
+    <div id="elite-section-tout" style="display:none">
+      <table id="dt-elite-tout" class="table table-striped table-hover table-sm" style="width:100%">
+        <thead>
+          <tr><th>Joueur</th><th>Millésime</th><th>Âge</th><th>Class.</th><th>Meilleur</th><th>Club</th><th>Ligue</th><th>Dép.</th><th style="display:none">_rc</th><th style="display:none">_rb</th></tr>
+          <tr class="elite-filters">
+            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ex: 2015"></th>
+            <th><input class="form-control form-control-sm" placeholder="Âge..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>
+            <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Club..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Dép."></th>
+            <th></th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>'''
+    _md_thead = '''
+          <tr><th>Joueur</th><th>Millésime</th><th>Avant</th><th>Maintenant</th><th>Club</th><th>Ligue</th><th>Dép.</th><th style="display:none">_rc</th><th style="display:none">_rp</th><th style="display:none">_d</th></tr>
+          <tr class="elite-filters">
+            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ex: 2015"></th>
+            <th><input class="form-control form-control-sm" placeholder="Avant..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Maintenant..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Club..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Dép."></th>
+            <th></th><th></th><th></th>
+          </tr>'''
+    if _elite_montes:
+        _sections_html += f'''
+    <div id="elite-section-montes" style="display:none">
+      <table id="dt-elite-montes" class="table table-striped table-hover table-sm" style="width:100%">
+        <thead>{_md_thead}
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>'''
+    if _elite_descentes:
+        _sections_html += f'''
+    <div id="elite-section-descentes" style="display:none">
+      <table id="dt-elite-descentes" class="table table-striped table-hover table-sm" style="width:100%">
+        <thead>{_md_thead}
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>'''
     _adv_data = _read_adv_csv(os.path.join(_script_dir, "adv.csv"))
     _adv_json = json.dumps(_adv_data, ensure_ascii=False)
 
@@ -1632,96 +1752,9 @@ def generate_html(
   <div id="view-elite" style="display:none" class="bg-white rounded shadow-sm p-3">
     <h5 style="color:#856404;margin-bottom:1rem">👑 Joueurs Élite FFT — Classements nationaux</h5>
     <div class="d-flex gap-2 mb-3 flex-wrap">
-      <button class="btn btn-sm btn-warning" id="btn-elite-2016" onclick="showEliteYear(2016)">Millésime 2016 <span class="badge bg-dark ms-1">{len(_elite_data[2016])}</span></button>
-      <button class="btn btn-sm btn-outline-warning" id="btn-elite-2015" onclick="showEliteYear(2015)">Millésime 2015 <span class="badge bg-dark ms-1">{len(_elite_data[2015])}</span></button>
-      <button class="btn btn-sm btn-outline-warning" id="btn-elite-2014" onclick="showEliteYear(2014)">Millésime 2014 <span class="badge bg-dark ms-1">{len(_elite_data[2014])}</span></button>
-      <button class="btn btn-sm btn-outline-warning" id="btn-elite-tout" onclick="showEliteYear('tout')">Tous millésimes <span class="badge bg-dark ms-1">{len(_elite_tout)}</span></button>
+      {_elite_buttons_html}
     </div>
-    <div id="elite-section-2016">
-      <table id="dt-elite-2016" class="table table-striped table-hover table-sm" style="width:100%">
-        <thead>
-          <tr>
-            <th>Joueur</th><th>Âge</th><th>Class.</th><th>Meilleur</th><th>Club</th><th>Ligue</th><th>Dép.</th>
-            <th style="display:none">_rc</th><th style="display:none">_rb</th>
-          </tr>
-          <tr class="elite-filters">
-            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Âge..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>
-            <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Club..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Dép."></th>
-            <th></th><th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <div id="elite-section-2015" style="display:none">
-      <table id="dt-elite-2015" class="table table-striped table-hover table-sm" style="width:100%">
-        <thead>
-          <tr>
-            <th>Joueur</th><th>Âge</th><th>Class.</th><th>Meilleur</th><th>Club</th><th>Ligue</th><th>Dép.</th>
-            <th style="display:none">_rc</th><th style="display:none">_rb</th>
-          </tr>
-          <tr class="elite-filters">
-            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Âge..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>
-            <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Club..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Dép."></th>
-            <th></th><th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <div id="elite-section-2014" style="display:none">
-      <table id="dt-elite-2014" class="table table-striped table-hover table-sm" style="width:100%">
-        <thead>
-          <tr>
-            <th>Joueur</th><th>Âge</th><th>Class.</th><th>Meilleur</th><th>Club</th><th>Ligue</th><th>Dép.</th>
-            <th style="display:none">_rc</th><th style="display:none">_rb</th>
-          </tr>
-          <tr class="elite-filters">
-            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Âge..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>
-            <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Club..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Dép."></th>
-            <th></th><th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <div id="elite-section-tout" style="display:none">
-      <table id="dt-elite-tout" class="table table-striped table-hover table-sm" style="width:100%">
-        <thead>
-          <tr>
-            <th>Joueur</th><th>Millésime</th><th>Âge</th><th>Class.</th><th>Meilleur</th><th>Club</th><th>Ligue</th><th>Dép.</th>
-            <th style="display:none">_rc</th><th style="display:none">_rb</th>
-          </tr>
-          <tr class="elite-filters">
-            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Ex: 2015"></th>
-            <th><input class="form-control form-control-sm" placeholder="Âge..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>
-            <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Club..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Dép."></th>
-            <th></th><th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
+    {_sections_html}
   </div>
 
   <!-- Vue Adversaires -->
@@ -2651,7 +2684,7 @@ function showView(view) {{
       $('#tab-coeff').css({{'background':'','border-color':'#5f3dc4','color':'#9775fa'}});
       $('#' + tabId).removeClass('btn-outline-secondary btn-outline-success btn-outline-info btn-outline-warning btn-outline-danger').addClass(actCls);
     }}
-    if (tableView === 'elite') {{ if (!_dtElite[2016]) {{ showEliteYear(2016); }} }}
+    if (tableView === 'elite') {{ if (!_dtElite[{_elite_default_yr}]) {{ showEliteYear({_elite_default_yr}); }} }}
   }}
   if (tableView === 'calendar')    {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
   if (tableView === 'gantt')       renderGantt();
@@ -3638,10 +3671,7 @@ function renderMap() {{
 
 // ── Données Élite ─────────────────────────────────────────────────────────
 var _ELITE = {{
-  2016: {_elite_json[2016]},
-  2015: {_elite_json[2015]},
-  2014: {_elite_json[2014]},
-  tout: {_elite_tout_json}
+  {_elite_js_entries}
 }};
 var _dtElite = {{}};
 var _eliteJoueurVal = {{}};
@@ -3656,7 +3686,7 @@ $.fn.dataTable.ext.search.push(function(settings, _d, _i, rowData) {{
   return name.indexOf(q) !== -1;
 }});
 
-function _eliteCols(isTout) {{
+function _eliteCols(mode) {{
   var simLink = function(d,t,r) {{
     if (t !== 'display' || !d) return d || '';
     return '<a href="https://tenup.fft.fr/simulation-classement/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
@@ -3665,8 +3695,24 @@ function _eliteCols(isTout) {{
     return '<a href="https://tenup.fft.fr/palmares/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
            + r[1] + ' <strong>' + r[2] + '</strong></a>';
   }} }};
-  if (isTout) {{
-    // Extra "Millésime" col at position 1 shifts orderData indices by 1
+  if (mode === 'montes' || mode === 'descentes') {{
+    // [base 0-11] + [yr(12), clas_prev(13), r_clas_prev(14), delta(15)]
+    // Cols: Joueur | Millésime | Avant | Maintenant | Club | Ligue | Dép. | _rc(h) | _rp(h) | _delta(h)
+    var isMo = (mode === 'montes');
+    return [
+      nameCol,
+      {{ data: 12, className: 'text-center' }},
+      {{ data: 13, className: 'text-center fw-semibold ' + (isMo ? 'text-muted' : 'text-success') }},
+      {{ data: 4,  className: 'text-center fw-bold '    + (isMo ? 'text-success' : 'text-danger'), orderData: [7], render: simLink }},
+      {{ data: 6 }},
+      {{ data: 7 }},
+      {{ data: 8,  className: 'text-center' }},
+      {{ data: 9,  visible: false, type: 'num' }},
+      {{ data: 14, visible: false, type: 'num' }},
+      {{ data: 15, visible: false, type: 'num' }},
+    ];
+  }}
+  if (mode === 'tout') {{
     return [
       nameCol,
       {{ data: 12, className: 'text-center' }},
@@ -3695,14 +3741,22 @@ function _eliteCols(isTout) {{
 
 function initEliteYear(yr) {{
   if (_dtElite[yr]) return;
-  var isTout = (yr === 'tout');
-  var yrLabel = isTout ? 'Tous millésimes' : ('Millésime ' + yr);
+  var isTout      = (yr === 'tout');
+  var isMontes    = (yr === 'montes');
+  var isDescentes = (yr === 'descentes');
+  var isMD        = isMontes || isDescentes;
+  var mode        = isTout ? 'tout' : (isMD ? yr : 'yr');
+  var yrLabel     = isTout ? 'Tous millésimes' : (isMontes ? 'Montés' : (isDescentes ? 'Descentes' : ('Millésime ' + yr)));
+  // Montés : sort by delta desc (biggest improvement first)
+  // Descentes : sort by delta asc (most negative = biggest drop first)
+  var defaultOrder = isTout ? [[3,'desc']] : (isMontes ? [[9,'desc']] : (isDescentes ? [[9,'asc']] : [[2,'desc']]));
   _dtElite[yr] = $('#dt-elite-' + yr).DataTable({{
     data: _ELITE[yr],
-    columns: _eliteCols(isTout),
+    columns: _eliteCols(mode),
+    deferRender: true,
     pageLength: 25,
     lengthMenu: [[25, 50, 100, -1], [25, 50, 100, 'Tout']],
-    order: [[isTout ? 3 : 2, 'desc']],
+    order: defaultOrder,
     dom: "<'d-flex align-items-center gap-3 flex-wrap mb-2'flB><'row'<'col-12'tr>><'row mt-1'<'col-sm-5'i><'col-sm-7 text-end'p>>",
     buttons: [
       {{ extend: 'pdfHtml5', text: '📑 PDF', className: 'btn-sm btn-outline-danger',
@@ -3737,11 +3791,13 @@ function initEliteYear(yr) {{
 }}
 
 function showEliteYear(yr) {{
-  [2016, 2015, 2014, 'tout'].forEach(function(y) {{
+  {_elite_all_keys_json}.forEach(function(y) {{
     $('#elite-section-' + y).toggle(y === yr);
     var $b = $('#btn-elite-' + y);
-    if (y === yr) {{ $b.removeClass('btn-outline-warning').addClass('btn-warning'); }}
-    else          {{ $b.removeClass('btn-warning').addClass('btn-outline-warning'); }}
+    var activeCls   = y === 'montes' ? 'btn-success' : y === 'descentes' ? 'btn-danger' : 'btn-warning';
+    var inactiveCls = y === 'montes' ? 'btn-outline-success' : y === 'descentes' ? 'btn-outline-danger' : 'btn-outline-warning';
+    if (y === yr) {{ $b.removeClass('btn-outline-warning btn-outline-success btn-outline-danger btn-warning btn-success btn-danger').addClass(activeCls); }}
+    else          {{ $b.removeClass('btn-warning btn-success btn-danger').addClass(inactiveCls); }}
   }});
   initEliteYear(yr);
 }}
