@@ -991,8 +991,8 @@
           <tr><th>Joueur</th><th>Millésime</th><th>Âge</th><th>Class.</th><th>Meilleur</th><th>Club</th><th>Ligue</th><th>Dép.</th><th style="display:none">_rc</th><th style="display:none">_rb</th></tr>
           <tr class="elite-filters">
             <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
-            <th><input class="form-control form-control-sm" placeholder="Ex: 2015"></th>
-            <th><input class="form-control form-control-sm" placeholder="Âge..."></th>
+            <th><input class="form-control form-control-sm" placeholder="2015;2017 ou 2012-2016" title="Séparez par ; pour plusieurs valeurs, ou utilisez - pour une plage (ex: 2012-2016)"></th>
+            <th><input class="form-control form-control-sm" placeholder="9;11 ou 8-12" title="Séparez par ; pour plusieurs valeurs, ou utilisez - pour une plage (ex: 8-12)"></th>
             <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>
             <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>
             <th><input class="form-control form-control-sm" placeholder="Club..."></th>
@@ -23158,14 +23158,50 @@ var _ELITE = {
 var _dtElite = {};
 var _eliteJoueurVal = {};
 
-// Custom name filter — directly compares prenom+nom (indices 1+2 in row data)
+// Multi-value / range filter helper: parses "2015;2017" or "2012-2016" or "2012-2016;2018"
+// Returns a function(strVal)→bool, or null if empty.
+function _mkRangeTest(val) {
+  val = (val || '').trim();
+  if (!val) return null;
+  var parts = val.split(';');
+  var tests = [];
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i].trim();
+    if (!p) continue;
+    var m = p.match(/^(\d+)-(\d+)$/);
+    if (m) {
+      (function(lo, hi) { tests.push(function(v) { var n = +v; return n >= lo && n <= hi; }); })(+m[1], +m[2]);
+    } else {
+      (function(ex) { tests.push(function(v) { return v === ex; }); })(p);
+    }
+  }
+  if (!tests.length) return null;
+  return function(v) {
+    for (var j = 0; j < tests.length; j++) { if (tests[j](v)) return true; }
+    return false;
+  };
+}
+
+// Range filters for the "tout" table (Millésime col:1 / Âge col:2)
+var _eliteToutMilFilter = '', _eliteToutMilFn = null;
+var _eliteToutAgeFilter = '', _eliteToutAgeFn = null;
+
+// Custom search — name filter for all elite tables, range filter for tout
 $.fn.dataTable.ext.search.push(function(settings, _d, _i, rowData) {
   var tid = settings.nTable.id;
   if (!tid || tid.indexOf('dt-elite-') !== 0) return true;
+  // Name filter (all elite tables)
   var q = _eliteJoueurVal[tid];
-  if (!q) return true;
-  var name = ((rowData[1] || '') + ' ' + (rowData[2] || '')).toLowerCase();
-  return name.indexOf(q) !== -1;
+  if (q) {
+    var name = ((rowData[1] || '') + ' ' + (rowData[2] || '')).toLowerCase();
+    if (name.indexOf(q) === -1) return false;
+  }
+  // Millésime + Âge range filters (tout table only)
+  if (tid === 'dt-elite-tout') {
+    if (_eliteToutMilFn && !_eliteToutMilFn(String(rowData[12] || ''))) return false;
+    if (_eliteToutAgeFn && !_eliteToutAgeFn(String(rowData[3]  || ''))) return false;
+  }
+  return true;
 });
 
 function _eliteCols(mode) {
@@ -23260,6 +23296,20 @@ function initEliteYear(yr) {
         if (i === 0) {
           inp.on('keyup change clear', function() {
             _eliteJoueurVal[tid] = this.value.toLowerCase();
+            api.draw();
+          });
+        } else if (isTout && i === 1) {
+          // Millésime: range/multi-value filter
+          inp.on('keyup change clear', function() {
+            _eliteToutMilFilter = this.value;
+            _eliteToutMilFn = _mkRangeTest(this.value);
+            api.draw();
+          });
+        } else if (isTout && i === 2) {
+          // Âge: range/multi-value filter
+          inp.on('keyup change clear', function() {
+            _eliteToutAgeFilter = this.value;
+            _eliteToutAgeFn = _mkRangeTest(this.value);
             api.draw();
           });
         } else {
