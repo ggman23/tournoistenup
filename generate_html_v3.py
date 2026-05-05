@@ -743,6 +743,27 @@ def generate_html(
     _adv_data = _read_adv_csv(os.path.join(_script_dir, "adv.csv"))
     _adv_json = json.dumps(_adv_data, ensure_ascii=False)
 
+    # Adversaires montés/descentes: deduplicate by id_crm, keep most recent match row
+    _adv_by_id = {}
+    for _r in _adv_data:
+        _id = _r[4]
+        if not _id:
+            continue
+        if _id not in _adv_by_id or _r[1] > _adv_by_id[_id][1]:
+            _adv_by_id[_id] = _r
+    _adv_montes, _adv_descentes = [], []
+    for _r in _adv_by_id.values():
+        _rc, _rm = _r[14], _r[15]  # r_clas (at match), r_mois (current)
+        if _rc == 99 or _rm == 99 or _rc == _rm:
+            continue
+        _delta = _rm - _rc  # positive = improved (higher numeric = better rank)
+        _entry = [_r[4], _r[2], _r[3], _r[7], _r[10], _r[9], _rc, _rm, _delta]
+        (_adv_montes if _delta > 0 else _adv_descentes).append(_entry)
+    _adv_montes.sort(key=lambda x: -x[8])    # biggest improvement first
+    _adv_descentes.sort(key=lambda x: x[8])  # biggest drop first (most negative)
+    _adv_montes_json    = json.dumps(_adv_montes,    ensure_ascii=False)
+    _adv_descentes_json = json.dumps(_adv_descentes, ensure_ascii=False)
+
     for t in tournaments:
         tid = t.get("originalId") or t.get("id", "")
         t["_is_new"] = tid in new_ids
@@ -1760,39 +1781,74 @@ def generate_html(
 
   <!-- Vue Adversaires -->
   <div id="view-adv" style="display:none" class="bg-white rounded shadow-sm p-3">
-    <h5 class="mb-3">⚔️ Adversaires — <span class="badge bg-secondary">{len(_adv_data)}</span> matchs</h5>
-    <div id="adv-stats" class="mb-4"></div>
-    <div class="mb-2 d-flex gap-3 align-items-center">
-      <span class="small fw-semibold text-muted">Résultat :</span>
-      <div class="form-check form-check-inline mb-0">
-        <input class="form-check-input" type="checkbox" id="adv-chk-v" checked onchange="advResultFilter()">
-        <label class="form-check-label small fw-bold text-success" for="adv-chk-v">✔ Victoires</label>
+    <h5 class="mb-2">⚔️ Adversaires — <span class="badge bg-secondary">{len(_adv_data)}</span> matchs</h5>
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+      <button class="btn btn-sm btn-primary" id="btn-adv-tous" onclick="showAdvView('tous')">Tous <span class="badge bg-dark ms-1">{len(_adv_data)}</span></button>
+      <button class="btn btn-sm btn-outline-success" id="btn-adv-montes" onclick="showAdvView('montes')">↑ Montés <span class="badge bg-dark ms-1">{len(_adv_montes)}</span></button>
+      <button class="btn btn-sm btn-outline-danger" id="btn-adv-descentes" onclick="showAdvView('descentes')">↓ Descentes <span class="badge bg-dark ms-1">{len(_adv_descentes)}</span></button>
+    </div>
+
+    <!-- Section Tous -->
+    <div id="adv-section-tous">
+      <div id="adv-stats" class="mb-4"></div>
+      <div class="mb-2 d-flex gap-3 align-items-center">
+        <span class="small fw-semibold text-muted">Résultat :</span>
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" id="adv-chk-v" checked onchange="advResultFilter()">
+          <label class="form-check-label small fw-bold text-success" for="adv-chk-v">✔ Victoires</label>
+        </div>
+        <div class="form-check form-check-inline mb-0">
+          <input class="form-check-input" type="checkbox" id="adv-chk-d" checked onchange="advResultFilter()">
+          <label class="form-check-label small fw-bold text-danger" for="adv-chk-d">✘ Défaites</label>
+        </div>
       </div>
-      <div class="form-check form-check-inline mb-0">
-        <input class="form-check-input" type="checkbox" id="adv-chk-d" checked onchange="advResultFilter()">
-        <label class="form-check-label small fw-bold text-danger" for="adv-chk-d">✘ Défaites</label>
+      <div class="table-responsive">
+        <table id="dt-adv" class="table table-striped table-hover table-sm" style="width:100%">
+          <thead>
+            <tr>
+              <th>N°</th><th>Date</th><th>Joueur</th><th>Ann.</th><th>Âge</th>
+              <th>Class.</th><th>Club</th><th>Mois</th><th>Best</th><th>Tournoi</th>
+              <th style="display:none">_rc</th><th style="display:none">_rm</th><th style="display:none">_rb</th>
+            </tr>
+            <tr class="adv-filters">
+              <th><input class="form-control form-control-sm" placeholder="N°"></th>
+              <th><input class="form-control form-control-sm" placeholder="Date…"></th>
+              <th><input class="form-control form-control-sm" placeholder="Joueur…"></th>
+              <th><input class="form-control form-control-sm" placeholder="Ann."></th>
+              <th><input class="form-control form-control-sm" placeholder="Âge"></th>
+              <th><input class="form-control form-control-sm" placeholder="Ex: 30/1"></th>
+              <th><input class="form-control form-control-sm" placeholder="Club…"></th>
+              <th><input class="form-control form-control-sm" placeholder="Mois…"></th>
+              <th><input class="form-control form-control-sm" placeholder="Best…"></th>
+              <th><input class="form-control form-control-sm" placeholder="Tournoi…"></th>
+              <th></th><th></th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
-    <div class="table-responsive">
-      <table id="dt-adv" class="table table-striped table-hover table-sm" style="width:100%">
+
+    <!-- Section Montés -->
+    <div id="adv-section-montes" style="display:none">
+      <table id="dt-adv-montes" class="table table-striped table-hover table-sm" style="width:100%">
         <thead>
           <tr>
-            <th>N°</th><th>Date</th><th>Joueur</th><th>Ann.</th><th>Âge</th>
-            <th>Class.</th><th>Club</th><th>Mois</th><th>Best</th><th>Tournoi</th>
-            <th style="display:none">_rc</th><th style="display:none">_rm</th><th style="display:none">_rb</th>
+            <th>Joueur</th><th>Avant (J)</th><th>Maintenant</th><th>Club</th>
+            <th style="display:none">_rc</th><th style="display:none">_rm</th><th style="display:none">_delta</th>
           </tr>
-          <tr class="adv-filters">
-            <th><input class="form-control form-control-sm" placeholder="N°"></th>
-            <th><input class="form-control form-control-sm" placeholder="Date…"></th>
-            <th><input class="form-control form-control-sm" placeholder="Joueur…"></th>
-            <th><input class="form-control form-control-sm" placeholder="Ann."></th>
-            <th><input class="form-control form-control-sm" placeholder="Âge"></th>
-            <th><input class="form-control form-control-sm" placeholder="Ex: 30/1"></th>
-            <th><input class="form-control form-control-sm" placeholder="Club…"></th>
-            <th><input class="form-control form-control-sm" placeholder="Mois…"></th>
-            <th><input class="form-control form-control-sm" placeholder="Best…"></th>
-            <th><input class="form-control form-control-sm" placeholder="Tournoi…"></th>
-            <th></th><th></th><th></th>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Section Descentes -->
+    <div id="adv-section-descentes" style="display:none">
+      <table id="dt-adv-descentes" class="table table-striped table-hover table-sm" style="width:100%">
+        <thead>
+          <tr>
+            <th>Joueur</th><th>Avant (J)</th><th>Maintenant</th><th>Club</th>
+            <th style="display:none">_rc</th><th style="display:none">_rm</th><th style="display:none">_delta</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -2668,7 +2724,7 @@ function showView(view) {{
   $('#view-coeff').toggle(tableView === 'coeff');
   $('#view-elite').toggle(tableView === 'elite');
   $('#view-adv').toggle(tableView === 'adv');
-  if (tableView === 'adv') initAdvTable();
+  if (tableView === 'adv' && !_dtAdv) showAdvView('tous');
   $('.view-tab').removeClass('btn-primary btn-warning btn-success btn-info btn-danger').addClass('btn-outline-secondary');
   var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements', planning:'tab-planning', rates:'tab-rates', coeff:'tab-coeff', elite:'tab-elite', adv:'tab-adv'}}[tableView] || 'tab-table';
   if (isDerniers) {{
@@ -4034,6 +4090,71 @@ function initAdvTable() {{
       }});
     }}
   }});
+}}
+
+// ── Adversaires Montés / Descentes ────────────────────────────────────────
+// Entry: [id_crm(0), prenom(1), nom(2), clas_at_match(3), mois_actuel(4), club(5), r_clas(6), r_mois(7), delta(8)]
+var _ADV_MONTES    = {_adv_montes_json};
+var _ADV_DESCENTES = {_adv_descentes_json};
+var _dtAdvMontes    = null;
+var _dtAdvDescentes = null;
+
+function initAdvMD(mode) {{
+  var isMontes = (mode === 'montes');
+  var tableId  = isMontes ? 'dt-adv-montes' : 'dt-adv-descentes';
+  var data     = isMontes ? _ADV_MONTES : _ADV_DESCENTES;
+  var dtRef    = isMontes ? _dtAdvMontes : _dtAdvDescentes;
+  if (dtRef) return;
+  var dt = $('#' + tableId).DataTable({{
+    data: data,
+    autoWidth: false,
+    dom: "<'d-flex align-items-center gap-3 flex-wrap mb-2'fB><'row'<'col-12'tr>><'row mt-1'<'col-sm-5'i><'col-sm-7 text-end'p>>",
+    buttons: [
+      {{ extend: 'pdfHtml5', text: '📑 PDF', className: 'btn-sm btn-outline-danger',
+         orientation: 'landscape', pageSize: 'A4',
+         title: isMontes ? 'Adversaires — Montés' : 'Adversaires — Descentes',
+         exportOptions: {{ columns: ':visible' }}
+      }}
+    ],
+    columns: [
+      {{ data: null, width: '160px', render: function(d,t,r) {{
+          if (t !== 'display') return r[2] + ' ' + r[1];
+          return '<a href="https://tenup.fft.fr/palmares/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;white-space:nowrap">'
+                 + r[1] + ' <strong>' + r[2] + '</strong></a>';
+        }}
+      }},
+      {{ data: 3, className: 'text-center', width: '90px' }},
+      {{ data: 4, className: 'text-center', width: '90px', render: function(d,t,r) {{
+          if (t !== 'display' || !d) return d || '';
+          return '<a href="https://tenup.fft.fr/simulation-classement/' + r[0] + '" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">' + d + '</a>';
+        }}
+      }},
+      {{ data: 5, width: '180px' }},
+      {{ data: 6, visible: false, type: 'num' }},
+      {{ data: 7, visible: false, type: 'num' }},
+      {{ data: 8, visible: false, type: 'num' }},
+    ],
+    order: isMontes ? [[6, 'desc']] : [[6, 'asc']],
+    pageLength: 50,
+    language: {{ url: 'https://cdn.datatables.net/plug-ins/2.0.5/i18n/fr-FR.json' }},
+  }});
+  if (isMontes) _dtAdvMontes = dt; else _dtAdvDescentes = dt;
+}}
+
+function showAdvView(mode) {{
+  ['tous', 'montes', 'descentes'].forEach(function(v) {{
+    $('#adv-section-' + v).toggle(v === mode);
+    var $b = $('#btn-adv-' + v);
+    var activeCls   = v === 'montes' ? 'btn-success'         : v === 'descentes' ? 'btn-danger'         : 'btn-primary';
+    var inactiveCls = v === 'montes' ? 'btn-outline-success' : v === 'descentes' ? 'btn-outline-danger' : 'btn-outline-primary';
+    if (v === mode) $b.removeClass('btn-outline-primary btn-outline-success btn-outline-danger btn-primary btn-success btn-danger').addClass(activeCls);
+    else            $b.removeClass('btn-primary btn-success btn-danger').addClass(inactiveCls);
+  }});
+  if (mode === 'tous') {{
+    initAdvTable();
+  }} else {{
+    initAdvMD(mode);
+  }}
 }}
 
 // ── Comparaison de tournois ────────────────────────────────────────────────
