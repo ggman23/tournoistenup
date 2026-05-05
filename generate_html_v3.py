@@ -743,21 +743,29 @@ def generate_html(
     _adv_data = _read_adv_csv(os.path.join(_script_dir, "adv.csv"))
     _adv_json = json.dumps(_adv_data, ensure_ascii=False)
 
-    # Adversaires montés/descentes: deduplicate by id_crm, keep most recent match row
-    _adv_by_id = {}
+    # Adversaires montés/descentes:
+    # "Avant" = class from OLDEST match (rank when first encountered)
+    # "Maintenant" = mois from NEWEST match (current April rank)
+    # delta = r_mois - r_clas_oldest (positive = improved)
+    _adv_oldest = {}  # oldest match per player (for class/avant)
+    _adv_newest = {}  # newest match per player (for mois/maintenant)
     for _r in _adv_data:
         _id = _r[4]
         if not _id:
             continue
-        if _id not in _adv_by_id or _r[1] > _adv_by_id[_id][1]:
-            _adv_by_id[_id] = _r
+        if _id not in _adv_oldest or _r[1] < _adv_oldest[_id][1]:
+            _adv_oldest[_id] = _r
+        if _id not in _adv_newest or _r[1] > _adv_newest[_id][1]:
+            _adv_newest[_id] = _r
     _adv_montes, _adv_descentes = [], []
-    for _r in _adv_by_id.values():
-        _rc, _rm = _r[14], _r[15]  # r_clas (at match), r_mois (current)
+    for _id, _old in _adv_oldest.items():
+        _new = _adv_newest[_id]
+        _rc = _old[14]  # r_clas from oldest match (rank at first encounter)
+        _rm = _new[15]  # r_mois from newest row (current April rank)
         if _rc == 99 or _rm == 99 or _rc == _rm:
             continue
         _delta = _rm - _rc  # positive = improved (higher numeric = better rank)
-        _entry = [_r[4], _r[2], _r[3], _r[7], _r[10], _r[9], _rc, _rm, _delta]
+        _entry = [_id, _old[2], _old[3], _old[7], _new[10], _new[9], _rc, _rm, _delta]
         (_adv_montes if _delta > 0 else _adv_descentes).append(_entry)
     _adv_montes.sort(key=lambda x: -x[8])    # biggest improvement first
     _adv_descentes.sort(key=lambda x: x[8])  # biggest drop first (most negative)
@@ -1834,7 +1842,7 @@ def generate_html(
       <table id="dt-adv-montes" class="table table-striped table-hover table-sm" style="width:100%">
         <thead>
           <tr>
-            <th>Joueur</th><th>Avant (J)</th><th>Maintenant</th><th>Club</th>
+            <th>Joueur</th><th>Class. (1ère renc.)</th><th>Mois (avril)</th><th>Club</th>
             <th style="display:none">_rc</th><th style="display:none">_rm</th><th style="display:none">_delta</th>
           </tr>
         </thead>
@@ -1847,7 +1855,7 @@ def generate_html(
       <table id="dt-adv-descentes" class="table table-striped table-hover table-sm" style="width:100%">
         <thead>
           <tr>
-            <th>Joueur</th><th>Avant (J)</th><th>Maintenant</th><th>Club</th>
+            <th>Joueur</th><th>Class. (1ère renc.)</th><th>Mois (avril)</th><th>Club</th>
             <th style="display:none">_rc</th><th style="display:none">_rm</th><th style="display:none">_delta</th>
           </tr>
         </thead>
