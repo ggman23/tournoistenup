@@ -740,6 +740,133 @@ def generate_html(
         <tbody></tbody>
       </table>
     </div>'''
+    # ── Données Filles ────────────────────────────────────────────────────────
+    _filles_data = {}
+    for _yr in _ALL_ELITE_YEARS:
+        _p = os.path.join(_script_dir, f"{_yr}F.csv")
+        _filles_data[_yr] = _read_elite_csv(_p) if os.path.exists(_p) else []
+    _filles_json_map = {yr: json.dumps(rows, ensure_ascii=False) for yr, rows in _filles_data.items()}
+    _filles_tout = []
+    for _yr in _ALL_ELITE_YEARS:
+        for _row in _filles_data[_yr]:
+            _filles_tout.append(_row + [str(_yr)])
+    _filles_tout_json = json.dumps(_filles_tout, ensure_ascii=False)
+    # Montées / Descentes filles — compare {yr}F.csv vs {yr}F_mai.csv
+    _filles_montes, _filles_descentes = [], []
+    for _yr in _ALL_ELITE_YEARS:
+        _prev_p = os.path.join(_script_dir, f"{_yr}F_mai.csv")
+        if not os.path.exists(_prev_p):
+            continue
+        _prev_by_id = {r[0]: r for r in _read_elite_csv(_prev_p)}
+        for _curr in _filles_data.get(_yr, []):
+            _id = _curr[0]
+            if _id not in _prev_by_id:
+                continue
+            _prev = _prev_by_id[_id]
+            _rc, _rp = _curr[9], _prev[9]
+            if _rc == 99 or _rp == 99 or _rc == _rp:
+                continue
+            _delta = _rc - _rp
+            _entry = _curr + [str(_yr), _prev[4], _prev[9], _delta]
+            (_filles_montes if _delta > 0 else _filles_descentes).append(_entry)
+    _filles_montes_json    = json.dumps(_filles_montes,    ensure_ascii=False)
+    _filles_descentes_json = json.dumps(_filles_descentes, ensure_ascii=False)
+    _filles_default_yr = next((y for y in _ALL_ELITE_YEARS if _filles_data[y]), _ALL_ELITE_YEARS[0])
+    _filles_all_keys = _ALL_ELITE_YEARS + ['tout']
+    if _filles_montes:    _filles_all_keys.append('montes')
+    if _filles_descentes: _filles_all_keys.append('descentes')
+    _filles_all_keys_json = json.dumps(_filles_all_keys)
+    _filles_js_entries = '\n  '.join(f'{yr}: {_filles_json_map[yr]},' for yr in _ALL_ELITE_YEARS)
+    _filles_js_entries += f'\n  tout: {_filles_tout_json},'
+    _filles_js_entries += f'\n  montes: {_filles_montes_json},'
+    _filles_js_entries += f'\n  descentes: {_filles_descentes_json},'
+    # Buttons HTML for filles (pink inline style, no custom Bootstrap class needed)
+    _filles_yr_btns = []
+    for _yr in _ALL_ELITE_YEARS:
+        _f_act = _yr == _filles_default_yr
+        _f_sty = 'background:#d63384;border-color:#d63384;color:#fff' if _f_act else 'border-color:#d63384;color:#d63384'
+        _filles_yr_btns.append(f'<button class="btn btn-sm" style="{_f_sty}" id="btn-filles-{_yr}" onclick="showFillesYear({_yr})">{_yr} <span class="badge bg-dark ms-1">{len(_filles_data[_yr])}</span></button>')
+    _filles_yr_btns.append(f'<button class="btn btn-sm" style="border-color:#d63384;color:#d63384" id="btn-filles-tout" onclick="showFillesYear(\'tout\')">Toutes <span class="badge bg-dark ms-1">{len(_filles_tout)}</span></button>')
+    if _filles_montes:
+        _filles_yr_btns.append(f'<button class="btn btn-sm btn-outline-success" id="btn-filles-montes" onclick="showFillesYear(\'montes\')">↑ Montées <span class="badge bg-dark ms-1">{len(_filles_montes)}</span></button>')
+    if _filles_descentes:
+        _filles_yr_btns.append(f'<button class="btn btn-sm btn-outline-danger" id="btn-filles-descentes" onclick="showFillesYear(\'descentes\')">↓ Descentes <span class="badge bg-dark ms-1">{len(_filles_descentes)}</span></button>')
+    _filles_buttons_html = '\n      '.join(_filles_yr_btns)
+    # Section HTML for filles (mirrors elite, uses filles- prefix)
+    def _mk_yr_section_f(yr, hidden=True):
+        _d = ' style="display:none"' if hidden else ''
+        return (
+            f'    <div id="filles-section-{yr}"{_d}>\n'
+            f'      <table id="dt-filles-{yr}" class="table table-striped table-hover table-sm" style="width:100%">\n'
+            f'        <thead>\n'
+            f'          <tr><th>Joueur</th><th>Âge</th><th>Class.</th><th>Meilleur</th><th>Club</th><th>Ligue</th><th>Dép.</th>'
+            f'<th style="display:none">_rc</th><th style="display:none">_rb</th></tr>\n'
+            f'          <tr class="elite-filters">\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Âge..."></th>\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Club..."></th>\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>\n'
+            f'            <th><input class="form-control form-control-sm" placeholder="Dép."></th>\n'
+            f'            <th></th><th></th>\n'
+            f'          </tr>\n'
+            f'        </thead>\n'
+            f'        <tbody></tbody>\n'
+            f'      </table>\n'
+            f'    </div>'
+        )
+    _filles_sections_html = '\n'.join(_mk_yr_section_f(yr, hidden=(yr != _filles_default_yr)) for yr in _ALL_ELITE_YEARS)
+    _filles_sections_html += '''
+    <div id="filles-section-tout" style="display:none">
+      <table id="dt-filles-tout" class="table table-striped table-hover table-sm" style="width:100%">
+        <thead>
+          <tr><th>Joueur</th><th>Millésime</th><th>Âge</th><th>Class.</th><th>Meilleur</th><th>Club</th><th>Ligue</th><th>Dép.</th><th style="display:none">_rc</th><th style="display:none">_rb</th></tr>
+          <tr class="elite-filters">
+            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="2015;2017 ou 2012-2016" title="Séparez par ; pour plusieurs valeurs, ou utilisez - pour une plage"></th>
+            <th><input class="form-control form-control-sm" placeholder="9;11 ou 8-12" title="Séparez par ; pour plusieurs valeurs, ou utilisez - pour une plage"></th>
+            <th><input class="form-control form-control-sm" placeholder="Ex: 15/2"></th>
+            <th><input class="form-control form-control-sm" placeholder="Meilleur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Club..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Dép."></th>
+            <th></th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>'''
+    _filles_md_thead = '''
+          <tr><th>Joueur</th><th>Millésime</th><th>Avant</th><th>Maintenant</th><th>Club</th><th>Ligue</th><th>Dép.</th><th style="display:none">_rc</th><th style="display:none">_rp</th><th style="display:none">_d</th></tr>
+          <tr class="elite-filters">
+            <th><input class="form-control form-control-sm" placeholder="Joueur..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ex: 2015"></th>
+            <th><input class="form-control form-control-sm" placeholder="Avant..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Maintenant..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Club..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Ligue..."></th>
+            <th><input class="form-control form-control-sm" placeholder="Dép."></th>
+            <th></th><th></th><th></th>
+          </tr>'''
+    if _filles_montes:
+        _filles_sections_html += f'''
+    <div id="filles-section-montes" style="display:none">
+      <table id="dt-filles-montes" class="table table-striped table-hover table-sm" style="width:100%">
+        <thead>{_filles_md_thead}
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>'''
+    if _filles_descentes:
+        _filles_sections_html += f'''
+    <div id="filles-section-descentes" style="display:none">
+      <table id="dt-filles-descentes" class="table table-striped table-hover table-sm" style="width:100%">
+        <thead>{_filles_md_thead}
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>'''
     _adv_data = _read_adv_csv(os.path.join(_script_dir, "adv.csv"))
     _adv_json = json.dumps(_adv_data, ensure_ascii=False)
 
@@ -1242,8 +1369,8 @@ def generate_html(
       #t th:nth-child(13), #t td:nth-child(13),
       #t th:nth-child(14), #t td:nth-child(14) {{ display:none !important; }}
     }}
-    #view-elite .elite-filters input {{ min-width: 60px; }}
-    #view-elite .elite-filters th {{ padding: 4px 8px; vertical-align: middle; }}
+    #view-elite .elite-filters input, #view-filles .elite-filters input {{ min-width: 60px; }}
+    #view-elite .elite-filters th, #view-filles .elite-filters th {{ padding: 4px 8px; vertical-align: middle; }}
     #view-adv .adv-filters input {{ min-width: 50px; }}
     #view-adv .adv-filters th {{ padding: 4px 6px; vertical-align: middle; }}
     #dt-adv tr.adv-win td {{ background-color: rgba(40,167,69,.12) !important; }}
@@ -1604,6 +1731,9 @@ def generate_html(
             onclick="showView('coeff')">× Coefficients</button>
     <button class="btn btn-sm btn-outline-warning view-tab" id="tab-elite"
             onclick="showView('elite')">👑 Élite</button>
+    <button class="btn btn-sm view-tab" id="tab-filles"
+            style="border-color:#d63384;color:#d63384"
+            onclick="showView('filles')">♀ Filles</button>
     <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-adv"
             onclick="showView('adv')">⚔️ Adversaires</button>
     <small class="text-muted ms-2" id="view-info"></small>
@@ -1785,6 +1915,15 @@ def generate_html(
       {_elite_buttons_html}
     </div>
     {_sections_html}
+  </div>
+
+  <!-- Vue Filles -->
+  <div id="view-filles" style="display:none" class="bg-white rounded shadow-sm p-3">
+    <h5 style="color:#d63384;margin-bottom:1rem">♀ Joueuses Élite FFT — Classements nationaux</h5>
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+      {_filles_buttons_html}
+    </div>
+    {_filles_sections_html}
   </div>
 
   <!-- Vue Adversaires -->
@@ -2731,10 +2870,12 @@ function showView(view) {{
   $('#view-rates').toggle(tableView === 'rates');
   $('#view-coeff').toggle(tableView === 'coeff');
   $('#view-elite').toggle(tableView === 'elite');
+  $('#view-filles').toggle(tableView === 'filles');
   $('#view-adv').toggle(tableView === 'adv');
   if (tableView === 'adv' && !_dtAdv) showAdvView('tous');
   $('.view-tab').removeClass('btn-primary btn-warning btn-success btn-info btn-danger').addClass('btn-outline-secondary');
-  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements', planning:'tab-planning', rates:'tab-rates', coeff:'tab-coeff', elite:'tab-elite', adv:'tab-adv'}}[tableView] || 'tab-table';
+  $('#tab-filles').css({{'background': tableView === 'filles' ? '#d63384' : '', 'border-color':'#d63384', 'color': tableView === 'filles' ? '#fff' : '#d63384'}});
+  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements', planning:'tab-planning', rates:'tab-rates', coeff:'tab-coeff', elite:'tab-elite', filles:'tab-filles', adv:'tab-adv'}}[tableView] || 'tab-table';
   if (isDerniers) {{
     $('#tab-derniers').removeClass('btn-outline-secondary btn-outline-warning').addClass('btn-warning');
     dt.column('.col-first-seen').visible(true);
@@ -2749,7 +2890,8 @@ function showView(view) {{
       $('#tab-coeff').css({{'background':'','border-color':'#5f3dc4','color':'#9775fa'}});
       $('#' + tabId).removeClass('btn-outline-secondary btn-outline-success btn-outline-info btn-outline-warning btn-outline-danger').addClass(actCls);
     }}
-    if (tableView === 'elite') {{ if (!_dtElite[{_elite_default_yr}]) {{ showEliteYear({_elite_default_yr}); }} }}
+    if (tableView === 'elite')  {{ if (!_dtElite[{_elite_default_yr}])  {{ showEliteYear({_elite_default_yr});  }} }}
+    if (tableView === 'filles') {{ if (!_dtFilles[{_filles_default_yr}]) {{ showFillesYear({_filles_default_yr}); }} }}
   }}
   if (tableView === 'calendar')    {{ calYear = undefined; calMonth = undefined; renderCalendar(); }}
   if (tableView === 'gantt')       renderGantt();
@@ -3765,24 +3907,33 @@ function _mkRangeTest(val) {{
   }};
 }}
 
-// Range filters for the "tout" table (Millésime col:1 / Âge col:2)
+// Range filters for "tout" tables (Millésime col:1 / Âge col:2)
 var _eliteToutMilFilter = '', _eliteToutMilFn = null;
 var _eliteToutAgeFilter = '', _eliteToutAgeFn = null;
+var _fillesToutMilFilter = '', _fillesToutMilFn = null;
+var _fillesToutAgeFilter = '', _fillesToutAgeFn = null;
 
-// Custom search — name filter for all elite tables, range filter for tout
+// Combined search — name filter + range filter for elite and filles tables
 $.fn.dataTable.ext.search.push(function(settings, _d, _i, rowData) {{
   var tid = settings.nTable.id;
-  if (!tid || tid.indexOf('dt-elite-') !== 0) return true;
-  // Name filter (all elite tables)
-  var q = _eliteJoueurVal[tid];
+  if (!tid) return true;
+  var isElite  = tid.indexOf('dt-elite-')  === 0;
+  var isFilles = tid.indexOf('dt-filles-') === 0;
+  if (!isElite && !isFilles) return true;
+  // Name filter
+  var q = isElite ? _eliteJoueurVal[tid] : _fillesJoueurVal[tid];
   if (q) {{
     var name = ((rowData[1] || '') + ' ' + (rowData[2] || '')).toLowerCase();
     if (name.indexOf(q) === -1) return false;
   }}
-  // Millésime + Âge range filters (tout table only)
+  // Range filters for tout tables
   if (tid === 'dt-elite-tout') {{
     if (_eliteToutMilFn && !_eliteToutMilFn(String(rowData[12] || ''))) return false;
     if (_eliteToutAgeFn && !_eliteToutAgeFn(String(rowData[3]  || ''))) return false;
+  }}
+  if (tid === 'dt-filles-tout') {{
+    if (_fillesToutMilFn && !_fillesToutMilFn(String(rowData[12] || ''))) return false;
+    if (_fillesToutAgeFn && !_fillesToutAgeFn(String(rowData[3]  || ''))) return false;
   }}
   return true;
 }});
@@ -3917,6 +4068,91 @@ function showEliteYear(yr) {{
     else          {{ $b.removeClass('btn-warning btn-success btn-danger').addClass(inactiveCls); }}
   }});
   initEliteYear(yr);
+}}
+
+// ── Données Filles ─────────────────────────────────────────────────────────
+var _FILLES = {{
+  {_filles_js_entries}
+}};
+var _dtFilles = {{}};
+var _fillesJoueurVal = {{}};
+
+function initFillesYear(yr) {{
+  if (_dtFilles[yr]) return;
+  var isTout      = (yr === 'tout');
+  var isMontes    = (yr === 'montes');
+  var isDescentes = (yr === 'descentes');
+  var isMD        = isMontes || isDescentes;
+  var mode        = isTout ? 'tout' : (isMD ? yr : 'yr');
+  var yrLabel     = isTout ? 'Toutes millésimes' : (isMontes ? 'Montées' : (isDescentes ? 'Descentes' : ('Millésime ' + yr)));
+  var defaultOrder = isTout ? [[8,'desc']] : (isMontes ? [[9,'desc']] : (isDescentes ? [[9,'asc']] : [[7,'desc']]));
+  _dtFilles[yr] = $('#dt-filles-' + yr).DataTable({{
+    data: _FILLES[yr],
+    columns: _eliteCols(mode),
+    deferRender: true,
+    pageLength: 25,
+    lengthMenu: [[25, 50, 100, -1], [25, 50, 100, 'Tout']],
+    order: defaultOrder,
+    dom: "<'d-flex align-items-center gap-3 flex-wrap mb-2'flB><'row'<'col-12'tr>><'row mt-1'<'col-sm-5'i><'col-sm-7 text-end'p>>",
+    buttons: [
+      {{ extend: 'pdfHtml5', text: '📑 PDF', className: 'btn-sm btn-outline-danger',
+         orientation: 'landscape', pageSize: 'A4',
+         title: 'Élite FFT Filles — ' + yrLabel,
+         exportOptions: {{ columns: ':visible' }}
+      }}
+    ],
+    language: {{ url: 'https://cdn.datatables.net/plug-ins/2.0.5/i18n/fr-FR.json' }},
+    orderCellsTop: true,
+    initComplete: function() {{
+      var api = this.api();
+      var tid = 'dt-filles-' + yr;
+      $('#' + tid + ' thead tr.elite-filters th').each(function(i) {{
+        var inp = $('input', this);
+        if (!inp.length) return;
+        if (i === 0) {{
+          inp.on('keyup change clear', function() {{
+            _fillesJoueurVal[tid] = this.value.toLowerCase();
+            api.draw();
+          }});
+        }} else if (isTout && i === 1) {{
+          inp.on('keyup change clear', function() {{
+            _fillesToutMilFilter = this.value;
+            _fillesToutMilFn = _mkRangeTest(this.value);
+            api.draw();
+          }});
+        }} else if (isTout && i === 2) {{
+          inp.on('keyup change clear', function() {{
+            _fillesToutAgeFilter = this.value;
+            _fillesToutAgeFn = _mkRangeTest(this.value);
+            api.draw();
+          }});
+        }} else {{
+          inp.on('keyup change clear', function() {{
+            if (api.column(i).search() !== this.value) {{
+              api.column(i).search(this.value).draw();
+            }}
+          }});
+        }}
+      }});
+    }}
+  }});
+}}
+
+function showFillesYear(yr) {{
+  {_filles_all_keys_json}.forEach(function(y) {{
+    $('#filles-section-' + y).toggle(y === yr);
+    var $b = $('#btn-filles-' + y);
+    if (y === 'montes' || y === 'descentes') {{
+      var activeCls   = y === 'montes' ? 'btn-success' : 'btn-danger';
+      var inactiveCls = y === 'montes' ? 'btn-outline-success' : 'btn-outline-danger';
+      if (y === yr) $b.removeClass('btn-outline-success btn-outline-danger btn-success btn-danger').addClass(activeCls);
+      else          $b.removeClass('btn-success btn-danger').addClass(inactiveCls);
+    }} else {{
+      if (y === yr) $b.css({{'background':'#d63384','border-color':'#d63384','color':'#fff'}});
+      else          $b.css({{'background':'','border-color':'#d63384','color':'#d63384'}});
+    }}
+  }});
+  initFillesYear(yr);
 }}
 
 // ── Données Adversaires ────────────────────────────────────────────────────
