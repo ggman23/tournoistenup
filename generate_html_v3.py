@@ -3913,7 +3913,11 @@ var _eliteToutAgeFilter = '', _eliteToutAgeFn = null;
 var _fillesToutMilFilter = '', _fillesToutMilFn = null;
 var _fillesToutAgeFilter = '', _fillesToutAgeFn = null;
 
-// Combined search — name filter + range filter for elite and filles tables
+// Column text filters stored by {{tid: {{dataIdx: lowerCaseValue}}}}
+var _eliteColFilters = {{}};
+var _fillesColFilters = {{}};
+
+// Combined search — name filter + column filters + range filters for elite/filles tables
 $.fn.dataTable.ext.search.push(function(settings, _d, _i, rowData) {{
   var tid = settings.nTable.id;
   if (!tid) return true;
@@ -3925,6 +3929,15 @@ $.fn.dataTable.ext.search.push(function(settings, _d, _i, rowData) {{
   if (q) {{
     var name = ((rowData[1] || '') + ' ' + (rowData[2] || '')).toLowerCase();
     if (name.indexOf(q) === -1) return false;
+  }}
+  // Column text filters (club, ligue, dept, class, age…)
+  var cf = isElite ? _eliteColFilters[tid] : _fillesColFilters[tid];
+  if (cf) {{
+    var diKeys = Object.keys(cf);
+    for (var ki = 0; ki < diKeys.length; ki++) {{
+      var fv = cf[diKeys[ki]];
+      if (fv && String(rowData[diKeys[ki]] || '').toLowerCase().indexOf(fv) === -1) return false;
+    }}
   }}
   // Range filters for tout tables
   if (tid === 'dt-elite-tout') {{
@@ -4024,6 +4037,7 @@ function initEliteYear(yr) {{
     initComplete: function() {{
       var api = this.api();
       var tid = 'dt-elite-' + yr;
+      var _cols = _eliteCols(mode);
       $('#' + tid + ' thead tr.elite-filters th').each(function(i) {{
         var inp = $('input', this);
         if (!inp.length) return;
@@ -4047,11 +4061,13 @@ function initEliteYear(yr) {{
             api.draw();
           }});
         }} else {{
-          inp.on('keyup change clear', function() {{
-            if (api.column(i).search() !== this.value) {{
-              api.column(i).search(this.value).draw();
-            }}
-          }});
+          (function(dataIdx) {{
+            inp.on('keyup change clear', function() {{
+              if (!_eliteColFilters[tid]) _eliteColFilters[tid] = {{}};
+              _eliteColFilters[tid][dataIdx] = this.value.toLowerCase();
+              api.draw();
+            }});
+          }})(_cols[i] && typeof _cols[i].data === 'number' ? _cols[i].data : i);
         }}
       }});
     }}
@@ -4106,6 +4122,7 @@ function initFillesYear(yr) {{
     initComplete: function() {{
       var api = this.api();
       var tid = 'dt-filles-' + yr;
+      var _cols = _eliteCols(mode);
       $('#' + tid + ' thead tr.elite-filters th').each(function(i) {{
         var inp = $('input', this);
         if (!inp.length) return;
@@ -4127,11 +4144,13 @@ function initFillesYear(yr) {{
             api.draw();
           }});
         }} else {{
-          inp.on('keyup change clear', function() {{
-            if (api.column(i).search() !== this.value) {{
-              api.column(i).search(this.value).draw();
-            }}
-          }});
+          (function(dataIdx) {{
+            inp.on('keyup change clear', function() {{
+              if (!_fillesColFilters[tid]) _fillesColFilters[tid] = {{}};
+              _fillesColFilters[tid][dataIdx] = this.value.toLowerCase();
+              api.draw();
+            }});
+          }})(_cols[i] && typeof _cols[i].data === 'number' ? _cols[i].data : i);
         }}
       }});
     }}
