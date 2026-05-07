@@ -3893,7 +3893,7 @@ function _mkRangeTest(val) {{
   for (var i = 0; i < parts.length; i++) {{
     var p = parts[i].trim();
     if (!p) continue;
-    var m = p.match(/^(\d+)-(\d+)$/);
+    var m = p.match(/^(\\d+)-(\\d+)$/);
     if (m) {{
       (function(lo, hi) {{ tests.push(function(v) {{ var n = +v; return n >= lo && n <= hi; }}); }})(+m[1], +m[2]);
     }} else {{
