@@ -142,6 +142,12 @@ def _auto_push_html(html_file: str):
         # Régénérer l'index GitHub Pages et l'inclure dans le même commit
         data_dir = os.path.dirname(os.path.abspath(html_file))
         idx_file = _generate_index(data_dir)
+        # Restaure les fichiers trackés supprimés localement (ex: csv renommés)
+        _st = subprocess.run(["git", "ls-files", "--deleted"], capture_output=True, text=True)
+        _deleted = [f.strip() for f in _st.stdout.splitlines() if f.strip()]
+        if _deleted:
+            subprocess.run(["git", "checkout", "HEAD", "--"] + _deleted,
+                           capture_output=True, text=True)
         # Force-add même si data/ est dans .gitignore
         r = subprocess.run(["git", "add", "-f", html_file, idx_file],
                            capture_output=True, text=True)
@@ -152,7 +158,7 @@ def _auto_push_html(html_file: str):
                            capture_output=True, text=True)
         if r.returncode != 0:
             combined = r.stdout + r.stderr
-            if any(s in combined for s in ("nothing to commit", "rien à valider", "nothing added to commit")):
+            if any(s in combined for s in ("nothing to commit", "rien à valider", "nothing added to commit", "no changes added to commit")):
                 logger.info("HTML inchangé — pas de commit git.")
             else:
                 logger.warning("git commit HTML échoué : %s", (r.stderr or r.stdout).strip())

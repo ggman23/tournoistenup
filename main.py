@@ -80,6 +80,12 @@ def _auto_push_html(html_file: str):
     import subprocess
     stamp = datetime.now().strftime("%d/%m/%Y %H:%M")
     try:
+        # Restaure les fichiers trackés supprimés localement (ex: csv renommés)
+        _st = subprocess.run(["git", "ls-files", "--deleted"], capture_output=True, text=True)
+        _deleted = [f.strip() for f in _st.stdout.splitlines() if f.strip()]
+        if _deleted:
+            subprocess.run(["git", "checkout", "HEAD", "--"] + _deleted,
+                           capture_output=True, text=True)
         # Force-add même si data/ est dans .gitignore
         r = subprocess.run(["git", "add", "-f", html_file],
                            capture_output=True, text=True)
@@ -89,7 +95,7 @@ def _auto_push_html(html_file: str):
         r = subprocess.run(["git", "commit", "-m", f"auto: rapport HTML — {stamp}"],
                            capture_output=True, text=True)
         if r.returncode != 0:
-            if "nothing to commit" in r.stdout + r.stderr:
+            if any(s in r.stdout + r.stderr for s in ("nothing to commit", "rien à valider", "no changes added to commit", "nothing added to commit")):
                 logger.info("HTML inchangé — pas de commit git.")
             else:
                 logger.warning("git commit HTML échoué : %s", r.stderr.strip())
