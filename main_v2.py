@@ -158,7 +158,8 @@ def _auto_push_html(html_file: str):
                 logger.warning("git commit HTML échoué : %s", (r.stderr or r.stdout).strip())
             return
         # Synchronise avec le remote avant de pousser (la branche peut avoir avancé)
-        r = subprocess.run(["git", "pull", "--rebase"], capture_output=True, text=True)
+        # --autostash gère les éventuels fichiers non-commités (csv, etc.)
+        r = subprocess.run(["git", "pull", "--rebase", "--autostash"], capture_output=True, text=True)
         if r.returncode != 0:
             logger.warning("git pull --rebase échoué, push annulé : %s", r.stderr.strip())
             return
