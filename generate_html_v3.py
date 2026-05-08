@@ -2951,7 +2951,7 @@ function showView(view) {{
 }}
 
 // ── Clubs IDF ────────────────────────────────────────────────────────────────
-var _CLUBS_IDF_BASE = 'https://cdn.jsdelivr.net/gh/ggman23/tournoistenup@main/';
+var _CLUBS_IDF_BASE = '../';
 function loadClubsFrame(filename, btn) {{
   document.getElementById('clubs-idf-frame').src = _CLUBS_IDF_BASE + filename;
   document.querySelectorAll('.clubs-idf-btn').forEach(function(b) {{
