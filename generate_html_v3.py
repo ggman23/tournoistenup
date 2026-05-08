@@ -899,6 +899,30 @@ def generate_html(
     _adv_montes_json    = json.dumps(_adv_montes,    ensure_ascii=False)
     _adv_descentes_json = json.dumps(_adv_descentes, ensure_ascii=False)
 
+    # Clubs IDF — embed HTML files as srcdoc to work on any hosting
+    _clubs_idf_files = [
+        'Dashboard_Clubs_75_V7.html',
+        'Dashboard_Clubs_77_V7.html',
+        'Dashboard_Clubs_78_V7.html',
+        'Dashboard_Clubs_91_V7.html',
+        'Dashboard_Clubs_92_V7.html',
+        'Dashboard_Clubs_93_V7.html',
+        'Dashboard_Clubs_94_V7.html',
+        'Dashboard_Clubs_95_V7.html',
+        'classement_77_HF_ADULTES_complet.html',
+        'classement_77_HF_ALL_complet.html',
+        'classement_77_HF_SENIORS_complet.html',
+        'classement_77_Jeunes_complet.html',
+    ]
+    _clubs_idf_data = {}
+    for _fname in _clubs_idf_files:
+        _fp = os.path.join(_script_dir, _fname)
+        if os.path.exists(_fp):
+            with open(_fp, encoding='utf-8', errors='replace') as _fh:
+                _clubs_idf_data[_fname] = _fh.read()
+    # Escape </script> to prevent early tag closure in the <script> block
+    _clubs_idf_json = json.dumps(_clubs_idf_data, ensure_ascii=False).replace('</', '<\\/')
+
     for t in tournaments:
         tid = t.get("originalId") or t.get("id", "")
         t["_is_new"] = tid in new_ids
@@ -2951,15 +2975,20 @@ function showView(view) {{
 }}
 
 // ── Clubs IDF ────────────────────────────────────────────────────────────────
-var _CLUBS_IDF_BASE = '../';
+var _CLUBS_IDF_DATA = {_clubs_idf_json};
 function loadClubsFrame(filename, btn) {{
-  document.getElementById('clubs-idf-frame').src = _CLUBS_IDF_BASE + filename;
+  var frame = document.getElementById('clubs-idf-frame');
+  var content = _CLUBS_IDF_DATA[filename];
+  if (content) {{
+    frame.removeAttribute('src');
+    frame.srcdoc = content;
+  }} else {{
+    frame.removeAttribute('srcdoc');
+    frame.src = '../' + filename;
+  }}
   document.querySelectorAll('.clubs-idf-btn').forEach(function(b) {{
-    b.classList.remove('btn-info', 'btn-success');
-    if (b.classList.contains('btn-outline-success') || b.classList.contains('btn-success'))
-      b.classList.replace('btn-success', 'btn-outline-success');
-    else
-      b.classList.replace('btn-info', 'btn-outline-info');
+    if (b.classList.contains('btn-success'))    b.classList.replace('btn-success',   'btn-outline-success');
+    if (b.classList.contains('btn-info'))       b.classList.replace('btn-info',       'btn-outline-info');
   }});
   if (btn.classList.contains('btn-outline-success')) {{
     btn.classList.replace('btn-outline-success', 'btn-success');
