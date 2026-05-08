@@ -1736,6 +1736,10 @@ def generate_html(
             onclick="showView('filles')">♀ Filles</button>
     <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-adv"
             onclick="showView('adv')">⚔️ Adversaires</button>
+    <button class="btn btn-sm btn-outline-info view-tab" id="tab-clubs-idf"
+            onclick="showView('clubs-idf')">🏟️ Clubs IDF</button>
+    <button class="btn btn-sm btn-outline-dark view-tab" id="tab-idcrm"
+            onclick="showView('idcrm')">🔍 Id CRM</button>
     <small class="text-muted ms-2" id="view-info"></small>
   </div>
 
@@ -2000,6 +2004,47 @@ def generate_html(
         </thead>
         <tbody></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- Vue Clubs IDF -->
+  <div id="view-clubs-idf" style="display:none" class="bg-white rounded shadow-sm p-3">
+    <h5 class="mb-3">🏟️ Clubs Île-de-France</h5>
+    <div class="d-flex gap-2 mb-2 flex-wrap align-items-center">
+      <span class="text-muted small">Dashboards :</span>
+      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_75_V7.html',this)">Clubs 75</button>
+      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_77_V7.html',this)">Clubs 77</button>
+      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_78_V7.html',this)">Clubs 78</button>
+      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_91_V7.html',this)">Clubs 91</button>
+      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_92_V7.html',this)">Clubs 92</button>
+      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_93_V7.html',this)">Clubs 93</button>
+      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_94_V7.html',this)">Clubs 94</button>
+      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_95_V7.html',this)">Clubs 95</button>
+    </div>
+    <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+      <span class="text-muted small">Classements 77 :</span>
+      <button class="btn btn-sm btn-outline-success clubs-idf-btn" onclick="loadClubsFrame('classement_77_HF_ADULTES_complet.html',this)">Adultes</button>
+      <button class="btn btn-sm btn-outline-success clubs-idf-btn" onclick="loadClubsFrame('classement_77_HF_ALL_complet.html',this)">Tous</button>
+      <button class="btn btn-sm btn-outline-success clubs-idf-btn" onclick="loadClubsFrame('classement_77_HF_SENIORS_complet.html',this)">Seniors</button>
+      <button class="btn btn-sm btn-outline-success clubs-idf-btn" onclick="loadClubsFrame('classement_77_Jeunes_complet.html',this)">Jeunes</button>
+    </div>
+    <iframe id="clubs-idf-frame" src="about:blank" style="width:100%;height:85vh;border:none;border-radius:6px;background:#f8f9fa" loading="lazy"></iframe>
+  </div>
+
+  <!-- Vue Id CRM -->
+  <div id="view-idcrm" style="display:none" class="bg-white rounded shadow-sm p-3">
+    <h5 class="mb-3">🔍 Recherche par Id CRM</h5>
+    <div class="row justify-content-center">
+      <div class="col-md-6 col-lg-5">
+        <div class="input-group mb-4">
+          <span class="input-group-text fw-semibold">Id CRM</span>
+          <input type="text" id="idcrm-input" class="form-control font-monospace"
+                 placeholder="ex: 10002302244" oninput="updateIdCrmLinks()">
+        </div>
+        <div id="idcrm-links" class="list-group">
+          <p class="text-muted small">Saisissez un Id CRM pour afficher les liens.</p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2872,10 +2917,12 @@ function showView(view) {{
   $('#view-elite').toggle(tableView === 'elite');
   $('#view-filles').toggle(tableView === 'filles');
   $('#view-adv').toggle(tableView === 'adv');
+  $('#view-clubs-idf').toggle(tableView === 'clubs-idf');
+  $('#view-idcrm').toggle(tableView === 'idcrm');
   if (tableView === 'adv' && !_dtAdv) showAdvView('tous');
   $('.view-tab').removeClass('btn-primary btn-warning btn-success btn-info btn-danger').addClass('btn-outline-secondary');
   $('#tab-filles').css({{'background': tableView === 'filles' ? '#d63384' : '', 'border-color':'#d63384', 'color': tableView === 'filles' ? '#fff' : '#d63384'}});
-  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements', planning:'tab-planning', rates:'tab-rates', coeff:'tab-coeff', elite:'tab-elite', filles:'tab-filles', adv:'tab-adv'}}[tableView] || 'tab-table';
+  var tabId = {{table:'tab-table', calendar:'tab-cal', gantt:'tab-gantt', vacs:'tab-vacs', map:'tab-map', inscrit:'tab-inscrit', classements:'tab-classements', planning:'tab-planning', rates:'tab-rates', coeff:'tab-coeff', elite:'tab-elite', filles:'tab-filles', adv:'tab-adv', 'clubs-idf':'tab-clubs-idf', idcrm:'tab-idcrm'}}[tableView] || 'tab-table';
   if (isDerniers) {{
     $('#tab-derniers').removeClass('btn-outline-secondary btn-outline-warning').addClass('btn-warning');
     dt.column('.col-first-seen').visible(true);
@@ -2883,7 +2930,7 @@ function showView(view) {{
     dt.order([[dt.column('.col-first-seen').index(), 'desc']]).draw();
   }} else {{
     if (tableView !== 'inscrit' && tableView !== 'classements') dt.column('.col-first-seen').visible(false);
-    var actCls = {{inscrit:'btn-success', classements:'btn-info', planning:'btn-warning', rates:'btn-danger', coeff:'btn-primary', elite:'btn-warning', adv:'btn-secondary'}}[tableView] || 'btn-primary';
+    var actCls = {{inscrit:'btn-success', classements:'btn-info', planning:'btn-warning', rates:'btn-danger', coeff:'btn-primary', elite:'btn-warning', adv:'btn-secondary', 'clubs-idf':'btn-info', idcrm:'btn-dark'}}[tableView] || 'btn-primary';
     if (tableView === 'coeff') {{
       $('#tab-coeff').removeClass('btn-outline-secondary').css({{'background':'#5f3dc4','border-color':'#5f3dc4','color':'#fff'}});
     }} else {{
@@ -2901,6 +2948,51 @@ function showView(view) {{
   if (tableView === 'classements') renderClassements();
   if (tableView === 'planning')    {{ planYear = undefined; planMonth = undefined; renderPlanning(); }}
   if (tableView === 'rates')       renderRates();
+}}
+
+// ── Clubs IDF ────────────────────────────────────────────────────────────────
+var _CLUBS_IDF_BASE = 'https://cdn.jsdelivr.net/gh/ggman23/tournoistenup@main/';
+function loadClubsFrame(filename, btn) {{
+  document.getElementById('clubs-idf-frame').src = _CLUBS_IDF_BASE + filename;
+  document.querySelectorAll('.clubs-idf-btn').forEach(function(b) {{
+    b.classList.remove('btn-info', 'btn-success');
+    if (b.classList.contains('btn-outline-success') || b.classList.contains('btn-success'))
+      b.classList.replace('btn-success', 'btn-outline-success');
+    else
+      b.classList.replace('btn-info', 'btn-outline-info');
+  }});
+  if (btn.classList.contains('btn-outline-success')) {{
+    btn.classList.replace('btn-outline-success', 'btn-success');
+  }} else {{
+    btn.classList.replace('btn-outline-info', 'btn-info');
+  }}
+}}
+
+// ── Id CRM ───────────────────────────────────────────────────────────────────
+function updateIdCrmLinks() {{
+  var id = document.getElementById('idcrm-input').value.trim();
+  var $c = document.getElementById('idcrm-links');
+  if (!id) {{
+    $c.innerHTML = '<p class="text-muted small">Saisissez un Id CRM pour afficher les liens.</p>';
+    return;
+  }}
+  var base = 'https://tenup.fft.fr/';
+  var links = [
+    {{ icon: '👤', label: 'Profil Joueur',         url: base + 'back/v1/personnes/' + id + '/profil-joueur' }},
+    {{ icon: '🏆', label: 'Palmarès',              url: base + 'palmares/' + id }},
+    {{ icon: '📈', label: 'Simulation Classement', url: base + 'simulation-classement/' + id }},
+    {{ icon: '📊', label: 'Bilan Classement',      url: base + 'classement/' + id }},
+  ];
+  $c.innerHTML = links.map(function(l) {{
+    return '<a href="' + l.url + '" target="_blank" rel="noopener"'
+         + ' class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3">'
+         + '<span style="font-size:1.3rem">' + l.icon + '</span>'
+         + '<div class="flex-grow-1">'
+         + '<div class="fw-semibold">' + l.label + '</div>'
+         + '<div class="text-muted small font-monospace text-truncate" style="max-width:420px">' + l.url + '</div>'
+         + '</div>'
+         + '<span class="text-muted">↗</span></a>';
+  }}).join('');
 }}
 
 // ── Extraction des données filtrées depuis DataTables ────────────────────────
