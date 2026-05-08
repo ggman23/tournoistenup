@@ -2110,7 +2110,7 @@ $(function() {{
   // ── Custom DataTables row filter ──────────────────────────────────────────
   $.fn.dataTable.ext.search.push(function(settings, _data, index) {{
     var _tid = settings.nTable && settings.nTable.id;
-    if (_tid && (_tid.indexOf('dt-elite-') === 0 || _tid === 'dt-adv')) return true;
+    if (_tid && (_tid.indexOf('dt-elite-') === 0 || _tid.indexOf('dt-filles-') === 0 || _tid === 'dt-adv')) return true;
     var node = settings.aoData[index] && settings.aoData[index].nTr;
     if (!node) return true;
     var $tr = $(node);
@@ -4042,27 +4042,27 @@ function initEliteYear(yr) {{
         var inp = $('input', this);
         if (!inp.length) return;
         if (i === 0) {{
-          inp.on('keyup change clear', function() {{
+          inp.on('input', function() {{
             _eliteJoueurVal[tid] = this.value.toLowerCase();
             api.draw();
           }});
         }} else if (isTout && i === 1) {{
           // Millésime: range/multi-value filter
-          inp.on('keyup change clear', function() {{
+          inp.on('input', function() {{
             _eliteToutMilFilter = this.value;
             _eliteToutMilFn = _mkRangeTest(this.value);
             api.draw();
           }});
         }} else if (isTout && i === 2) {{
           // Âge: range/multi-value filter
-          inp.on('keyup change clear', function() {{
+          inp.on('input', function() {{
             _eliteToutAgeFilter = this.value;
             _eliteToutAgeFn = _mkRangeTest(this.value);
             api.draw();
           }});
         }} else {{
           (function(dataIdx) {{
-            inp.on('keyup change clear', function() {{
+            inp.on('input', function() {{
               if (!_eliteColFilters[tid]) _eliteColFilters[tid] = {{}};
               _eliteColFilters[tid][dataIdx] = this.value.toLowerCase();
               api.draw();
@@ -4127,25 +4127,25 @@ function initFillesYear(yr) {{
         var inp = $('input', this);
         if (!inp.length) return;
         if (i === 0) {{
-          inp.on('keyup change clear', function() {{
+          inp.on('input', function() {{
             _fillesJoueurVal[tid] = this.value.toLowerCase();
             api.draw();
           }});
         }} else if (isTout && i === 1) {{
-          inp.on('keyup change clear', function() {{
+          inp.on('input', function() {{
             _fillesToutMilFilter = this.value;
             _fillesToutMilFn = _mkRangeTest(this.value);
             api.draw();
           }});
         }} else if (isTout && i === 2) {{
-          inp.on('keyup change clear', function() {{
+          inp.on('input', function() {{
             _fillesToutAgeFilter = this.value;
             _fillesToutAgeFn = _mkRangeTest(this.value);
             api.draw();
           }});
         }} else {{
           (function(dataIdx) {{
-            inp.on('keyup change clear', function() {{
+            inp.on('input', function() {{
               if (!_fillesColFilters[tid]) _fillesColFilters[tid] = {{}};
               _fillesColFilters[tid][dataIdx] = this.value.toLowerCase();
               api.draw();
@@ -4389,16 +4389,16 @@ function initAdvTable() {{
         var inp = $('input', this);
         if (!inp.length) return;
         if (i === 2) {{
-          inp.on('keyup change clear', function() {{
+          inp.on('input', function() {{
             _advJoueurVal = this.value.toLowerCase();
             api.draw();
           }});
         }} else {{
-          inp.on('keyup change clear', function() {{
-            if (api.column(i).search() !== this.value) {{
-              api.column(i).search(this.value).draw();
-            }}
-          }});
+          (function(colIdx) {{
+            inp.on('input', function() {{
+              api.column(colIdx).search(this.value).draw();
+            }});
+          }})(i);
         }}
       }});
     }}
