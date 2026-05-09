@@ -774,11 +774,16 @@ def generate_html(
         for _row in _filles_data[_yr]:
             _filles_tout.append(_row + [str(_yr)])
     _filles_tout_json = json.dumps(_filles_tout, ensure_ascii=False)
-    # Montées / Descentes filles — compare {yr}F.csv vs {yr}F_mai.csv
+    # Montées / Descentes filles — compare {yr}F.csv vs {yr}F_avril.csv (or {yr}F_mai.csv)
     _filles_montes, _filles_descentes = [], []
     for _yr in _ALL_ELITE_YEARS:
-        _prev_p = os.path.join(_script_dir, f"{_yr}F_mai.csv")
-        if not os.path.exists(_prev_p):
+        _prev_p = None
+        for _sfx in [f"{_yr}F_avril.csv", f"{_yr}F_mai.csv"]:
+            _pp = os.path.join(_script_dir, _sfx)
+            if os.path.exists(_pp):
+                _prev_p = _pp
+                break
+        if not _prev_p:
             continue
         _prev_by_id = {r[0]: r for r in _read_elite_csv(_prev_p, 'F')}
         for _curr in _filles_data.get(_yr, []):
