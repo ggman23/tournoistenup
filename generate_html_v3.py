@@ -10,10 +10,32 @@ import urllib.parse
 import csv as _csv_mod
 from datetime import datetime, timezone, timedelta
 
-_TENNIS_RANK = {"NC":0,"40/2":1,"40":2,"30/5":3,"30/4":4,"30/3":5,"30/2":6,"30/1":7,"30":8,
-                "15/5":9,"15/4":10,"15/3":11,"15/2":12,"15/1":13,"15":14,
-                "5/6":15,
-                "4/6":16,"3/6":17,"2/6":18,"1/6":19,"0":20,"-2/6":21,"-4/6":22,"-15":23,"-30":24}
+_TENNIS_RANK_COMMON = {
+    "NC":0,"40/2":1,"40/1":2,"40":3,
+    "30/5":4,"30/4":5,"30/3":6,"30/2":7,"30/1":8,"30":9,
+    "15/5":10,"15/4":11,"15/3":12,"15/2":13,"15/1":14,"15":15,
+    "5/6":16,"4/6":17,"3/6":18,"2/6":19,"1/6":20,
+    "0":21,"-2/6":22,"-4/6":23,"-15":24,"-30":25,
+}
+# Hommes: -15 < T100 < N100…N61 < T60 < N60…N31 < T30 < N30…N1
+_TENNIS_RANK_H = {**_TENNIS_RANK_COMMON,
+    "T100":26,
+    **{f"N{k}": 27+(100-k) for k in range(100, 60, -1)},
+    "T60":67,
+    **{f"N{k}": 68+(60-k)  for k in range(60,  30, -1)},
+    "T30":98,
+    **{f"N{k}": 99+(30-k)  for k in range(30,   0, -1)},
+}
+# Femmes: -15 < T60 < N60…N41 < T40 < N40…N21 < T20 < N20…N1
+_TENNIS_RANK_F = {**_TENNIS_RANK_COMMON,
+    "T60":26,
+    **{f"N{k}": 27+(60-k) for k in range(60, 40, -1)},
+    "T40":47,
+    **{f"N{k}": 48+(40-k) for k in range(40, 20, -1)},
+    "T20":68,
+    **{f"N{k}": 69+(20-k) for k in range(20,  0, -1)},
+}
+_TENNIS_RANK = _TENNIS_RANK_H  # backward compat (adv.csv etc.)
 
 # ── GitHub Gist — synchronisation des favoris entre appareils ─────────────────
 # Token et Gist ID lus depuis .env (jamais committés).
@@ -133,7 +155,8 @@ def _read_adv_csv(path: str) -> list:
         pass
     return rows
 
-def _read_elite_csv(path: str) -> list:
+def _read_elite_csv(path: str, gender: str = 'M') -> list:
+    _rank = _TENNIS_RANK_F if gender == 'F' else _TENNIS_RANK_H
     players = []
     try:
         with open(path, encoding="utf-8-sig") as f:
@@ -153,8 +176,8 @@ def _read_elite_csv(path: str) -> list:
                 club   = row[8].strip() if len(row) > 8 else ""
                 ligue  = row[11].strip() if len(row) > 11 else ""
                 dept   = row[12].strip() if len(row) > 12 else ""
-                r_clas = _TENNIS_RANK.get(clas, 99)
-                r_best = _TENNIS_RANK.get(best, 99)
+                r_clas = _rank.get(clas, 99)
+                r_best = _rank.get(best, 99)
                 players.append([id_crm, prenom, nom, age, clas, best, club, ligue, dept, r_clas, r_best, f"{prenom} {nom}"])
     except FileNotFoundError:
         pass
@@ -744,7 +767,7 @@ def generate_html(
     _filles_data = {}
     for _yr in _ALL_ELITE_YEARS:
         _p = os.path.join(_script_dir, f"{_yr}F.csv")
-        _filles_data[_yr] = _read_elite_csv(_p) if os.path.exists(_p) else []
+        _filles_data[_yr] = _read_elite_csv(_p, 'F') if os.path.exists(_p) else []
     _filles_json_map = {yr: json.dumps(rows, ensure_ascii=False) for yr, rows in _filles_data.items()}
     _filles_tout = []
     for _yr in _ALL_ELITE_YEARS:
@@ -757,7 +780,7 @@ def generate_html(
         _prev_p = os.path.join(_script_dir, f"{_yr}F_mai.csv")
         if not os.path.exists(_prev_p):
             continue
-        _prev_by_id = {r[0]: r for r in _read_elite_csv(_prev_p)}
+        _prev_by_id = {r[0]: r for r in _read_elite_csv(_prev_p, 'F')}
         for _curr in _filles_data.get(_yr, []):
             _id = _curr[0]
             if _id not in _prev_by_id:
@@ -1362,13 +1385,17 @@ def generate_html(
     /* ── Carte ────────────────────────────────────────────────────────────── */
     #view-map-wrap {{ position:relative; }}
     /* ── Clubs IDF fullscreen ────────────────────────────────────────────── */
+    #view-clubs-idf {{ position:relative; }}
     #view-clubs-idf.clubs-idf-fs {{
       position:fixed !important; top:0; left:0; right:0; bottom:0;
-      z-index:9999; border-radius:0 !important; margin:0; padding:8px !important;
+      z-index:9999; border-radius:0 !important; margin:0; padding:0 !important;
       overflow:hidden; background:#fff;
-      display:flex; flex-direction:column;
     }}
-    #view-clubs-idf.clubs-idf-fs #clubs-idf-frame {{ flex:1; height:0 !important; }}
+    #view-clubs-idf.clubs-idf-fs #clubs-idf-frame {{
+      position:absolute !important; top:0; left:0;
+      width:100% !important; height:100% !important;
+      border-radius:0 !important;
+    }}
     #view-map {{ height:600px; border-radius:8px; overflow:hidden; }}
     #view-map-wrap.map-fs {{ position:fixed !important; top:0; left:0; right:0; bottom:0;
                              z-index:9999; background:#fff; padding:0; }}
@@ -2051,7 +2078,7 @@ def generate_html(
   <!-- Vue Clubs IDF -->
   <div id="view-clubs-idf" style="display:none" class="bg-white rounded shadow-sm p-3">
     <div id="clubs-idf-topbar" class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-      <h5 class="mb-0" id="clubs-idf-title">🏟️ Clubs Île-de-France</h5>
+      <h5 class="mb-0">🏟️ Clubs Île-de-France</h5>
       <button id="clubs-idf-fs-btn" class="btn btn-sm btn-outline-secondary ms-auto" onclick="toggleClubsIdfFs()">⛶ Plein écran</button>
     </div>
     <div id="clubs-idf-nav">
@@ -3002,6 +3029,7 @@ function showView(view) {{
 var _CLUBS_IDF_DATA = {_clubs_idf_json};
 function toggleClubsIdfFs() {{
   var $v   = $('#view-clubs-idf');
+  var $btn = $('#clubs-idf-fs-btn');
   var isFs = $v.hasClass('clubs-idf-fs');
   if (!isFs) {{
     // entering fullscreen: auto-load default if no content yet
@@ -3009,11 +3037,16 @@ function toggleClubsIdfFs() {{
     if (!frame.srcdoc) {{
       loadClubsFrame('Dashboard_Clubs_77_V10.html', document.querySelector('.clubs-idf-btn'));
     }}
+    // Float button over the iframe (detach from topbar → body)
+    $btn.detach().appendTo('body').css({{position:'fixed', top:'8px', right:'8px', zIndex:10001}});
+  }} else {{
+    // Return button to topbar
+    $btn.detach().appendTo('#clubs-idf-topbar').css({{position:'', top:'', right:'', zIndex:''}});
   }}
   $v.toggleClass('clubs-idf-fs', !isFs);
+  $('#clubs-idf-topbar').toggle(isFs);
   $('#clubs-idf-nav').toggle(isFs);
-  $('#clubs-idf-title').toggle(isFs);
-  $('#clubs-idf-fs-btn').text(isFs ? '⛶ Plein écran' : '✕ Quitter plein écran');
+  $btn.text(isFs ? '⛶ Plein écran' : '✕ Quitter plein écran');
   $('#filter-bar').toggle(isFs);
   $('#view-tabs').toggle(isFs);
 }}
