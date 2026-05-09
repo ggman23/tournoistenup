@@ -1366,8 +1366,9 @@ def generate_html(
       position:fixed !important; top:0; left:0; right:0; bottom:0;
       z-index:9999; border-radius:0 !important; margin:0; padding:8px !important;
       overflow:hidden; background:#fff;
+      display:flex; flex-direction:column;
     }}
-    #view-clubs-idf.clubs-idf-fs #clubs-idf-frame {{ height:calc(100vh - 52px); }}
+    #view-clubs-idf.clubs-idf-fs #clubs-idf-frame {{ flex:1; height:0 !important; }}
     #view-map {{ height:600px; border-radius:8px; overflow:hidden; }}
     #view-map-wrap.map-fs {{ position:fixed !important; top:0; left:0; right:0; bottom:0;
                              z-index:9999; background:#fff; padding:0; }}
@@ -2049,11 +2050,11 @@ def generate_html(
 
   <!-- Vue Clubs IDF -->
   <div id="view-clubs-idf" style="display:none" class="bg-white rounded shadow-sm p-3">
-    <div id="clubs-idf-header">
-      <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
-        <h5 class="mb-0">🏟️ Clubs Île-de-France</h5>
-        <button id="clubs-idf-fs-btn" class="btn btn-sm btn-outline-secondary ms-auto" onclick="toggleClubsIdfFs()">⛶ Plein écran</button>
-      </div>
+    <div id="clubs-idf-topbar" class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+      <h5 class="mb-0" id="clubs-idf-title">🏟️ Clubs Île-de-France</h5>
+      <button id="clubs-idf-fs-btn" class="btn btn-sm btn-outline-secondary ms-auto" onclick="toggleClubsIdfFs()">⛶ Plein écran</button>
+    </div>
+    <div id="clubs-idf-nav">
       <div class="d-flex gap-2 mb-2 flex-wrap align-items-center">
         <span class="text-muted small">Dashboards :</span>
         <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_75_V10.html',this)">Clubs 75</button>
@@ -3002,10 +3003,17 @@ var _CLUBS_IDF_DATA = {_clubs_idf_json};
 function toggleClubsIdfFs() {{
   var $v   = $('#view-clubs-idf');
   var isFs = $v.hasClass('clubs-idf-fs');
+  if (!isFs) {{
+    // entering fullscreen: auto-load default if no content yet
+    var frame = document.getElementById('clubs-idf-frame');
+    if (!frame.srcdoc) {{
+      loadClubsFrame('Dashboard_Clubs_77_V10.html', document.querySelector('.clubs-idf-btn'));
+    }}
+  }}
   $v.toggleClass('clubs-idf-fs', !isFs);
-  $('#clubs-idf-header').toggle(isFs);  // hide buttons when fullscreen
+  $('#clubs-idf-nav').toggle(isFs);
+  $('#clubs-idf-title').toggle(isFs);
   $('#clubs-idf-fs-btn').text(isFs ? '⛶ Plein écran' : '✕ Quitter plein écran');
-  // hide/show the main nav bar
   $('#filter-bar').toggle(isFs);
   $('#view-tabs').toggle(isFs);
 }}
