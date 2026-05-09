@@ -870,45 +870,54 @@ def generate_html(
     _adv_data = _read_adv_csv(os.path.join(_script_dir, "adv.csv"))
     _adv_json = json.dumps(_adv_data, ensure_ascii=False)
 
-    # Adversaires montés/descentes:
-    # "Avant" = class from OLDEST match (rank when first encountered)
-    # "Maintenant" = mois from NEWEST match (current April rank)
-    # delta = r_mois - r_clas_oldest (positive = improved)
-    _adv_oldest = {}  # oldest match per player (for class/avant)
-    _adv_newest = {}  # newest match per player (for mois/maintenant)
-    for _r in _adv_data:
-        _id = _r[4]
-        if not _id:
-            continue
-        if _id not in _adv_oldest or _r[1] < _adv_oldest[_id][1]:
-            _adv_oldest[_id] = _r
-        if _id not in _adv_newest or _r[1] > _adv_newest[_id][1]:
-            _adv_newest[_id] = _r
+    # Adversaires montés/descentes: compare adv.csv (mois actuel) vs adv_avril.csv / adv_mai.csv
+    # Entry: [id_crm(0), prenom(1), nom(2), mois_prev(3), mois_curr(4), club(5), r_prev(6), r_curr(7), delta(8)]
     _adv_montes, _adv_descentes = [], []
-    for _id, _old in _adv_oldest.items():
-        _new = _adv_newest[_id]
-        _rc = _old[14]  # r_clas from oldest match (rank at first encounter)
-        _rm = _new[15]  # r_mois from newest row (current April rank)
-        if _rc == 99 or _rm == 99 or _rc == _rm:
-            continue
-        _delta = _rm - _rc  # positive = improved (higher numeric = better rank)
-        _entry = [_id, _old[2], _old[3], _old[7], _new[10], _new[9], _rc, _rm, _delta]
-        (_adv_montes if _delta > 0 else _adv_descentes).append(_entry)
-    _adv_montes.sort(key=lambda x: -x[8])    # biggest improvement first
-    _adv_descentes.sort(key=lambda x: x[8])  # biggest drop first (most negative)
+    _adv_prev_path = None
+    for _prev_name in ['adv_avril.csv', 'adv_mai.csv']:
+        _pp = os.path.join(_script_dir, _prev_name)
+        if os.path.exists(_pp):
+            _adv_prev_path = _pp
+            break
+    if _adv_prev_path:
+        _adv_prev_data = _read_adv_csv(_adv_prev_path)
+        # Keep one row per player (last seen = most recent match)
+        _adv_prev_by_id = {}
+        for _r in _adv_prev_data:
+            if _r[4]:
+                _adv_prev_by_id[_r[4]] = _r
+        _adv_curr_by_id = {}
+        for _r in _adv_data:
+            if _r[4]:
+                _adv_curr_by_id[_r[4]] = _r
+        for _id, _curr in _adv_curr_by_id.items():
+            if _id not in _adv_prev_by_id:
+                continue
+            _prev = _adv_prev_by_id[_id]
+            _r_curr = _curr[15]   # r_mois current month
+            _r_prev = _prev[15]   # r_mois previous month
+            if _r_curr == 99 or _r_prev == 99 or _r_curr == _r_prev:
+                continue
+            _delta = _r_curr - _r_prev  # positive = improved
+            _entry = [_id, _curr[2], _curr[3], _prev[10], _curr[10], _curr[9], _r_prev, _r_curr, _delta]
+            (_adv_montes if _delta > 0 else _adv_descentes).append(_entry)
+    _adv_montes.sort(key=lambda x: -x[8])
+    _adv_descentes.sort(key=lambda x: x[8])
     _adv_montes_json    = json.dumps(_adv_montes,    ensure_ascii=False)
     _adv_descentes_json = json.dumps(_adv_descentes, ensure_ascii=False)
 
     # Clubs IDF — embed HTML files as srcdoc to work on any hosting
     _clubs_idf_files = [
-        'Dashboard_Clubs_75_V7.html',
-        'Dashboard_Clubs_77_V7.html',
-        'Dashboard_Clubs_78_V7.html',
-        'Dashboard_Clubs_91_V7.html',
-        'Dashboard_Clubs_92_V7.html',
-        'Dashboard_Clubs_93_V7.html',
-        'Dashboard_Clubs_94_V7.html',
-        'Dashboard_Clubs_95_V7.html',
+        'Dashboard_Clubs_75_V10.html',
+        'Dashboard_Clubs_77_V10.html',
+        'Dashboard_Clubs_78_V10.html',
+        'Dashboard_Clubs_91_V10.html',
+        'Dashboard_Clubs_92_V10.html',
+        'Dashboard_Clubs_93_V10.html',
+        'Dashboard_Clubs_94_V10.html',
+        'Dashboard_Clubs_95_V10.html',
+        'Dashboard_Clubs_FRANCE_V10.html',
+        'Dashboard_Clubs_Ligue_57_V10.html',
         'classement_77_HF_ADULTES_complet.html',
         'classement_77_HF_ALL_complet.html',
         'classement_77_HF_SENIORS_complet.html',
@@ -1352,6 +1361,13 @@ def generate_html(
                    background:#e74c3c; opacity:.55; pointer-events:none; z-index:5; }}
     /* ── Carte ────────────────────────────────────────────────────────────── */
     #view-map-wrap {{ position:relative; }}
+    /* ── Clubs IDF fullscreen ────────────────────────────────────────────── */
+    #view-clubs-idf.clubs-idf-fs {{
+      position:fixed !important; top:0; left:0; right:0; bottom:0;
+      z-index:9999; border-radius:0 !important; margin:0; padding:8px !important;
+      overflow:hidden; background:#fff;
+    }}
+    #view-clubs-idf.clubs-idf-fs #clubs-idf-frame {{ height:calc(100vh - 52px); }}
     #view-map {{ height:600px; border-radius:8px; overflow:hidden; }}
     #view-map-wrap.map-fs {{ position:fixed !important; top:0; left:0; right:0; bottom:0;
                              z-index:9999; background:#fff; padding:0; }}
@@ -1729,7 +1745,7 @@ def generate_html(
   </div>
 
   <!-- Onglets de vue -->
-  <div class="d-flex gap-2 mb-2 align-items-center">
+  <div id="view-tabs" class="d-flex gap-2 mb-2 align-items-center">
     <button class="btn btn-sm btn-primary view-tab" id="tab-table"
             onclick="showView('table')">📋 Tableau</button>
     <button class="btn btn-sm btn-outline-secondary view-tab" id="tab-cal"
@@ -2009,7 +2025,7 @@ def generate_html(
       <table id="dt-adv-montes" class="table table-striped table-hover table-sm" style="width:100%">
         <thead>
           <tr>
-            <th>Joueur</th><th>Class. (1ère renc.)</th><th>Mois (avril)</th><th>Club</th>
+            <th>Joueur</th><th>Avant</th><th>Maintenant</th><th>Club</th>
             <th style="display:none">_rc</th><th style="display:none">_rm</th><th style="display:none">_delta</th>
           </tr>
         </thead>
@@ -2022,7 +2038,7 @@ def generate_html(
       <table id="dt-adv-descentes" class="table table-striped table-hover table-sm" style="width:100%">
         <thead>
           <tr>
-            <th>Joueur</th><th>Class. (1ère renc.)</th><th>Mois (avril)</th><th>Club</th>
+            <th>Joueur</th><th>Avant</th><th>Maintenant</th><th>Club</th>
             <th style="display:none">_rc</th><th style="display:none">_rm</th><th style="display:none">_delta</th>
           </tr>
         </thead>
@@ -2033,24 +2049,31 @@ def generate_html(
 
   <!-- Vue Clubs IDF -->
   <div id="view-clubs-idf" style="display:none" class="bg-white rounded shadow-sm p-3">
-    <h5 class="mb-3">🏟️ Clubs Île-de-France</h5>
-    <div class="d-flex gap-2 mb-2 flex-wrap align-items-center">
-      <span class="text-muted small">Dashboards :</span>
-      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_75_V7.html',this)">Clubs 75</button>
-      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_77_V7.html',this)">Clubs 77</button>
-      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_78_V7.html',this)">Clubs 78</button>
-      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_91_V7.html',this)">Clubs 91</button>
-      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_92_V7.html',this)">Clubs 92</button>
-      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_93_V7.html',this)">Clubs 93</button>
-      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_94_V7.html',this)">Clubs 94</button>
-      <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_95_V7.html',this)">Clubs 95</button>
-    </div>
-    <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
-      <span class="text-muted small">Classements 77 :</span>
-      <button class="btn btn-sm btn-outline-success clubs-idf-btn" onclick="loadClubsFrame('classement_77_HF_ADULTES_complet.html',this)">Adultes</button>
-      <button class="btn btn-sm btn-outline-success clubs-idf-btn" onclick="loadClubsFrame('classement_77_HF_ALL_complet.html',this)">Tous</button>
-      <button class="btn btn-sm btn-outline-success clubs-idf-btn" onclick="loadClubsFrame('classement_77_HF_SENIORS_complet.html',this)">Seniors</button>
-      <button class="btn btn-sm btn-outline-success clubs-idf-btn" onclick="loadClubsFrame('classement_77_Jeunes_complet.html',this)">Jeunes</button>
+    <div id="clubs-idf-header">
+      <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+        <h5 class="mb-0">🏟️ Clubs Île-de-France</h5>
+        <button id="clubs-idf-fs-btn" class="btn btn-sm btn-outline-secondary ms-auto" onclick="toggleClubsIdfFs()">⛶ Plein écran</button>
+      </div>
+      <div class="d-flex gap-2 mb-2 flex-wrap align-items-center">
+        <span class="text-muted small">Dashboards :</span>
+        <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_75_V10.html',this)">Clubs 75</button>
+        <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_77_V10.html',this)">Clubs 77</button>
+        <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_78_V10.html',this)">Clubs 78</button>
+        <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_91_V10.html',this)">Clubs 91</button>
+        <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_92_V10.html',this)">Clubs 92</button>
+        <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_93_V10.html',this)">Clubs 93</button>
+        <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_94_V10.html',this)">Clubs 94</button>
+        <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_95_V10.html',this)">Clubs 95</button>
+        <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_Ligue_57_V10.html',this)">Ligue IDF</button>
+        <button class="btn btn-sm btn-outline-info clubs-idf-btn" onclick="loadClubsFrame('Dashboard_Clubs_FRANCE_V10.html',this)">France</button>
+      </div>
+      <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+        <span class="text-muted small">Classements 77 :</span>
+        <button class="btn btn-sm btn-outline-success clubs-idf-btn" onclick="loadClubsFrame('classement_77_HF_ADULTES_complet.html',this)">Adultes</button>
+        <button class="btn btn-sm btn-outline-success clubs-idf-btn" onclick="loadClubsFrame('classement_77_HF_ALL_complet.html',this)">Tous</button>
+        <button class="btn btn-sm btn-outline-success clubs-idf-btn" onclick="loadClubsFrame('classement_77_HF_SENIORS_complet.html',this)">Seniors</button>
+        <button class="btn btn-sm btn-outline-success clubs-idf-btn" onclick="loadClubsFrame('classement_77_Jeunes_complet.html',this)">Jeunes</button>
+      </div>
     </div>
     <iframe id="clubs-idf-frame" src="about:blank" style="width:100%;height:85vh;border:none;border-radius:6px;background:#f8f9fa" loading="lazy"></iframe>
   </div>
@@ -2976,6 +2999,16 @@ function showView(view) {{
 
 // ── Clubs IDF ────────────────────────────────────────────────────────────────
 var _CLUBS_IDF_DATA = {_clubs_idf_json};
+function toggleClubsIdfFs() {{
+  var $v   = $('#view-clubs-idf');
+  var isFs = $v.hasClass('clubs-idf-fs');
+  $v.toggleClass('clubs-idf-fs', !isFs);
+  $('#clubs-idf-header').toggle(isFs);  // hide buttons when fullscreen
+  $('#clubs-idf-fs-btn').text(isFs ? '⛶ Plein écran' : '✕ Quitter plein écran');
+  // hide/show the main nav bar
+  $('#filter-bar').toggle(isFs);
+  $('#view-tabs').toggle(isFs);
+}}
 function loadClubsFrame(filename, btn) {{
   var frame = document.getElementById('clubs-idf-frame');
   var content = _CLUBS_IDF_DATA[filename];
